@@ -79,9 +79,14 @@ def historico(n: int) -> list[dict]:
 def candidatos(est: dict, concluidas: set[str], hist: list[dict]) -> list[tuple[dict, float]]:
     recentes = {h["id"] for h in hist}
     ontem = hist[0]["categoria"] if hist else None
+    m = marte()
+    protege = m.get("obras_da_categoria", {})
     saida = []
-    for p in marte()["problemas"]:
+    for p in m["problemas"]:
         peso = float(p.get("peso", {}).get(est["id"], 1))
+        # obra da categoria pronta → esse tipo de problema fica mais raro (ex.: Extrator de Gelo → menos falta de água)
+        if p["categoria"] not in m.get("nao_protege", []) and protege.get(p["categoria"]) in concluidas:
+            peso *= float(m.get("fator_protecao", 0.4))
         if peso <= 0 or p["id"] in recentes or p["categoria"] == ontem:
             continue
         if p.get("requer") and p["requer"] not in concluidas:
@@ -110,8 +115,16 @@ def escolher(n: int, d: dict, hist: list[dict] | None = None) -> dict | None:
     else:
         f = rnd.choice(d["fundadores"])
         heroi = {"falado": f.get("falado", f["nome"]), "nome": f["curto"], "foco": f"fundador:{f['id']}"}
+    # lugar do problema: a obra ligada a ele, se já estiver pronta (ex.: radiação → Abrigo; água → Extrator)
+    alvo = p.get("alvo", "base")
+    for obra, lugar in p.get("alvo_com", {}).items():
+        if obra in concluidas:
+            alvo = lugar
+    obra_cat = marte().get("obras_da_categoria", {}).get(p["categoria"])
+    if alvo in ("base", "colonia") and obra_cat in concluidas:
+        alvo = f"obra:{obra_cat}"
     return {"id": p["id"], "categoria": p["categoria"], "titulo": p["titulo"],
-            "rotulo": marte()["categorias"][p["categoria"]], "alvo": p.get("alvo", "base"),
+            "rotulo": marte()["categorias"][p["categoria"]], "alvo": alvo,
             "alerta": rnd.choice(p["alerta"]), "solucao": rnd.choice(p["solucao"]), "heroi": heroi}
 
 

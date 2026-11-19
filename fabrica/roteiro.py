@@ -102,7 +102,8 @@ def fala_com_heroi(molde: str, heroi: dict, **campos) -> Fala:
     return f
 
 
-CAMERA_PROBLEMA = {"base": {"alvo": "base", "zoom": 5.0}, "colonia": {"alvo": "colonia", "zoom": 3.2}}
+CAMERA_PROBLEMA = {"base": {"alvo": "base", "zoom": 5.0}, "colonia": {"alvo": "colonia", "zoom": 3.2},
+                   "praca": {"alvo": "praca", "zoom": 5.0}}
 
 
 def camera_do_problema(alvo: str) -> dict:

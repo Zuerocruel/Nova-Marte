@@ -222,13 +222,18 @@ def registrar_publicacao(numero: int, titulo: str, obra_slug: str | None,
                      "atualizado_em": agora}
             if dias is not None:
                 corpo["dias"] = int(dias)
+            # upsert: obras novas do colonia.json ainda não têm linha na tabela (PATCH não faria nada)
+            nome = next((o["nome"] for o in config.colonia()["obras"] if o["slug"] == obra_slug), obra_slug)
+            linha = {"slug": obra_slug, "nome": nome, **corpo}
             try:
-                db.escrever("PATCH", "colonia_obras", {"slug": f"eq.{obra_slug}"}, corpo)
+                db.escrever("POST", "colonia_obras", {"on_conflict": "slug"}, linha,
+                            prefer="resolution=merge-duplicates,return=minimal")
             except requests.HTTPError:
-                if "dias" not in corpo:
+                if "dias" not in linha:
                     raise
-                corpo.pop("dias")       # sem a 005_obras_ritmo.sql: grava o resto
-                db.escrever("PATCH", "colonia_obras", {"slug": f"eq.{obra_slug}"}, corpo)
+                linha.pop("dias")       # sem a 005_obras_ritmo.sql: grava o resto
+                db.escrever("POST", "colonia_obras", {"on_conflict": "slug"}, linha,
+                            prefer="resolution=merge-duplicates,return=minimal")
                 print("aviso: rode supabase/migrations/005_obras_ritmo.sql para contar os dias de cada obra")
             print(f"obra {obra_slug} → {corpo['status']} ({progresso}%)")
         except TabelaAusente:

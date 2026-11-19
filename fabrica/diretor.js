@@ -363,6 +363,7 @@ function posAlvo(alvo, t) {
   const [tipo, id] = alvo.split(':');
   if (tipo === 'base') return centro(EP.mundo.base);
   if (tipo === 'obra') return centro((id && EP.mundo.obras.find((o) => o.slug === id)) || obraDaMissao());
+  if (tipo === 'praca' && EP.mundo.praca) return centro(EP.mundo.praca);
   if (tipo === 'colonia' || tipo === 'panorama') return caixaColonia();
   if (tipo === 'ator' || tipo === 'fundador') {
     const f = EP.mundo.fundadores.find((x) => x.id === id);
@@ -536,13 +537,144 @@ function desenharAntena(o, st, t) {
   if (st.energia && Math.floor(t * 2) % 2 === 0) ret(cx - 2, base - alt - 6, 4, 4, '#ff4d4d');
 }
 
+// ------------------------------------------------------------------ obras 4 a 10 (mesmo código no site e no vídeo)
+// Gerado a partir de um só texto: lib/colonia-arte.ts (TypeScript) e fabrica/diretor.js (sem os tipos).
+// O prédio sobe de baixo para cima conforme o progresso, com andaime enquanto não termina.
+const PR = (c, x, y, w, h, cor) => { c.fillStyle = cor; c.fillRect(Math.round(x), Math.round(y), w, h); };
+function PD(c, cx, cy, r, cor, ach = 1, metade = false) {
+  c.fillStyle = cor;
+  for (let dy = -r; dy <= (metade ? 0 : r); dy++) {
+    const w = Math.floor(Math.sqrt(r * r - dy * dy));
+    c.fillRect(Math.round(cx - w), Math.round(cy + dy * ach), 2 * w + 1, Math.max(1, Math.ceil(ach)));
+  }
+}
+function fumaca(c, x, y, t, n) {
+  for (let i = 0; i < n; i++) {
+    const k = (t * 0.5 + i / n) % 1;
+    c.globalAlpha = 0.55 * (1 - k);
+    PD(c, x + Math.sin(t * 2 + i) * 2, y - k * 18, 2 + Math.floor(k * 3), '#f3eefe');
+  }
+  c.globalAlpha = 1;
+}
+
+function predioEmObra(c, r, st, t, pintar) {
+  if (st.p <= 0) return;
+  const W = r.x1 - r.x0, H = r.y1 - r.y0;
+  PR(c, r.x0 + 1, r.y1 - 4, W - 2, 4, '#7a7f96');                       // fundação
+  const topo = r.y1 - Math.max(4, st.p * H);
+  c.save(); c.beginPath(); c.rect(r.x0 - 10, topo, W + 20, r.y1 - topo + 10); c.clip();
+  pintar(c, r, st, t);
+  c.restore();
+  if (st.p < 1) {                                                        // andaime
+    for (const x of [r.x0 + 1, r.x1 - 3]) PR(c, x, topo - 2, 2, r.y1 - topo + 2, '#6b4a2e');
+    PR(c, r.x0 + 1, topo - 2, W - 2, 2, '#ffc83d');
+    if (Math.floor(t * 4) % 2) PR(c, r.x0 + 4 + ((t * 30) % Math.max(1, W - 8)), topo - 4, 2, 2, '#ffe58a');
+  }
+}
+
+function pintarGelo(c, r, st, t) {
+  const x = r.x0, y = r.y0, cx = r.x0 + 50;
+  PR(c, x + 4, y + 16, 22, 28, '#9aa0b5'); PR(c, x + 6, y + 18, 18, 24, '#c9ced9');
+  if (st.energia) { PR(c, x + 6, y + 28 + Math.round(Math.sin(t * 2)), 18, 14, '#3fd0c9'); PR(c, x + 8, y + 30, 6, 1, '#8fe6ff'); }
+  PD(c, x + 15, y + 16, 11, '#e4e6f0', 0.35);
+  PR(c, x + 26, y + 36, 16, 3, '#6b6f86');
+  for (let k = 0; k < 34; k += 2) {
+    const w = 9 - k * 0.18;
+    PR(c, cx - w, y + 6 + k, 1, 2, '#9aa0b5'); PR(c, cx + w, y + 6 + k, 1, 2, '#9aa0b5');
+    if (k % 8 === 0) PR(c, cx - w, y + 6 + k, 2 * w, 1, '#6b6f86');
+  }
+  PR(c, cx - 4, y + 2, 8, 5, '#e2603b');
+  PR(c, cx - 7, r.y1 - 12, 14, 8, '#6b6f86');
+  if (st.energia) PR(c, cx - 1 + (Math.floor(t * 8) % 2), r.y1 - 4, 2, 4, '#ffc83d');
+}
+
+function pintarOxigenio(c, r, st, t) {
+  PR(c, r.x0 + 2, r.y1 - 8, r.x1 - r.x0 - 4, 3, '#6b6f86');
+  for (let i = 0; i < 3; i++) {
+    const x = r.x0 + 4 + i * 14;
+    PR(c, x, r.y0 + 14, 12, 28, '#e4e6f0'); PR(c, x + 1, r.y0 + 14, 2, 28, '#ffffff');
+    PR(c, x, r.y0 + 26, 12, 4, '#3fd0c9');
+    PD(c, x + 6, r.y0 + 14, 6, '#c9ced9', 0.4);
+    if (st.energia && Math.floor(t * 2 + i) % 3 === 0) PR(c, x + 5, r.y0 + 32, 2, 2, '#4ed37a');
+  }
+  if (st.energia) for (let i = 0; i < 3; i++) fumaca(c, r.x0 + 10 + i * 14, r.y0 + 10, t + i * 0.7, 3);
+}
+
+function pintarOficina(c, r, st, t) {
+  const x = r.x0, y = r.y0, W = r.x1 - r.x0;
+  PR(c, x + 4, y + 16, W - 8, 28, '#9aa0b5'); PR(c, x + 2, y + 10, W - 4, 7, '#6b6f86');
+  PR(c, x + 24, y + 22, 32, 22, '#2a2140');
+  const aberto = st.energia ? 0.45 + 0.15 * Math.sin(t * 0.8) : 0;
+  if (aberto) { c.globalAlpha = 0.5; PR(c, x + 26, r.y1 - 8, 28, 6, '#ffe58a'); c.globalAlpha = 1; }
+  const alt = Math.round(22 * (1 - aberto));
+  for (let k = 0; k < alt; k += 3) PR(c, x + 24, y + 22 + k, 32, 2, '#c9ced9');
+  PR(c, x + 8, y + 22, 11, 7, '#ffc83d'); PR(c, x + 10, y + 24, 7, 3, '#1b1530');
+  PR(c, x + 62, y + 22, 10, 8, st.energia ? '#ffe58a' : '#2b2350');
+}
+
+function pintarCantina(c, r, st, t) {
+  const cx = (r.x0 + r.x1) / 2, chao = r.y1 - 4;
+  PD(c, cx, chao, 24, '#6b6f86', 1, true); PD(c, cx, chao, 22, '#f4b46b', 1, true); PD(c, cx + 3, chao, 16, '#e89a55', 1, true);
+  for (const dx of [-14, -2, 10]) PR(c, cx + dx, chao - 12, 5, 5, st.energia ? '#ffe58a' : '#2b2350');
+  PR(c, cx - 4, chao - 9, 8, 9, '#3a2f63');
+  PR(c, cx + 12, r.y0 + 4, 4, 14, '#6b6f86');
+  if (st.energia) fumaca(c, cx + 14, r.y0 + 3, t, 3);
+}
+
+function pintarEnfermaria(c, r, st, t) {
+  const cx = (r.x0 + r.x1) / 2;
+  PR(c, r.x0 + 3, r.y0 + 12, 42, 32, '#b9bdcc'); PR(c, r.x0 + 4, r.y0 + 13, 40, 30, '#eef0f8');
+  PR(c, r.x0 + 2, r.y0 + 9, 44, 4, '#c9ced9');
+  PR(c, cx - 2, r.y0 + 16, 4, 12, '#e04f5f'); PR(c, cx - 6, r.y0 + 20, 12, 4, '#e04f5f');
+  PR(c, cx - 4, r.y1 - 13, 8, 11, '#3fd0c9');
+  if (st.energia && Math.floor(t * 1.5) % 2 === 0) PR(c, r.x1 - 9, r.y0 + 5, 4, 4, '#4ed37a');
+}
+
+function pintarAbrigo(c, r, st, t) {
+  const cx = (r.x0 + r.x1) / 2, W = r.x1 - r.x0;
+  for (let fila = 0; fila < 6; fila++) {
+    const y = r.y1 - 8 - fila * 6, larg = W - 4 - fila * 9, x0 = cx - larg / 2;
+    for (let x = x0; x < x0 + larg - 2; x += 8) {
+      PR(c, x, y, 8, 6, '#5e2c1b');
+      PR(c, x + 1, y + 1, 6, 4, (fila + Math.floor(x / 8)) % 2 ? '#a0613f' : '#b8754f');
+    }
+  }
+  PR(c, cx - 6, r.y1 - 13, 12, 13, '#2a2140');
+  for (let i = 0; i < 4; i++) PR(c, cx - 6 + i * 3, r.y1 - 16, 3, 3, i % 2 ? '#1b1530' : '#ffc83d');
+  PR(c, cx + 10, r.y0 + 6, 3, 8, '#6b6f86');
+  if (st.energia && Math.floor(t * 2) % 2 === 0) PR(c, cx + 10, r.y0 + 4, 3, 2, '#4ed37a');
+}
+
+function pintarLaboratorio(c, r, st, t) {
+  const x = r.x0, chao = r.y1 - 2;
+  PR(c, x + 4, chao - 14, 56, 14, '#c9ced9'); PR(c, x + 5, chao - 13, 54, 12, '#e4e6f0');
+  PD(c, x + 22, chao - 14, 16, '#eef0f8', 1, true);
+  c.globalAlpha = 0.75; PD(c, x + 22, chao - 14, 14, '#8fe6ff', 1, true); c.globalAlpha = 1;
+  PR(c, x + 15, chao - 22, 2, 2, '#ffffff');
+  PR(c, x + 47, chao - 30, 4, 16, '#9aa0b5');
+  PR(c, x + 42, chao - 36, 16, 6, '#6b6f86'); PR(c, x + 56, chao - 35, 3, 4, '#3fd0c9');
+  for (let i = 0; i < 5; i++) {
+    const aceso = st.energia && Math.floor(t * 3 + i * 1.7) % 3 === 0;
+    PR(c, x + 8 + i * 10, chao - 8, 3, 3, aceso ? (i % 2 ? '#4ed37a' : '#ffc83d') : '#6b6f86');
+  }
+}
+
+const PINTORES = {
+  gelo: pintarGelo, oxigenio: pintarOxigenio, oficina: pintarOficina, cantina: pintarCantina,
+  enfermaria: pintarEnfermaria, abrigo: pintarAbrigo, laboratorio: pintarLaboratorio,
+};
+
 function desenharObras(t) {
   for (const o of EP.mundo.obras) {
     if (o.status === 'planejada' && o.slug !== EP.missao_obra) continue;
     const st = progressoObra(o, t);
     if (o.tipo === 'solar') desenharSolar(o, st, t);
     else if (o.tipo === 'antena') desenharAntena(o, st, t);
-    else desenharEstufa(o, st, t);
+    else if (PINTORES[o.tipo]) {
+      const r = retanguloDe(o);
+      if (st.dem && st.p < 1) desenharDemarcacao(r, t);
+      predioEmObra(ctx, r, st, t, PINTORES[o.tipo]);
+    } else desenharEstufa(o, st, t);
   }
 }
 
@@ -705,7 +837,7 @@ function poeira(t) {
 }
 
 function alarme(t, cena) {   // luz vermelha pulsando durante o alerta do problema do dia
-  if (!cena || cena.tipo !== 'problema') return;
+  if (!cena || cena.tipo !== 'problema' || (cena.problema && cena.problema.categoria === 'descoberta')) return;
   const a = fadeCena(cena, t, 0.2, 0.4) * (0.10 + 0.10 * Math.max(0, Math.sin(t * 7)));
   ctx.globalAlpha = a;
   ret(0, 0, W, H, COR.alerta);
@@ -783,9 +915,11 @@ function cartao(cena, t, cam) {
   } else if (cena.tipo === 'problema' || cena.tipo === 'solucao') {
     const p = cena.problema || {};
     const ok = cena.tipo === 'solucao';
-    caixa(70, 236 - sobe, W - 140, 250, 0.9, ok ? COR.ok : COR.alerta);
-    const pisca = ok || Math.floor(t * 3) % 3 !== 0;   // aceso 2/3 do tempo
-    if (pisca) texto(ok ? 'RESOLVIDO!' : 'ALERTA!', W / 2, 296 - sobe, 40, ok ? COR.ok : COR.alerta);
+    caixa(70, 236 - sobe, W - 140, 250, 0.9, ok ? COR.ok : (p.categoria === 'descoberta' ? COR.agua : COR.alerta));
+    const desc = p.categoria === 'descoberta';
+    const pisca = ok || desc || Math.floor(t * 3) % 3 !== 0;   // aceso 2/3 do tempo
+    const titulo = desc ? (ok ? 'REGISTRADO!' : 'DESCOBERTA!') : (ok ? 'RESOLVIDO!' : 'ALERTA!');
+    if (pisca) texto(titulo, W / 2, 296 - sobe, 40, ok ? COR.ok : (desc ? COR.agua : COR.alerta));
     texto((p.rotulo || '').toUpperCase(), W / 2, 356 - sobe, 22, COR.areia, { contorno: false, maxW: W - 220 });
     texto((p.titulo || '').toUpperCase(), W / 2, 408 - sobe, 26, COR.texto, { contorno: false, maxW: W - 200 });
     if (ok && cena.heroi) texto(`POR ${cena.heroi.toUpperCase()}`, W / 2, 452 - sobe, 20, COR.ouro, { contorno: false });

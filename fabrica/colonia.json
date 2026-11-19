@@ -97,7 +97,140 @@
           { "fala": "Doutora Lia aponta o prato para um pontinho azul no céu: a Terra.", "acao": "construir", "camera": { "alvo": "ator:lia", "zoom": 8 }, "progresso": [0.7, 1] },
           { "fala": "Sinal recebido! A Operação Marte Zero está oficialmente no ar.", "acao": "ligar", "camera": { "alvo": "colonia", "zoom": 3.2 }, "progresso": [1, 1] }
         ],
-        "proxima": "uma nova obra"
+        "proxima": "o Extrator de Gelo"
+      }
+    },
+    {
+      "slug": "extrator-gelo",
+      "nome": "Extrator de Gelo",
+      "tipo": "gelo",
+      "x": -5, "y": -5, "w": 4, "h": 3,
+      "trabalho": 28,
+      "estado_inicial": { "status": "planejada", "progresso": 0 },
+      "missao": {
+        "titulo": "Água de Marte",
+        "proxima": "o Gerador de Oxigênio",
+        "cenas": [
+          {"fala": "Missão do Dia: construir o Extrator de Gelo. Embaixo da poeira de Marte tem água congelada, e ela vai ser nossa.", "acao": "apresentar", "camera": {"alvo": "obra", "zoom": 4.5}, "progresso": [0, 0]},
+          {"fala": "Comandante Vega marca o ponto onde o radar achou gelo a dois metros de profundidade.", "acao": "demarcar", "camera": {"alvo": "ator:vega", "zoom": 6.5}, "atores": {"vega": [-3.4, -1.4], "lia": [-5.0, -1.6]}, "progresso": [0, 0]},
+          {"fala": "A torre da broca sobe, e o motor começa a girar devagar.", "acao": "construir", "camera": {"alvo": "obra", "zoom": 6}, "progresso": [0, 0.6]},
+          {"fala": "Doutora Lia confere a primeira amostra: gelo limpo, sem sal tóxico.", "acao": "construir", "camera": {"alvo": "ator:lia", "zoom": 8}, "atores": {"lia": [-4.6, -1.8]}, "progresso": [0.6, 1]},
+          {"fala": "O tanque enche pela primeira vez. A colônia agora tira água do próprio planeta!", "acao": "ligar", "camera": {"alvo": "colonia", "zoom": 3.2}, "progresso": [1, 1]}
+        ]
+      }
+    },
+    {
+      "slug": "gerador-oxigenio",
+      "nome": "Gerador de Oxigênio",
+      "tipo": "oxigenio",
+      "x": 11, "y": -4, "w": 3, "h": 3,
+      "trabalho": 32,
+      "estado_inicial": { "status": "planejada", "progresso": 0 },
+      "missao": {
+        "titulo": "Respirar sem a Terra",
+        "proxima": "a Oficina dos Robôs",
+        "cenas": [
+          {"fala": "Missão do Dia: montar o Gerador de Oxigênio. O ar de Marte é quase todo gás carbônico, e a gente vai transformar isso em ar para respirar.", "acao": "apresentar", "camera": {"alvo": "obra", "zoom": 4.5}, "progresso": [0, 0]},
+          {"fala": "Comandante Vega puxa o cabo da Fazenda Solar até o terreno do gerador.", "acao": "demarcar", "camera": {"alvo": "ator:vega", "zoom": 6.5}, "atores": {"vega": [12.4, -0.6], "lia": [10.8, -0.8]}, "progresso": [0, 0]},
+          {"fala": "Os cilindros chegam um por um e são presos na base de concreto marciano.", "acao": "construir", "camera": {"alvo": "obra", "zoom": 6}, "progresso": [0, 0.6]},
+          {"fala": "Doutora Lia abre a primeira válvula e olha o medidor subir.", "acao": "construir", "camera": {"alvo": "ator:lia", "zoom": 8}, "atores": {"lia": [11.0, -0.8]}, "progresso": [0.6, 1]},
+          {"fala": "Oxigênio fabricado em Marte! Cada respiração agora é feita aqui mesmo.", "acao": "ligar", "camera": {"alvo": "colonia", "zoom": 3.2}, "progresso": [1, 1]}
+        ]
+      }
+    },
+    {
+      "slug": "oficina",
+      "nome": "Oficina dos Robôs",
+      "tipo": "oficina",
+      "x": -6, "y": -16, "w": 5, "h": 3,
+      "trabalho": 36,
+      "estado_inicial": { "status": "planejada", "progresso": 0 },
+      "missao": {
+        "titulo": "Robôs no turno da noite",
+        "proxima": "a Cantina Comunitária",
+        "cenas": [
+          {"fala": "Missão do Dia: levantar a Oficina dos Robôs. Máquina quebrada em Marte não tem assistência técnica.", "acao": "apresentar", "camera": {"alvo": "obra", "zoom": 4.5}, "progresso": [0, 0]},
+          {"fala": "Comandante Vega estica a lona da garagem para proteger as ferramentas da poeira.", "acao": "demarcar", "camera": {"alvo": "ator:vega", "zoom": 6.5}, "atores": {"vega": [-3.6, -12.4], "lia": [-5.4, -12.4]}, "progresso": [0, 0]},
+          {"fala": "Bancada, guincho e a impressora de peças: a oficina vai ficando completa.", "acao": "construir", "camera": {"alvo": "obra", "zoom": 6}, "progresso": [0, 0.6]},
+          {"fala": "Doutora Lia programa os robôs de carga para trabalhar enquanto a colônia dorme.", "acao": "construir", "camera": {"alvo": "ator:lia", "zoom": 8}, "atores": {"lia": [-4.6, -12.6]}, "progresso": [0.6, 1]},
+          {"fala": "Portão aberto! O primeiro robô sai da oficina, pronto para o turno da noite.", "acao": "ligar", "camera": {"alvo": "colonia", "zoom": 3.2}, "progresso": [1, 1]}
+        ]
+      }
+    },
+    {
+      "slug": "cantina",
+      "nome": "Cantina Comunitária",
+      "tipo": "cantina",
+      "x": 9, "y": 0, "w": 4, "h": 3,
+      "trabalho": 40,
+      "estado_inicial": { "status": "planejada", "progresso": 0 },
+      "missao": {
+        "titulo": "Primeiro almoço juntos",
+        "proxima": "a Enfermaria",
+        "cenas": [
+          {"fala": "Missão do Dia: construir a Cantina Comunitária, ao lado da praça. Colônia que come junto fica junto.", "acao": "apresentar", "camera": {"alvo": "obra", "zoom": 4.5}, "progresso": [0, 0]},
+          {"fala": "Comandante Vega mede o espaço das mesas: tem que caber todo mundo, e mais quem chegar.", "acao": "demarcar", "camera": {"alvo": "ator:vega", "zoom": 6.5}, "atores": {"vega": [11.2, 3.5], "lia": [9.6, 3.4]}, "progresso": [0, 0]},
+          {"fala": "O domo da cantina fecha, e a chaminé já solta o primeiro vapor.", "acao": "construir", "camera": {"alvo": "obra", "zoom": 6}, "progresso": [0, 0.6]},
+          {"fala": "Doutora Lia colhe as primeiras folhas da estufa para a salada.", "acao": "construir", "camera": {"alvo": "ator:lia", "zoom": 8}, "atores": {"lia": [10.0, 3.4]}, "progresso": [0.6, 1]},
+          {"fala": "Mesa posta! O primeiro almoço de Marte tem cheiro de casa.", "acao": "ligar", "camera": {"alvo": "colonia", "zoom": 3.2}, "progresso": [1, 1]}
+        ]
+      }
+    },
+    {
+      "slug": "enfermaria",
+      "nome": "Enfermaria",
+      "tipo": "enfermaria",
+      "x": -2, "y": 0, "w": 3, "h": 3,
+      "trabalho": 44,
+      "estado_inicial": { "status": "planejada", "progresso": 0 },
+      "missao": {
+        "titulo": "Ninguém fica para trás",
+        "proxima": "o Abrigo Antirradiação",
+        "cenas": [
+          {"fala": "Missão do Dia: erguer a Enfermaria, do outro lado da praça. Em Marte, o hospital mais perto fica a duzentos milhões de quilômetros.", "acao": "apresentar", "camera": {"alvo": "obra", "zoom": 4.5}, "progresso": [0, 0]},
+          {"fala": "Comandante Vega escolhe o lugar: perto de todo mundo e longe da poeira da obra.", "acao": "demarcar", "camera": {"alvo": "ator:vega", "zoom": 6.5}, "atores": {"vega": [-0.4, 3.5], "lia": [-1.8, 3.4]}, "progresso": [0, 0]},
+          {"fala": "Paredes brancas, porta selada e uma cruz vermelha que dá para ver de longe.", "acao": "construir", "camera": {"alvo": "obra", "zoom": 6}, "progresso": [0, 0.6]},
+          {"fala": "Doutora Lia organiza os remédios e testa o scanner médico.", "acao": "construir", "camera": {"alvo": "ator:lia", "zoom": 8}, "atores": {"lia": [-1.4, 3.6]}, "progresso": [0.6, 1]},
+          {"fala": "Enfermaria aberta! Daqui para a frente, ninguém na colônia fica sem cuidado.", "acao": "ligar", "camera": {"alvo": "colonia", "zoom": 3.2}, "progresso": [1, 1]}
+        ]
+      }
+    },
+    {
+      "slug": "abrigo",
+      "nome": "Abrigo Antirradiação",
+      "tipo": "abrigo",
+      "x": 0, "y": -20, "w": 4, "h": 3,
+      "trabalho": 52,
+      "estado_inicial": { "status": "planejada", "progresso": 0 },
+      "missao": {
+        "titulo": "Paredes de regolito",
+        "proxima": "o Laboratório de Pesquisa",
+        "cenas": [
+          {"fala": "Missão do Dia: cavar o Abrigo Antirradiação. Marte não tem campo magnético, e cada tempestade solar é um perigo.", "acao": "apresentar", "camera": {"alvo": "obra", "zoom": 4.5}, "progresso": [0, 0]},
+          {"fala": "Comandante Vega demarca o abrigo atrás da colina, longe do vento.", "acao": "demarcar", "camera": {"alvo": "ator:vega", "zoom": 6.5}, "atores": {"vega": [2.2, -16.4], "lia": [0.6, -16.4]}, "progresso": [0, 0]},
+          {"fala": "Os robôs empilham sacos de regolito, a areia de Marte, até a parede ficar com um metro de espessura.", "acao": "construir", "camera": {"alvo": "obra", "zoom": 6}, "progresso": [0, 0.6]},
+          {"fala": "Doutora Lia mede a radiação lá dentro: quase nada passa.", "acao": "construir", "camera": {"alvo": "ator:lia", "zoom": 8}, "atores": {"lia": [1.2, -16.6]}, "progresso": [0.6, 1]},
+          {"fala": "Abrigo pronto! Na próxima tempestade solar, a colônia inteira tem para onde correr.", "acao": "ligar", "camera": {"alvo": "colonia", "zoom": 3.2}, "progresso": [1, 1]}
+        ]
+      }
+    },
+    {
+      "slug": "laboratorio",
+      "nome": "Laboratório de Pesquisa",
+      "tipo": "laboratorio",
+      "x": 11, "y": -18, "w": 4, "h": 3,
+      "trabalho": 60,
+      "estado_inicial": { "status": "planejada", "progresso": 0 },
+      "missao": {
+        "titulo": "Estudar a fauna marciana",
+        "proxima": "uma nova obra",
+        "cenas": [
+          {"fala": "Missão do Dia: construir o Laboratório de Pesquisa. Besouros, vermes, lagartos: está na hora de entender quem mais mora em Marte.", "acao": "apresentar", "camera": {"alvo": "obra", "zoom": 4.5}, "progresso": [0, 0]},
+          {"fala": "Comandante Vega escolhe um lugar alto, com vista para as dunas onde a fauna aparece.", "acao": "demarcar", "camera": {"alvo": "ator:vega", "zoom": 6.5}, "atores": {"vega": [13.2, -14.4], "lia": [11.6, -14.4]}, "progresso": [0, 0]},
+          {"fala": "Domo, bancadas e um telescópio apontado para o horizonte.", "acao": "construir", "camera": {"alvo": "obra", "zoom": 6}, "progresso": [0, 0.6]},
+          {"fala": "Doutora Lia coloca a primeira amostra no microscópio e sorri.", "acao": "construir", "camera": {"alvo": "ator:lia", "zoom": 8}, "atores": {"lia": [12.0, -14.6]}, "progresso": [0.6, 1]},
+          {"fala": "Laboratório ligado! A ciência da Operação Marte Zero começa hoje.", "acao": "ligar", "camera": {"alvo": "colonia", "zoom": 3.2}, "progresso": [1, 1]}
+        ]
       }
     }
   ]

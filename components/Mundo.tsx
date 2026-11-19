@@ -154,7 +154,8 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
     const atualizar = () => {
       const e = estadoRef.current;
       const obra = e?.obras.find((o) => o.status !== 'concluida') ?? null;
-      const s = situacao(idDoCodigo(selecionado.codigo), Math.max(totalRef.current, 1), Date.now() / 1000, e?.praca ?? null, obra);
+      const cantina = e?.obras.find((o) => o.slug === 'cantina' && o.status === 'concluida') ?? null;
+      const s = situacao(idDoCodigo(selecionado.codigo), Math.max(totalRef.current, 1), Date.now() / 1000, e?.praca ?? null, obra, cantina);
       setFazendo(s.descricao((id) => nomes.current.get(id) ?? null));
     };
     atualizar();
@@ -219,6 +220,8 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
           ctx.drawImage(blocoTerreno(bx, by), bx * TB, by * TB, TB + 0.5, TB + 0.5);
 
       const obraAtual = e?.obras.find((o) => o.status !== 'concluida') ?? null;
+      const cantina = e?.obras.find((o) => o.slug === 'cantina' && o.status === 'concluida') ?? null;
+      const oficina = e?.obras.find((o) => o.slug === 'oficina' && o.status === 'concluida') ?? null;
       if (e) {
         desenharTrilha(ctx, e.base, CENTRO.y + 13);
         if (e.praca) desenharPraca(ctx, e.praca, t);
@@ -243,7 +246,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
           if (!ch || ch === 'carregando') continue;
           for (const p of ch.dados) {
             const id = idDoCodigo(p.codigo);
-            const s = situacao(id, Math.max(n, 1), agoraS, e?.praca ?? null, obraAtual);
+            const s = situacao(id, Math.max(n, 1), agoraS, e?.praca ?? null, obraAtual, cantina);
             const casaVisivel = p.pos_x >= vx0 - 1 && p.pos_x <= vx1 + 1 && p.pos_y >= vy0 - 1 && p.pos_y <= vy1 + 1;
             if (casaVisivel) casas.push(p);
             pessoas.push({ p, id, s });
@@ -283,6 +286,25 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
           },
         });
       });
+
+      // Oficina pronta: dois robôs de carga levam material da oficina até a obra do dia (ou até a base)
+      if (oficina && e) for (let i = 0; i < 2; i++) {
+        const de = { x: (oficina.x + oficina.w / 2) * CASA, y: (oficina.y + oficina.h) * CASA + 4 };
+        const para = obraAtual ? { x: (obraAtual.x + obraAtual.w / 2) * CASA + (i ? 10 : -10), y: (obraAtual.y + obraAtual.h) * CASA + 10 }
+          : { x: (e.base.x + e.base.w / 2) * CASA + (i ? 14 : -14), y: (e.base.y + e.base.h) * CASA + 6 };
+        const fase = ((agoraS + i * 11) / 26) % 1;
+        const k = fase < 0.45 ? suave(fase / 0.45) : fase < 0.55 ? 1 : 1 - suave((fase - 0.55) / 0.45);
+        const rx = lerp(de.x, para.x, k), ry = lerp(de.y, para.y, k), indo = fase < 0.5;
+        atores.push({
+          x: rx, y: ry,
+          desenha: () => {
+            ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(rx - 5, ry - 1, 10, 2);
+            ctx.save(); ctx.translate(Math.round(rx), Math.round(ry)); if ((para.x - de.x) * (indo ? 1 : -1) < 0) ctx.scale(-1, 1);
+            ctx.drawImage(spriteMapa('rover'), -5, -9, 10, 10); ctx.restore();
+            if (indo) { ctx.fillStyle = '#a0613f'; ctx.fillRect(rx - 2, ry - 11, 4, 3); }   // caixa de material
+          },
+        });
+      }
 
       // colonos (onde estão agora, segundo a rotina)
       for (const pe of pessoas) {

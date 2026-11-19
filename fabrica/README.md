@@ -34,6 +34,18 @@ Uma obra leva vários episódios. A cada episódio ela avança `população × p
 
 O título dos posts ganha "· dia 2", "· dia 3"… e, do episódio 2 em diante, o gancho e as legendas dizem que o episódio é diário. Cadastre novas obras em `colonia.json` antes que acabem: com 4 pessoas, as três atuais acabam no episódio 11.
 
+### As obras e o que cada uma muda
+
+Ordem em `colonia.json` (a primeira não concluída é a obra do dia): Fazenda Solar → Estufa → Antena → **Extrator de Gelo** (28) → **Gerador de Oxigênio** (32) → **Oficina dos Robôs** (36) → **Cantina Comunitária** (40) → **Enfermaria** (44) → **Abrigo Antirradiação** (52) → **Laboratório de Pesquisa** (60). Entre parênteses, o `trabalho`. Todas ficam no miolo da colônia, sem encostar no bairro.
+
+Quando uma obra fica pronta (`marte.json` → `obras_da_categoria`, `fator_protecao`, `alvo_com`):
+- Extrator de Gelo, Gerador de Oxigênio, Oficina e Laboratório deixam os problemas de água, oxigênio, manutenção e ataque mais raros (peso × 0,4), e a câmera do problema vai até a obra.
+- A Enfermaria libera a categoria **Saúde da colônia**, e o Laboratório libera a **Descoberta do dia** (cartão azul "DESCOBERTA!" no vídeo, sem luz de alarme).
+- O Abrigo vira o lugar da tempestade solar. Cada obra também tem problemas próprios (`requer`).
+- No Mundo ao vivo: com a Cantina pronta, os colonos almoçam juntos; com a Oficina pronta, dois robôs levam material até a obra do dia.
+
+O desenho das obras 4 a 10 é o mesmo no vídeo (`diretor.js`) e no site (`lib/colonia-arte.ts`): `PINTORES` e `predioEmObra` (o prédio sobe conforme o progresso, com andaime). Mudou um? Mude o outro.
+
 ### Clima de Marte e Problema do Dia
 
 Para os episódios diários não ficarem repetitivos, cada um tem (do episódio 2 em diante), além da obra:

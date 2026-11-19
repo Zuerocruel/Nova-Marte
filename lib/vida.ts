@@ -4,7 +4,8 @@
  * Tudo é função do relógio (Date.now) e do número do colono: quem abre o mapa no mesmo instante vê a
  * mesma cena, sem servidor de jogo. A cada RODADA os colonos formam duplas de vizinhos (o vizinho de
  * número ao lado mora na casa ao lado, pela espiral) e cada dupla sorteia o que fazer:
- *   visita (um vai à casa do outro) · praça (rodinha com quem estiver lá) · mutirão na obra do dia
+ *   visita (um vai à casa do outro) · praça (rodinha com quem estiver lá) · almoço na cantina (quando
+ *   ela fica pronta) · mutirão na obra do dia
  *   · passeio pelas ruas · ficar em casa. Quem fica sem dupla faz algo sozinho.
  * Andam pelas ruas do bairro (a cada 4 casas), conversam com balões e acenam.
  */
@@ -14,7 +15,7 @@ export const RODADA_S = 40;
 const CASA = 16;
 
 export type Lugar = { x: number; y: number; w: number; h: number };
-export type Tipo = 'casa' | 'recebe' | 'visita' | 'praca' | 'obra' | 'passeio';
+export type Tipo = 'casa' | 'recebe' | 'visita' | 'praca' | 'almoco' | 'obra' | 'passeio';
 export type Situacao = {
   x: number; y: number;          // pés do colono, em pixels do mundo
   andando: boolean; dir: 1 | -1;
@@ -27,6 +28,7 @@ const EMOTES: Record<Tipo, string[]> = {
   visita: ['👋', '💬', '😂', '❤️', '☕', '🎶', '🤝', '🍪'],
   recebe: ['👋', '💬', '😄', '☕', '🍪', '🎲'],
   praca: ['💬', '😂', '🎶', '🙌', '❤️', '⭐', '🗺️', '🚀'],
+  almoco: ['🍲', '🥗', '🍞', '🥤', '😋', '🍪', '💬'],
   obra: ['🔧', '💪', '⚙️', '🔩', '🧱'],
   passeio: ['👋', '🌄', '📸', '🙂'],
   casa: ['📖', '🍵', '🎮', '🌱', '💤'],
@@ -104,7 +106,8 @@ function aoLongo(pts: { x: number; y: number }[], k: number) {
 }
 
 /** Onde o colono vai passar a rodada. */
-function destino(id: number, tipo: Tipo, parceiro: number | null, k: number, praca: Lugar | null, obra: Lugar | null) {
+function destino(id: number, tipo: Tipo, parceiro: number | null, k: number, praca: Lugar | null, obra: Lugar | null,
+                 cantina: Lugar | null = null) {
   const casa = portaDe(id);
   if (tipo === 'visita' && parceiro) { const p = portaDe(parceiro); return { x: p.x + 9, y: p.y }; }
   const dupla = parceiro ? Math.min(id, parceiro) : id;
@@ -112,6 +115,10 @@ function destino(id: number, tipo: Tipo, parceiro: number | null, k: number, pra
   if (tipo === 'praca' && praca) {   // a praça e o largo em volta dela
     const r1 = h01(dupla, k, 11), r2 = h01(dupla, k, 12);
     return { x: (praca.x - 2.2 + r1 * (praca.w + 4.4)) * CASA + lado, y: (praca.y - 0.4 + r2 * (praca.h + 1.0)) * CASA };
+  }
+  if (tipo === 'almoco' && cantina) {   // nas mesas em frente à cantina
+    const r1 = h01(dupla, k, 13), r2 = h01(dupla, k, 14);
+    return { x: (cantina.x - 0.6 + r1 * (cantina.w + 1.2)) * CASA + lado, y: (cantina.y + cantina.h + 0.4 + r2 * 0.9) * CASA };
   }
   if (tipo === 'obra' && obra) {     // em volta da obra, nos 4 lados
     const r1 = h01(dupla, k, 21), lado4 = Math.floor(h01(dupla, k, 22) * 4), fora = 6 + h01(dupla, k, 23) * 8;
@@ -131,13 +138,16 @@ function destino(id: number, tipo: Tipo, parceiro: number | null, k: number, pra
 }
 
 export function situacao(id: number, total: number, agoraS: number,
-                         praca: Lugar | null, obra: (Lugar & { nome: string }) | null): Situacao {
+                         praca: Lugar | null, obra: (Lugar & { nome: string }) | null,
+                         cantina: Lugar | null = null): Situacao {
   const k = Math.floor(agoraS / RODADA_S);
   const f = (agoraS / RODADA_S) - k;
   let { tipo, parceiro } = tipoDaRodada(id, k, total);
   if (tipo === 'obra' && !obra) tipo = 'praca';
+  // com a Cantina pronta, metade dos encontros na praça vira almoço juntos
+  if (tipo === 'praca' && cantina && h01(parceiro ? Math.min(id, parceiro) : id, k, 55) < 0.5) tipo = 'almoco';
   const casa = portaDe(id);
-  const alvo = destino(id, tipo, parceiro, k, praca, obra);
+  const alvo = destino(id, tipo, parceiro, k, praca, obra, cantina);
   const sai = tipo !== 'casa' && tipo !== 'recebe';
 
   // cada dupla tem o seu horário dentro da rodada (senão todo mundo sai e volta no mesmo segundo)
@@ -155,7 +165,7 @@ export function situacao(id: number, total: number, agoraS: number,
   }
   if (tipo === 'recebe' && (f < chega || f >= volta)) ativo = false;   // a visita ainda não chegou / já foi
   if (!andando && parceiro && ativo) {                               // virados um para o outro
-    const outro = tipo === 'recebe' ? destino(parceiro, 'visita', id, k, praca, obra) : destino(parceiro, tipo, id, k, praca, obra);
+    const outro = tipo === 'recebe' ? destino(parceiro, 'visita', id, k, praca, obra, cantina) : destino(parceiro, tipo, id, k, praca, obra, cantina);
     dir = outro.x < x ? -1 : 1;
   }
 
@@ -170,11 +180,12 @@ export function situacao(id: number, total: number, agoraS: number,
 
   const descricao = (nome: (id: number) => string | null) => {
     const outro = parceiro ? (nome(parceiro) ?? `o vizinho NM${String(parceiro).padStart(6, '0')}`) : null;
-    if (andando) return f < 0.5 ? (tipo === 'visita' && outro ? `indo visitar ${outro}` : tipo === 'praca' ? 'indo para a praça' : tipo === 'obra' ? 'indo ajudar na obra' : 'passeando pelo bairro') : 'voltando para casa';
+    if (andando) return f < 0.5 ? (tipo === 'visita' && outro ? `indo visitar ${outro}` : tipo === 'praca' ? 'indo para a praça' : tipo === 'almoco' ? 'indo almoçar na cantina' : tipo === 'obra' ? 'indo ajudar na obra' : 'passeando pelo bairro') : 'voltando para casa';
     if (!ativo) return 'em casa';
     if (tipo === 'visita') return `visitando ${outro}`;
     if (tipo === 'recebe') return `recebendo a visita de ${outro}`;
     if (tipo === 'praca') return outro ? `na praça com ${outro}` : 'conversando na praça';
+    if (tipo === 'almoco') return outro ? `almoçando na cantina com ${outro}` : 'almoçando na cantina';
     if (tipo === 'obra') return `ajudando na obra${obra ? ` da ${obra.nome}` : ''}${outro ? ` com ${outro}` : ''}`;
     if (tipo === 'passeio') return outro ? `passeando com ${outro}` : 'passeando pelo bairro';
     return 'em casa';
