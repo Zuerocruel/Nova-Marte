@@ -1,4 +1,4 @@
-# NovaMarte
+# Operação Marte Zero
 
 Série em pixel art onde **cada seguidor vira um personagem**.
 Este repositório tem o site (cadastro + mundo ao vivo + loja), o banco, o painel e as integrações.

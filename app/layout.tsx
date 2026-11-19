@@ -6,10 +6,10 @@ import './globals.css';
 const pixel = Press_Start_2P({ weight: '400', subsets: ['latin'], variable: '--font-pixel', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: 'NovaMarte — vire um personagem',
+  title: 'Operação Marte Zero — vire um personagem',
   description: 'Cada seguidor vira um personagem em pixel art. Cadastre-se e encontre você no mundo.',
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
-  openGraph: { title: 'NovaMarte', description: 'Cada seguidor vira um personagem.' },
+  openGraph: { title: 'Operação Marte Zero', description: 'Cada seguidor vira um personagem.' },
 };
 
 export const viewport: Viewport = { themeColor: '#140f26', viewportFit: 'cover' };
@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR" className={pixel.variable}>
       <body>
         <header className="topo">
-          <Link href="/" className="logo">NOVAMARTE</Link>
+          <Link href="/" className="logo">OPERAÇÃO MARTE ZERO</Link>
           <nav>
             <Link href="/">Entrar</Link>
             <Link href="/mundo">Mundo</Link>
@@ -29,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </header>
         {children}
         <footer className="rodape">
-          NovaMarte · <Link href="/privacidade">Privacidade</Link>
+          Operação Marte Zero · <Link href="/privacidade">Privacidade</Link>
         </footer>
       </body>
     </html>

@@ -4,7 +4,7 @@ import { rotuloDe } from '@/lib/opcoes';
 import { atualizarAgora, atualizarPersonagem, lancarSeguidores, reprocessarWebhooks, revisarResgate } from './acoes';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Painel — NovaMarte', robots: { index: false } };
+export const metadata = { title: 'Painel — Operação Marte Zero', robots: { index: false } };
 
 type Linha = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const n = (v: unknown) => Number(v ?? 0).toLocaleString('pt-BR');

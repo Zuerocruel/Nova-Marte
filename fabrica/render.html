@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Operação Marte Zero · Filmagem</title>
+<style>
+  @font-face { font-family: "Press Start 2P"; src: url("fontes/PressStart2P-Regular.ttf") format("truetype"); }
+  html, body { margin: 0; background: #140f26; overflow: hidden; }
+  canvas { display: block; width: 1080px; height: 1920px; image-rendering: pixelated; }
+  /* força o download da fonte antes do primeiro quadro */
+  #pre { font-family: "Press Start 2P"; position: absolute; left: -9999px; }
+</style>
+</head>
+<body>
+<canvas id="tela" width="1080" height="1920"></canvas>
+<span id="pre">Operação Marte Zero ÃÇÉ</span>
+<script src="diretor.js"></script>
+</body>
+</html>

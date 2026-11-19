@@ -5,7 +5,7 @@
 -- Item grátis: resgate no próprio site (/resgatar/...), 1 por personagem — não passa pela Cakto
 insert into produtos (slug, nome, descricao, preco_centavos, tipo, checkout_url, ordem) values
   ('nomeie-sua-cratera', 'Nomeie sua Cratera',
-   'Grátis para quem já é personagem. Escolha o nome de uma cratera de NovaMarte. Vale 1 por pessoa.',
+   'Grátis para quem já é personagem. Escolha o nome de uma cratera da Operação Marte Zero. Vale 1 por pessoa.',
    0, 'gratis', null, 0)
 on conflict (slug) do update set
   nome = excluded.nome, descricao = excluded.descricao, preco_centavos = 0,

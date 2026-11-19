@@ -1,4 +1,4 @@
-export const metadata = { title: 'Privacidade — NovaMarte' };
+export const metadata = { title: 'Privacidade — Operação Marte Zero' };
 
 // MODELO — revise com um advogado antes de publicar e preencha os [colchetes].
 export default function Privacidade() {

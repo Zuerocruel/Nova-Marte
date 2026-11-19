@@ -1,6 +1,6 @@
 import Mundo from '@/components/Mundo';
 
-export const metadata = { title: 'Mundo ao vivo — NovaMarte' };
+export const metadata = { title: 'Mundo ao vivo — Operação Marte Zero' };
 
 export default async function MundoPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;

@@ -7,7 +7,7 @@ insert into links (slug, destino, plataforma, campanha, descricao) values
   ('ig-loja', '/loja', 'instagram', 'loja', 'Story / destaque da loja')
 on conflict (slug) do nothing;
 
-insert into episodios (numero, titulo) values (1, 'Pouso em NovaMarte')
+insert into episodios (numero, titulo) values (1, 'Pouso da Operação Marte Zero')
 on conflict (numero) do nothing;
 
 -- Produto de exemplo: crie o produto na Cakto, copie o link de checkout e o id

@@ -1,6 +1,6 @@
 import MeusItens from '@/components/MeusItens';
 
-export const metadata = { title: 'Meus itens — NovaMarte' };
+export const metadata = { title: 'Meus itens — Operação Marte Zero' };
 
 export default function MeusItensPage() {
   return (

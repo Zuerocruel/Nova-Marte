@@ -1,5 +1,5 @@
 -- =====================================================================
--- NovaMarte — esquema do banco (Supabase / Postgres)
+-- Operação Marte Zero — esquema do banco (Supabase / Postgres)
 -- Rode inteiro no Supabase → SQL Editor. É idempotente o suficiente
 -- para a primeira instalação; mudanças futuras vão em supabase/migrations/.
 -- =====================================================================

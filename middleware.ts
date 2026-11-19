@@ -20,7 +20,7 @@ export function middleware(req: NextRequest) {
     if (!ok) {
       return new NextResponse('Acesso restrito', {
         status: 401,
-        headers: { 'WWW-Authenticate': 'Basic realm="NovaMarte painel", charset="UTF-8"' },
+        headers: { 'WWW-Authenticate': 'Basic realm="Operacao Marte Zero painel", charset="UTF-8"' },
       });
     }
     return NextResponse.next();

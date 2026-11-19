@@ -266,10 +266,10 @@ export default function Mundo({ codigoInicial, novo }: { codigoInicial?: string;
         ) : <p className="mudo">Ninguém com esse nome ainda. <a href="/">Crie seu personagem</a>.</p>
       )}
 
-      {novo && selecionado && <p className="pixel" style={{ fontSize: 12, color: 'var(--areia)' }}>Bem-vindo a NovaMarte! Essa é a sua casa.</p>}
+      {novo && selecionado && <p className="pixel" style={{ fontSize: 12, color: 'var(--areia)' }}>Bem-vindo à Operação Marte Zero! Essa é a sua casa.</p>}
 
       <div className="mundo-palco">
-        <canvas ref={canvasRef} aria-label="Mapa do mundo NovaMarte. Arraste para andar, role para dar zoom." />
+        <canvas ref={canvasRef} aria-label="Mapa do mundo Operação Marte Zero. Arraste para andar, role para dar zoom." />
         {selecionado && (
           <div className="ficha">
             <strong>{selecionado.nome}</strong> · @{selecionado.handle} ({selecionado.plataforma})<br />

@@ -2,7 +2,7 @@ import { db } from '@/lib/supabase';
 import { reais } from '@/lib/texto';
 import { lerOpcoes } from '@/lib/opcoes';
 
-export const metadata = { title: 'Loja — NovaMarte' };
+export const metadata = { title: 'Loja — Operação Marte Zero' };
 export const revalidate = 60;
 
 type Produto = {

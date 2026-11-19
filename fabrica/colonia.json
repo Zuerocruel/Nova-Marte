@@ -1,0 +1,96 @@
+{
+  "_leia": "Mapa fixo da colônia (coordenadas em casas; y negativo fica ao norte das casas dos colonos, que começam em 0,0). As obras são feitas nesta ordem, uma Missão do Dia por episódio. O estágio de cada obra vem do Supabase (tabela colonia_obras); sem a tabela, vale o campo 'estado_inicial' daqui.",
+
+  "fundadores": [
+    { "id": "vega", "nome": "Comandante Vega", "curto": "Vega", "casa": [4.5, -5.6], "sprite": "vega" },
+    { "id": "lia",  "nome": "Dra. Lia",        "falado": "Doutora Lia", "curto": "Lia", "casa": [6.0, -5.6], "sprite": "lia" }
+  ],
+
+  "base": { "nome": "Módulo de Pouso", "x": 3, "y": -10, "w": 4, "h": 4 },
+
+  "obras": [
+    {
+      "slug": "fazenda-solar",
+      "nome": "Fazenda Solar",
+      "tipo": "solar",
+      "x": 10, "y": -11, "w": 6, "h": 5,
+      "estado_inicial": { "status": "em_obra", "progresso": 0 },
+      "missao": {
+        "titulo": "Construir a Fazenda Solar",
+        "cenas": [
+          {
+            "fala": "Missão do Dia: construir a Fazenda Solar. Sem energia, a colônia não passa da primeira noite.",
+            "acao": "apresentar",
+            "camera": { "alvo": "base", "zoom": 5.5 },
+            "progresso": [0, 0]
+          },
+          {
+            "fala": "Comandante Vega escolhe o terreno: uma planície aberta, com sol o dia inteiro.",
+            "acao": "demarcar",
+            "camera": { "alvo": "ator:vega", "zoom": 6.5 },
+            "atores": { "vega": [12.5, -5.4], "lia": [11.0, -5.2] },
+            "progresso": [0, 0]
+          },
+          {
+            "fala": "Doutora Lia confere os cálculos. Cada painel precisa ficar virado para o sol.",
+            "acao": "construir",
+            "camera": { "alvo": "ator:lia", "zoom": 8 },
+            "atores": { "lia": [10.4, -6.2] },
+            "progresso": [0, 0.3]
+          },
+          {
+            "fala": "Painel por painel, a fazenda vai tomando forma no meio da poeira vermelha.",
+            "acao": "construir",
+            "camera": { "alvo": "obra", "zoom": 5 },
+            "atores": { "vega": [16.6, -8.5], "lia": [9.4, -8.0] },
+            "progresso": [0.3, 1]
+          },
+          {
+            "fala": "Cabos conectados, sistema ligado... energia! A colônia da Operação Marte Zero agora tem luz própria.",
+            "acao": "ligar",
+            "camera": { "alvo": "colonia", "zoom": 3.2 },
+            "atores": { "vega": [7.4, -5.6], "lia": [8.6, -5.6] },
+            "progresso": [1, 1]
+          }
+        ],
+        "proxima": "a Estufa"
+      }
+    },
+    {
+      "slug": "estufa",
+      "nome": "Estufa Hidropônica",
+      "tipo": "estufa",
+      "x": -4, "y": -11, "w": 5, "h": 4,
+      "estado_inicial": { "status": "planejada", "progresso": 0 },
+      "missao": {
+        "titulo": "Plantar a primeira Estufa",
+        "cenas": [
+          { "fala": "Missão do Dia: erguer a Estufa Hidropônica. Energia já temos. Agora falta comida.", "acao": "apresentar", "camera": { "alvo": "obra", "zoom": 4.5 }, "progresso": [0, 0] },
+          { "fala": "Comandante Vega abre caminho até o terreno ao lado do módulo de pouso.", "acao": "demarcar", "camera": { "alvo": "ator:vega", "zoom": 6.5 }, "atores": { "vega": [-1.0, -6.0], "lia": [0.4, -5.8] }, "progresso": [0, 0] },
+          { "fala": "As paredes de vidro sobem uma a uma, seladas contra a poeira.", "acao": "construir", "camera": { "alvo": "obra", "zoom": 6 }, "progresso": [0, 0.6] },
+          { "fala": "Doutora Lia planta as primeiras sementes da Terra em solo marciano.", "acao": "construir", "camera": { "alvo": "ator:lia", "zoom": 8 }, "atores": { "lia": [-1.6, -7.2] }, "progresso": [0.6, 1] },
+          { "fala": "Água, luz e paciência. Em poucos dias, o primeiro verde de Marte.", "acao": "ligar", "camera": { "alvo": "colonia", "zoom": 3.2 }, "progresso": [1, 1] }
+        ],
+        "proxima": "a Antena de Comunicação"
+      }
+    },
+    {
+      "slug": "antena",
+      "nome": "Antena de Comunicação",
+      "tipo": "antena",
+      "x": 7, "y": -16, "w": 3, "h": 4,
+      "estado_inicial": { "status": "planejada", "progresso": 0 },
+      "missao": {
+        "titulo": "Falar com a Terra",
+        "cenas": [
+          { "fala": "Missão do Dia: montar a Antena de Comunicação. Está na hora de falar com a Terra.", "acao": "apresentar", "camera": { "alvo": "obra", "zoom": 4.5 }, "progresso": [0, 0] },
+          { "fala": "Comandante Vega sobe a colina mais alta perto da colônia.", "acao": "demarcar", "camera": { "alvo": "ator:vega", "zoom": 6.5 }, "atores": { "vega": [8.5, -11.6], "lia": [6.8, -11.2] }, "progresso": [0, 0] },
+          { "fala": "Peça por peça, a torre cresce em direção ao céu.", "acao": "construir", "camera": { "alvo": "obra", "zoom": 5.5 }, "progresso": [0, 0.7] },
+          { "fala": "Doutora Lia aponta o prato para um pontinho azul no céu: a Terra.", "acao": "construir", "camera": { "alvo": "ator:lia", "zoom": 8 }, "progresso": [0.7, 1] },
+          { "fala": "Sinal recebido! A Operação Marte Zero está oficialmente no ar.", "acao": "ligar", "camera": { "alvo": "colonia", "zoom": 3.2 }, "progresso": [1, 1] }
+        ],
+        "proxima": "uma nova obra"
+      }
+    }
+  ]
+}
