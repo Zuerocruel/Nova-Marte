@@ -59,6 +59,21 @@ def rx(*partes: str) -> re.Pattern:
     return re.compile("|".join(partes), re.I)
 
 
+# Qual tela do "Compartilhar" usar. No Instagram NUNCA a do Direct (vira mensagem) nem a do Story.
+COMPARTILHAR = {
+    # testado (Instagram 2026, Android 12): ShareHandlerActivity abre o editor de Reels com o vídeo;
+    # ReelShareHandlerActivity abre e cai no feed inicial.
+    "instagram": {"preferir": rx(r"\.ShareHandlerActivity$", r"clips"),
+                  "evitar": rx(r"\.direct\.", r"Direct", r"Story", r"ReelShareHandler")},
+    "tiktok": {"preferir": rx(r"share", r"system"), "evitar": None},
+}
+
+
+FINAL_RID = rx(r"share_button", r"publish", r"post_button", r"btn_post", r"submit", r"done_button")
+# tela de PUBLICAÇÃO (para as travas de tela): só o botão final de verdade. O "Seu Story" do TikTok
+# (rid tv_quick_publish) fica no editor: nunca é tocado (FINAL_RID), mas não quer dizer que já é a tela final.
+TELA_FINAL_RID = rx(r"share_button", r"post_button", r"btn_post")
+ESCOLHA_DESTINO = rx(r"^feed$", r"^publicação$", r"^post$", r"^reels?$", r"^story$", r"^stories$")
 AVANCAR = rx(r"^avançar$", r"^próximo$", r"^next$", r"^seguinte$")
 DISPENSAR = rx(r"^ok$", r"^entendi$", r"^continuar$", r"^agora não$", r"^not now$", r"^got it$",
                r"^fechar$", r"^close$", r"^pular$", r"^skip$", r"^ignorar$", r"^dispensar$", r"^dismiss$")
@@ -82,6 +97,8 @@ IG = {
 TT = {
     "popups": rx(r"\bnovidades?\b", r"novo recurso", r"what's new", r"\bdica\b", r"\btip\b"),   # busca no texto da tela inteira
     "campo": rx(r"descri", r"describe", r"adicione", r"add a"),
+    "folha_destino": rx(r"compartilhe no tiktok", r"share to tiktok"),
+    "escolher_video": rx(r"^vídeo$", r"^video$", r"^publicação$", r"^post$"),
     "final": rx(r"^publicar$", r"^post$", r"^postar$"),
     "sucesso": rx(r"publicad", r"\bposted\b", r"foi postado", r"has been posted"),
     "enviando": rx(r"enviando", r"uploading", r"publicando", r"posting", r"\d{1,3}\s?%"),
@@ -90,6 +107,14 @@ TT = {
 
 class Falha(Exception):
     pass
+
+
+class TelaMudou(Falha):
+    """A tela mudou entre a leitura e o toque: nada foi tocado, basta ler de novo."""
+
+
+BLOQUEIO_TOQUE = ("o celular bloqueou os toques vindos do PC (INJECT_EVENTS). Xiaomi/Redmi: Opções do desenvolvedor → "
+                  "ligue 'Depuração USB (configurações de segurança)'")
 
 
 # ------------------------------------------------------------------ ADB
@@ -128,6 +153,7 @@ class Celular:
         if not self.bin:
             raise Falha("ADB não encontrado. Instale com: winget install --id Google.PlatformTools -e  (ou defina ADB_PATH no .env)")
         self.serial = serial or os.environ.get("ADB_SERIAL") or None
+        self.ensaio = False
         self.log = log
 
     # comandos crus
@@ -139,7 +165,18 @@ class Celular:
 
     def sh(self, comando: str, timeout: int = 60) -> str:
         r = self.adb("shell", comando, timeout=timeout)
-        return (r.stdout or "") + (r.stderr or "")
+        out = (r.stdout or "") + (r.stderr or "")
+        if comando.startswith("input ") and "INJECT_EVENTS" in out:
+            raise Falha(BLOQUEIO_TOQUE)
+        return out
+
+    def toques_liberados(self) -> bool:
+        """A MIUI bloqueia toque/tecla vindos do PC sem 'Depuração USB (configurações de segurança)'."""
+        try:
+            self.sh("input keyevent 0")      # KEYCODE_UNKNOWN: não faz nada, só testa a permissão
+            return True
+        except Falha:
+            return False
 
     # aparelho
     def dispositivos(self) -> list[tuple[str, str]]:
@@ -198,11 +235,13 @@ class Celular:
         r = self.adb("push", str(local), destino, timeout=600)
         if r.returncode != 0:
             raise Falha(f"adb push falhou: {(r.stderr or r.stdout).strip()[:200]}")
-        self.sh(f"am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://{destino}")
+        # A galeria guarda o caminho real (/storage/emulated/0/...), não o atalho /sdcard/...
+        real = destino.replace("/sdcard/", "/storage/emulated/0/", 1)
+        self.sh(f"am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://{real}")
         uri = None
         for _ in range(20):
             out = self.sh(f"content query --uri content://media/external/video/media --projection _id "
-                          f"--where \"_data='{destino}'\"")
+                          f"--where \"_data='{real}' OR _data='{destino}'\"")
             m = re.search(r"_id=(\d+)", out)
             if m:
                 uri = f"content://media/external/video/media/{m.group(1)}"
@@ -234,9 +273,21 @@ class Celular:
             raise Falha(f"Clipper não confirmou a cópia: {out.strip()[:200]}")
         self.sh("input keyevent KEYCODE_HOME")
 
-    def atividade_compartilhar(self, pacote: str, preferir: re.Pattern | None) -> str | None:
+    def app_em_frente(self) -> str | None:
+        m = re.search(r"mCurrentFocus=Window\{\S+ \S+ ([\w.]+)/", self.sh("dumpsys window | grep mCurrentFocus"))
+        return m.group(1) if m else None
+
+    def le_videos(self, pacote: str) -> bool:
+        """O app pode ler os vídeos da galeria? (sem isso o Compartilhar abre e fecha na hora)"""
+        out = self.sh(f"dumpsys package {pacote}")
+        return bool(re.search(r"android\.permission\.(READ_MEDIA_VIDEO|READ_EXTERNAL_STORAGE): granted=true", out))
+
+    def atividade_compartilhar(self, pacote: str, preferir: re.Pattern | None,
+                               evitar: re.Pattern | None = None) -> str | None:
         out = self.sh(f"cmd package query-activities --components -a android.intent.action.SEND -t video/mp4 -p {pacote}")
         comps = [l.strip() for l in out.splitlines() if l.strip().startswith(pacote + "/")]
+        if evitar:
+            comps = [c for c in comps if not evitar.search(c)]
         if not comps:
             return None
         if preferir:
@@ -282,11 +333,28 @@ class Celular:
             raise Falha(f"trava: tentativa de tocar em '{rotulo}'")
         if rede == "tiktok" and STORY.search(rotulo):
             raise Falha(f"trava: nunca tocar em '{rotulo}' no TikTok")
-        if not final and (IG["final"].search(rotulo) or TT["final"].search(rotulo)):
-            raise Falha(f"trava: '{rotulo}' é o botão final e só pode ser tocado na etapa final")
+        if not final and (IG["final"].search(rotulo) or TT["final"].search(rotulo) or FINAL_RID.search(no.rid or "")):
+            raise Falha(f"trava: '{rotulo}' ({no.rid}) é o botão final e só pode ser tocado na etapa final")
+        if final and self.ensaio:
+            raise Falha("trava: ENSAIO nunca toca no botão final")
         x, y = no.centro
+        if not final:
+            self._conferir_ponto(no, rede)
         self.log(f"  toque: '{rotulo}' em ({x},{y})")
         self.sh(f"input tap {x} {y}")
+
+    def _conferir_ponto(self, no: No, rede: str) -> None:
+        """Lê a tela de novo e olha o que está no ponto do toque AGORA (a tela pode ter mudado desde a leitura).
+        Se ali houver um botão de publicar — pelo nome ou pela identificação — ou outro elemento, não toca."""
+        x, y = no.centro
+        agora = self.tela()
+        no_ponto = [n for n in agora if n.ativo and n.caixa[0] <= x <= n.caixa[2] and n.caixa[1] <= y <= n.caixa[3]]
+        for n in no_ponto:
+            if IG["final"].search(n.rotulo) or TT["final"].search(n.rotulo) or FINAL_RID.search(n.rid or "") \
+                    or PROIBIDO.search(n.rotulo) or (rede == "tiktok" and STORY.search(n.rotulo)):
+                raise Falha(f"trava: no ponto ({x},{y}) agora está '{n.rotulo}' ({n.rid}) — não toco")
+        if not any(n.rotulo == no.rotulo and n.rid == no.rid for n in no_ponto):
+            raise TelaMudou(f"a tela mudou antes do toque em '{no.rotulo}' — não toquei")
 
     def teclado_aberto(self) -> bool:
         return bool(re.search(r"mInputShown=true|isInputViewShown=true", self.sh("dumpsys input_method")))
@@ -316,14 +384,30 @@ def texto_da_tela(nos: list[No], sem_campos: bool = False) -> str:
                       if v and not (sem_campos and "EditText" in n.cls))
 
 
+CAIXA_TEXTO = re.compile(r"EditText|AutoCompleteTextView")
+
+
+def achar_campo(nos: list[No], padrao: re.Pattern) -> No | None:
+    """Campo de legenda/descrição: só caixa de texto (EditText), nunca botão com a mesma palavra."""
+    for n in nos:
+        if n.ativo and CAIXA_TEXTO.search(n.cls) and any(v and padrao.search(v.strip()) for v in (n.text, n.desc, n.rid)):
+            return n
+    return None
+
+
 def campo_editavel(nos: list[No]) -> No | None:
-    return next((n for n in nos if "EditText" in n.cls and n.ativo), None)
+    return next((n for n in nos if CAIXA_TEXTO.search(n.cls) and n.ativo), None)
+
+
+def simplificar(texto: str) -> str:
+    """Só letras e números simples, espaços únicos (emojis e pontuação variam no dump da tela)."""
+    simples = re.sub(r"[^A-Za-z0-9À-ÿ ]+", " ", texto or "")
+    return re.sub(r"\s+", " ", simples).strip()
 
 
 def assinatura_legenda(texto: str) -> str:
-    """Pedaço só com letras e números simples, para conferir se a cola funcionou (emojis variam no dump)."""
-    simples = re.sub(r"[^A-Za-z0-9À-ÿ ]+", " ", texto)
-    return re.sub(r"\s+", " ", simples).strip()[:24]
+    """Começo da legenda (24 caracteres simplificados), para conferir se a cola funcionou."""
+    return simplificar(texto)[:24]
 
 
 # ------------------------------------------------------------------ fluxo de uma rede
@@ -332,6 +416,7 @@ class Postagem:
         self.cel, self.rede, self.n, self.legenda, self.ensaio, self.log = cel, rede, numero, legenda, ensaio, log
         self.t = IG if rede == "instagram" else TT
         self.tocou_final = False
+        self.na_publicacao = False   # já viu a tela de publicação (campo de legenda / botão final)
         self.stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
 
     def evidencia(self, nome: str) -> str:
@@ -348,64 +433,134 @@ class Postagem:
         caminho, uri = cel.enviar_video(video)
         self.log(f"  na galeria: {caminho}")
         self.log("  copiando a legenda aprovada para a área de transferência…")
-        cel.copiar_texto(self.legenda)
-        comp = cel.atividade_compartilhar(pacote, rx(r"clips", r"reel") if rede == "instagram" else rx(r"share", r"system"))
+        cel.copiar_texto(self.legenda.rstrip() + " ")   # espaço final: não abre a lista de sugestões de #hashtag
+        comp = cel.atividade_compartilhar(pacote, **COMPARTILHAR[rede])
+        if not comp and rede == "instagram":
+            raise Falha("o Instagram não oferece a tela de Reels no Compartilhar (só Direct/Story) — nada foi postado")
         self.log(f"  abrindo pelo Compartilhar: {comp or pacote}")
         cel.compartilhar(uri, comp, pacote)
         time.sleep(4)
+        frente = cel.app_em_frente()
+        if frente and frente != pacote:
+            raise Falha(f"o {pub.ROTULOS[rede]} fechou o Compartilhar sem abrir o vídeo (em frente: {frente}). "
+                        "Ele tem permissão de Fotos e vídeos? Rode celular.py --checar")
         return self._navegar()
 
     def _navegar(self) -> str:
         cel, t = self.cel, self.t
-        colou, ultimos = False, []
+        colou, ultimos, toques = False, [], []
+
+        def repetido(no: No) -> None:
+            """Trava: 3 toques seguidos no mesmo botão sem a tela sair do lugar = algo errado."""
+            toques.append((no.rotulo, no.centro))
+            if len(toques) >= 3 and len(set(toques[-3:])) == 1:
+                raise Falha(f"toquei 3 vezes em '{no.rotulo}' {no.centro} e a tela não avançou")
+
         for passo in range(30):
-            nos = cel.tela()
-            tela = texto_da_tela(nos, sem_campos=True)
-            ultimos = (ultimos + [texto_da_tela(nos)])[-3:]
-            # 1) pop-ups (ex.: "Sobre o Reels") — dispensa antes de avançar
-            if t["popups"].search(tela) and (b := achar(nos, DISPENSAR)):
-                self.log("  pop-up detectado → dispensando")
-                cel.tocar(b, self.rede)
-                time.sleep(1.5)
-                continue
-            # 2) Instagram às vezes pergunta onde compartilhar (Feed / Reels / Story)
-            if self.rede == "instagram" and not colou and not achar(nos, t["campo"]) \
-                    and (r := achar(nos, t["escolher_reels"])) and not achar(nos, AVANCAR):
-                cel.tocar(r, self.rede)
-                time.sleep(2.5)
-                continue
-            # 3) tela final: campo de legenda/descrição + botão final
-            final = achar(nos, t["final"])
-            if not colou and (campo := achar(nos, t["campo"])):
-                cel.tocar(campo, self.rede)
-                time.sleep(1.0)
-                cel.sh("input keyevent 279")          # KEYCODE_PASTE
-                time.sleep(1.5)
-                if assinatura_legenda(self.legenda).lower() not in assinatura_legenda(texto_da_tela(cel.tela())).lower():
-                    raise Falha("a legenda não colou no campo (confira se o Clipper copiou)")
-                self.log("  legenda colada e conferida")
-                colou = True
-                if cel.teclado_aberto():
-                    cel.sh("input keyevent KEYCODE_BACK")   # fecha só o teclado
-                    time.sleep(1.0)
-                continue
-            if colou:
-                # depois de colar, o campo mostra a legenda (não mais "Escreva uma legenda…")
-                if final:
-                    return self._final(final)
-                if cel.teclado_aberto():
-                    cel.sh("input keyevent KEYCODE_BACK")
-                    time.sleep(1.0)
+            try:
+                nos = cel.tela()
+                tela = texto_da_tela(nos, sem_campos=True)
+                if campo_editavel(nos) or any(TELA_FINAL_RID.search(n.rid or "") for n in nos):
+                    self.na_publicacao = True
+                if not self.tocou_final and t["sucesso"].search(tela) and not achar_campo(nos, t["campo"]):
+                    self.evidencia("publicacao_inesperada")
+                    pub.marcar(self.n, self.rede, "conferir", origem="celular",
+                               detalhe=f"apareceu confirmação de publicação SEM toque final ({'ensaio' if self.ensaio else 'postagem'}): "
+                                       f"{tela[:150]}")
+                    raise Falha("PARADO: a tela mostrou confirmação de publicação sem o toque final. "
+                                "Rede travada como 'conferir' — veja o perfil antes de qualquer coisa")
+                ultimos = (ultimos + [texto_da_tela(nos)])[-3:]
+                # 1) pop-ups (ex.: "Sobre o Reels") — dispensa antes de avançar
+                if t["popups"].search(tela) and (b := achar(nos, DISPENSAR)):
+                    self.log("  pop-up detectado → dispensando")
+                    cel.tocar(b, self.rede)
+                    time.sleep(1.5)
                     continue
-                raise Falha("legenda colada, mas o botão final não apareceu")
-            # 4) avançar (editor de vídeo → próxima tela)
-            if (a := achar(nos, AVANCAR)):
-                cel.tocar(a, self.rede)
-                time.sleep(3.0)
+                # 2) Instagram às vezes pergunta onde compartilhar (Feed / Reels / Story)
+                #    Só vale se for MESMO a escolha (2+ opções escritas na tela), nunca o ícone Reels da barra de baixo.
+                opcoes = [n for n in nos if n.ativo and n.text and ESCOLHA_DESTINO.search(n.text.strip())
+                          and "tab" not in n.rid.lower()]
+                r = next((n for n in opcoes if t["escolher_reels"].search(n.text.strip())), None)
+                if self.rede == "instagram" and not colou and not achar_campo(nos, t["campo"]) \
+                        and len(opcoes) >= 2 and r and not achar(nos, AVANCAR):
+                    repetido(r)
+                    cel.tocar(r, self.rede)
+                    time.sleep(2.5)
+                    continue
+                # 2b) TikTok pergunta "Compartilhe no TikTok": Vídeo (post) ou Mensagem (DM) → sempre Vídeo
+                if self.rede == "tiktok" and not colou and t["folha_destino"].search(tela) \
+                        and (v := achar(nos, t["escolher_video"])):
+                    self.log("  TikTok perguntou o destino → Vídeo")
+                    repetido(v)
+                    cel.tocar(v, self.rede)
+                    time.sleep(3.0)
+                    continue
+                # 3) tela final: campo de legenda/descrição + botão final
+                final = achar(nos, t["final"])
+                if not colou and (campo := achar_campo(nos, t["campo"])):
+                    cel.tocar(campo, self.rede)
+                    # espera o teclado/campo ficar pronto (colar cedo demais não faz nada)
+                    for _ in range(10):
+                        time.sleep(0.5)
+                        if cel.teclado_aberto():
+                            break
+                    time.sleep(1.0)
+                    alvo = assinatura_legenda(self.legenda).lower()
+                    for tentativa in range(2):
+                        cel.sh("input keyevent 279")          # KEYCODE_PASTE
+                        colado = False
+                        for _ in range(8):
+                            time.sleep(0.75)
+                            if alvo in simplificar(texto_da_tela(cel.tela())).lower():
+                                colado = True
+                                break
+                        if colado:
+                            break
+                        # a lista de sugestões (#hashtag/@menção) cobre o campo na leitura da tela: fecha e confere de novo
+                        cel.sh("input keyevent KEYCODE_BACK")
+                        time.sleep(1.0)
+                        if alvo in simplificar(texto_da_tela(cel.tela())).lower():
+                            break
+                        if tentativa == 0:
+                            self.log("  a legenda ainda não apareceu no campo, colando de novo…")
+                            # se colou pela metade na 1ª vez, a 2ª duplicaria: só cola de novo com o campo vazio
+                            c = campo_editavel(cel.tela())
+                            if c and c.text and not self.t["campo"].search(c.text):
+                                raise Falha(f"o campo ficou com um texto diferente da legenda — não colo de novo "
+                                    f"(esperava {alvo!r}; no campo: {assinatura_legenda(c.text)!r} / {c.text[:80]!r})")
+                    else:
+                        raise Falha("a legenda não colou no campo (confira se o Clipper copiou)")
+                    self.log("  legenda colada e conferida")
+                    colou = True
+                    if cel.teclado_aberto():
+                        cel.sh("input keyevent KEYCODE_BACK")   # fecha só o teclado
+                        time.sleep(1.0)
+                    continue
+                if colou:
+                    # depois de colar, o campo mostra a legenda (não mais "Escreva uma legenda…")
+                    if final:
+                        return self._final(final)
+                    if cel.teclado_aberto():
+                        cel.sh("input keyevent KEYCODE_BACK")
+                        time.sleep(1.0)
+                        continue
+                    raise Falha("legenda colada, mas o botão final não apareceu")
+                # 4) avançar (editor de vídeo → próxima tela)
+                if (a := achar(nos, AVANCAR)):
+                    if campo_editavel(nos) or any(TELA_FINAL_RID.search(n.rid or "") for n in nos):
+                        raise Falha("trava: esta tela já é a de publicação (campo de legenda/botão final) — "
+                                    f"não toco em '{a.rotulo}'")
+                    repetido(a)
+                    cel.tocar(a, self.rede)
+                    time.sleep(3.0)
+                    continue
+                if len(ultimos) == 3 and len(set(ultimos)) == 1:
+                    raise Falha(f"tela parada sem botão conhecido: {tela[:300]}")
+                time.sleep(2.0)
+            except TelaMudou as e:
+                self.log(f"  {e}; lendo a tela de novo")
+                time.sleep(1.5)
                 continue
-            if len(ultimos) == 3 and len(set(ultimos)) == 1:
-                raise Falha(f"tela parada sem botão conhecido: {tela[:300]}")
-            time.sleep(2.0)
         raise Falha("passos demais sem chegar na tela final")
 
     def _final(self, botao: No) -> str:
@@ -453,7 +608,7 @@ class Postagem:
                 self.cel.tocar(d, self.rede)
                 time.sleep(1.2)
                 continue
-            if not achar(nos, self.t["campo"]) and not achar(nos, AVANCAR) and not achar(nos, self.t["final"]) \
+            if not achar_campo(nos, self.t["campo"]) and not achar(nos, AVANCAR) and not achar(nos, self.t["final"]) \
                     and not campo_editavel(nos):
                 break
             self.cel.sh("input keyevent KEYCODE_BACK")
@@ -479,12 +634,17 @@ def checar(serial: str | None = None) -> list[tuple[str, bool, str]]:
         return itens
     ok, motivo = cel.tela_desbloqueada()
     itens.append(("Tela", ok, motivo))
+    toques = cel.toques_liberados()
+    itens.append(("Toques pelo PC", toques, "liberados" if toques else BLOQUEIO_TOQUE))
     for rede in ("instagram", "tiktok"):
         p = cel.pacote_de(rede)
         itens.append((pub.ROTULOS[rede], bool(p), p or "não instalado"))
         if p:
-            comp = cel.atividade_compartilhar(p, None)
+            comp = cel.atividade_compartilhar(p, **COMPARTILHAR[rede])
             itens.append((f"{pub.ROTULOS[rede]}: Compartilhar", bool(comp), comp or "o app não aceita vídeo pelo Compartilhar"))
+            le = cel.le_videos(p)
+            itens.append((f"{pub.ROTULOS[rede]}: acesso a Fotos e vídeos", le, "permitido" if le else
+                          f"negado: Configurações → Apps → {pub.ROTULOS[rede]} → Permissões → Armazenamento (ou \"Fotos e vídeos\") → Permitir"))
     itens.append(("Clipper (área de transferência)", cel.pacote_instalado(CLIPPER), CLIPPER))
     return itens
 
@@ -494,6 +654,7 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
     tudo_ok = True
     with pub.trava_postagem("celular.py"):
         cel = Celular(serial, log=log)
+        cel.ensaio = ensaio          # trava no próprio toque: ensaio nunca toca no botão final
         cel.escolher_aparelho()
         for rede in redes:
             rot = pub.ROTULOS[rede]
@@ -515,7 +676,8 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
                     log(f"[{rot}] ✅ publicado")
             except Exception as e:  # noqa: BLE001
                 tudo_ok = False
-                if p.tocou_final:
+                if p.tocou_final or (p.na_publicacao and not ensaio):
+                    # chegou na tela de publicação e falhou: não dá para garantir que não publicou → nunca "pode tentar"
                     pub.marcar(numero, rede, "conferir", origem="celular", detalhe=str(e)[:300])
                     log(f"[{rot}] ⚠ CONFERIR no app: {e}. Não vou tentar de novo sozinho.")
                 else:

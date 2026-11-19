@@ -37,11 +37,14 @@ O log aparece ao vivo na **Fila de produção**. O status de cada rede aparece n
 3. Em Opções do desenvolvedor, ligue:
    - **Depuração USB**;
    - **Permanecer ativo**, para a tela não apagar no cabo;
-   - em Xiaomi/Redmi, também **Depuração USB (configurações de segurança)**.
+   - em Xiaomi/Redmi, também **Depuração USB (configurações de segurança)**. Sem ela, a MIUI ignora os toques vindos do PC (o `--checar` mostra ❌ em "Toques pelo PC").
 4. Conecte no USB e aceite **"Permitir depuração USB"** no celular (marque "sempre permitir").
-5. Instale o app **Clipper** (`ca.zgrs.clipper`). Ele é o que põe a legenda com emojis na área de transferência do Android. Se não estiver na Play Store, instale o APK do projeto oficial: `adb install clipper.apk`.
+5. Instale o app **Clipper** (`ca.zgrs.clipper`). Ele é o que põe a legenda com emojis na área de transferência do Android. Ele não está na Play Store: use o APK do projeto oficial (github.com/majido/clipper, release v1.2.1, 10.143 bytes, não pede nenhuma permissão).
+   - Se o `adb install clipper.apk` falhar no Xiaomi (`VERIFICATION_FAILURE` ou `USER_RESTRICTED`), ligue **Instalar via USB** nas Opções do desenvolvedor. Também dá para copiar o APK para a pasta Download do celular (`adb push clipper.apk /sdcard/Download/`) e instalar tocando nele pelo Gerenciador de arquivos.
+   - Abra o Clipper uma vez depois de instalar.
 6. Deixe o Instagram e o TikTok **logados** na conta da série.
-7. Teste com `python producao/celular.py --checar`. Tudo precisa aparecer com ✅.
+7. Dê aos dois apps a permissão **Armazenamento** (ou "Fotos e vídeos"): Configurações → Apps → Instagram/TikTok → Permissões. Sem ela, o app abre o Compartilhar e fecha na hora, sem mostrar o vídeo.
+8. Teste com `python producao/celular.py --checar`. Tudo precisa aparecer com ✅.
 
 ### Calibrar (obrigatório antes da primeira postagem de verdade)
 Os botões do Instagram e do TikTok mudam de nome conforme a versão e o idioma do app. O script procura os nomes mais comuns em português e inglês, mas **só foi testado com telas simuladas**.
