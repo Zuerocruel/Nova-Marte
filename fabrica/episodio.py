@@ -203,7 +203,7 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
 
 
 def registrar_publicacao(numero: int, titulo: str, obra_slug: str | None,
-                         progresso: int = 100, dias: int | None = None) -> None:
+                         progresso: int = 100, dias: int | None = None, resumo: dict | None = None) -> None:
     """Marca o episódio como publicado (vira o ponto de corte do próximo) e grava até onde a obra chegou.
     progresso/dias vêm do roteiro (obra_progresso / obra_dia): a obra só fica concluída quando chega a 100."""
     db = Supabase()
@@ -212,6 +212,8 @@ def registrar_publicacao(numero: int, titulo: str, obra_slug: str | None,
                 {"numero": numero, "titulo": titulo, "publicado_em": agora},
                 prefer="resolution=merge-duplicates,return=representation")
     print(f"episódio {numero} marcado como publicado em {agora}")
+    if resumo:
+        registrar_resumo(db, numero, resumo)
     if obra_slug:
         try:
             progresso = max(0, min(100, int(progresso)))
@@ -230,6 +232,28 @@ def registrar_publicacao(numero: int, titulo: str, obra_slug: str | None,
             print(f"obra {obra_slug} → {corpo['status']} ({progresso}%)")
         except TabelaAusente:
             print("aviso: rode supabase/migrations/004_colonia_obras.sql para guardar o estágio das obras")
+
+
+def registrar_resumo(db: Supabase, numero: int, resumo: dict) -> None:
+    """Site ("Mundo ao vivo" e perfis): estação/temperatura e problema do dia + feito do herói."""
+    try:
+        db.escrever("PATCH", "episodios", {"numero": f"eq.{numero}"}, {"resumo": resumo}, prefer="return=minimal")
+    except requests.HTTPError:
+        print("aviso: rode supabase/migrations/006_perfil_chat.sql para o site mostrar a estação e o problema do dia")
+        return
+    p = resumo.get("problema") or {}
+    if not p.get("heroi_codigo"):
+        return
+    linhas = db.get("personagens", {"select": "id", "codigo": f"eq.{p['heroi_codigo']}", "limit": 1})
+    if not linhas:
+        return
+    try:
+        db.escrever("POST", "feitos", {"on_conflict": "personagem_id,tipo,episodio"},
+                    {"personagem_id": linhas[0]["id"], "tipo": "heroi", "titulo": p["titulo"], "episodio": numero},
+                    prefer="resolution=ignore-duplicates,return=minimal")
+        print(f"feito: {p['heroi']} ({p['heroi_codigo']}) resolveu \"{p['titulo']}\"")
+    except (requests.HTTPError, TabelaAusente):
+        print("aviso: tabela feitos ausente (migração 006)")
 
 
 def resumo(d: dict) -> str:
@@ -261,7 +285,8 @@ if __name__ == "__main__":
         r = config.ler_json(rot) if rot.exists() else {}
         obra = a.obra or r.get("missao_obra")
         titulo = a.titulo or r.get("titulo") or f"Episódio {n}"
-        registrar_publicacao(n, titulo, obra, progresso=(r.get("obra_progresso") or [0, 100])[1], dias=r.get("obra_dia"))
+        registrar_publicacao(n, titulo, obra, progresso=(r.get("obra_progresso") or [0, 100])[1], dias=r.get("obra_dia"),
+                             resumo={k: r.get(k) for k in ("estacao", "problema") if r.get(k)} or None)
     elif a.episodio:
         d = coletar(a.episodio, a.so_fundadores)
         config.gravar_json(config.pasta_episodio(a.episodio) / "dados.json", d)

@@ -1,7 +1,7 @@
 import { db } from '@/lib/supabase';
 import { reais } from '@/lib/texto';
 import { rotuloDe } from '@/lib/opcoes';
-import { atualizarAgora, atualizarPersonagem, lancarSeguidores, reprocessarWebhooks, revisarResgate } from './acoes';
+import { atualizarAgora, atualizarPersonagem, lancarSeguidores, moderarChat, reprocessarWebhooks, revisarResgate } from './acoes';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Painel — Operação Marte Zero', robots: { index: false } };
@@ -18,7 +18,7 @@ async function q(view: string, limite = 50): Promise<Linha[]> {
 }
 
 export default async function Painel() {
-  const [[k], diarios, origens, funil, produtos, seguidores, status, recentes, pendentesWebhook, resgatesPendentes, pedidos] = await Promise.all([
+  const [[k], diarios, origens, funil, produtos, seguidores, status, recentes, pendentesWebhook, resgatesPendentes, pedidos, chat] = await Promise.all([
     q('v_kpis', 1),
     q('v_cadastros_diarios', 30),
     q('v_origens', 30),
@@ -37,6 +37,9 @@ export default async function Painel() {
     db().from('pedidos')
       .select('id, status, valor_centavos, opcao, texto_personalizado, cliente_nome, created_at, produtos(nome, opcoes), personagens(codigo)')
       .order('id', { ascending: false }).limit(30).then((r) => (r.data ?? []) as Linha[]),
+    db().from('chat_mensagens')                       // vazio se a migração 006 ainda não rodou
+      .select('id, texto, oculto, created_at, personagens(codigo, nome, oculto)')
+      .order('id', { ascending: false }).limit(40).then((r) => (r.data ?? []) as Linha[]),
   ]);
 
   const totalSeguidores = seguidores.reduce((s, x) => s + Number(x.seguidores), 0);
@@ -209,6 +212,33 @@ export default async function Painel() {
           <button className="btn sec">Reprocessar</button>
         </form>
       )}
+
+      <h2>Rádio da colônia (chat)</h2>
+      {chat.length ? (
+        <div className="tabela-rola">
+          <table className="tabela">
+            <thead><tr><th>Quando</th><th>Colono</th><th>Mensagem</th><th>Moderação</th></tr></thead>
+            <tbody>
+              {chat.map((m) => (
+                <tr key={m.id} style={m.oculto || m.personagens?.oculto ? { opacity: 0.45 } : undefined}>
+                  <td>{new Date(m.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</td>
+                  <td><a href={`/colono/${m.personagens?.codigo}`}>{m.personagens?.nome}</a> <span className="mudo">{m.personagens?.codigo}</span></td>
+                  <td>{m.texto}{m.oculto ? <span className="mudo"> (apagada)</span> : null}{m.personagens?.oculto ? <span className="mudo"> (colono oculto)</span> : null}</td>
+                  <td>
+                    <form action={moderarChat} className="form-inline">
+                      <input type="hidden" name="id" value={m.id} />
+                      {m.oculto
+                        ? <button className="btn sec" name="acao" value="restaurar">Restaurar</button>
+                        : <button className="btn sec" name="acao" value="apagar">Apagar</button>}
+                      {!m.personagens?.oculto && <button className="btn sec" name="acao" value="banir" title="Oculta o colono: some do mapa e do chat">Ocultar colono</button>}
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : <p className="mudo">Nenhuma mensagem ainda (ou a migração 006_perfil_chat.sql ainda não foi rodada).</p>}
 
       <h2>Produção de personagens</h2>
       <p>

@@ -316,7 +316,8 @@ def montar(d: dict) -> dict:
         "obra_dia": dia,
         "obra_concluida": concluida,
         "estacao": {"id": est["id"], "nome": est["nome"], "falado": est["falado"], "dia": dia_est, "temp": temp, "efeito": est["efeito"]},
-        "problema": ({k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")} | {"heroi": problema["heroi"]["nome"]})
+        "problema": ({k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")}
+                     | {"heroi": problema["heroi"]["nome"], "heroi_codigo": problema["heroi"].get("colono")})
                     if problema else None,
         "cenas": cenas,
     }

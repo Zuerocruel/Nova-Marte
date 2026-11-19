@@ -76,3 +76,18 @@ export async function reprocessarWebhooks() {
   }
   revalidatePath('/painel');
 }
+
+/** Moderação do rádio da colônia: apagar uma mensagem ou ocultar o colono (some do mapa e do chat). */
+export async function moderarChat(form: FormData) {
+  await exigirLogin();
+  const id = Number(form.get('id'));
+  const acao = String(form.get('acao') ?? '');
+  if (!id) return;
+  if (acao === 'apagar') await db().from('chat_mensagens').update({ oculto: true }).eq('id', id);
+  if (acao === 'restaurar') await db().from('chat_mensagens').update({ oculto: false }).eq('id', id);
+  if (acao === 'banir') {
+    const { data } = await db().from('chat_mensagens').select('personagem_id').eq('id', id).maybeSingle();
+    if (data) await db().from('personagens').update({ oculto: true }).eq('id', data.personagem_id);
+  }
+  revalidatePath('/painel');
+}

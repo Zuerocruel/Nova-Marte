@@ -96,6 +96,54 @@ input:focus, select:focus { outline: 3px solid var(--agua); outline-offset: 0; }
 }
 .ticker { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--texto-2); margin-top: 12px; }
 
+/* mundo ao vivo + rádio */
+.wrap-largo { max-width: 1320px; }
+.mundo-vivo { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+@media (max-width: 960px) { .mundo-vivo { grid-template-columns: 1fr; } }
+.hud-vivo { position: absolute; left: 10px; top: 10px; right: 64px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+.hud-vivo a { pointer-events: auto; }
+.selo, .selo-vivo {
+  font-family: var(--pixel); font-size: 9px; line-height: 1.6; color: var(--areia);
+  background: #140f26d9; border: 3px solid var(--borda); padding: 4px 8px;
+}
+.selo-ok { color: var(--ok); border-color: #2f7a4c; font-family: system-ui, sans-serif; font-size: 12px; }
+.selo-vivo { color: #fff; border-color: #a83d22; display: inline-flex; gap: 6px; align-items: center; }
+.selo-vivo i { width: 8px; height: 8px; background: #ff4d4d; display: inline-block; animation: pisca 1.2s steps(2) infinite; }
+@keyframes pisca { 50% { opacity: .15; } }
+@media (prefers-reduced-motion: reduce) { .selo-vivo i { animation: none; } }
+.zoom-botoes { position: absolute; right: 10px; top: 10px; display: grid; gap: 6px; }
+.zoom-botoes button {
+  width: 40px; height: 40px; font: 18px/1 var(--pixel); color: var(--texto); cursor: pointer;
+  background: #140f26d9; border: 3px solid var(--borda);
+}
+.zoom-botoes button:hover { border-color: var(--agua); }
+.chat { padding: 14px; display: flex; flex-direction: column; }
+.chat-lista { list-style: none; margin: 0 0 10px; padding: 0 4px 0 0; height: min(60vh, 560px); overflow-y: auto; display: grid; align-content: start; gap: 10px; }
+.chat-lista li { display: grid; grid-template-columns: 24px 1fr; gap: 8px; font-size: 14px; }
+.chat-lista li p { margin: 2px 0 0; overflow-wrap: anywhere; }
+.chat-lista li.mudo { display: block; }
+@media (max-width: 960px) { .chat-lista { height: min(42vh, 380px); } }
+.chat-lista li.minha p { color: var(--areia); }
+.chat-avatar { width: 24px; height: 24px; image-rendering: pixelated; background: var(--ceu); }
+.chat-nome { font-weight: 600; text-decoration: none; }
+.chat-hora { color: var(--texto-2); font-size: 11px; }
+.chat-envio { display: flex; flex-wrap: wrap; gap: 8px; }
+.chat-envio input { flex: 1 1 160px; }
+.chat-envio .btn { padding: 10px 12px; }
+.link { all: unset; color: var(--agua); cursor: pointer; text-decoration: underline; }
+
+/* perfil */
+.perfil-topo { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+.selo-meu { font-family: var(--pixel); font-size: 10px; color: var(--ok); align-self: center; }
+.perfil-numeros { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; margin-top: 24px; }
+.perfil-numeros .caixa { padding: 14px; }
+.conquistas { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.conquistas li { display: grid; gap: 4px; padding: 12px; background: var(--ceu-2); border: 3px solid var(--borda); font-size: 14px; }
+.conquistas li.tem { border-color: var(--ouro, #ffc83d); }
+.conquistas li.falta { opacity: .45; filter: grayscale(1); }
+.conquista-icone { font-size: 26px; }
+.lista-simples { padding-left: 18px; }
+
 /* painel */
 .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
 .kpi { padding: 16px; }

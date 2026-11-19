@@ -761,7 +761,8 @@ def _registrar(job: Job, n: int) -> None:
     pasta = config.pasta_episodio(n)
     rot = config.ler_json(pasta / "roteiro.json")
     episodio.registrar_publicacao(n, rot["titulo"], rot.get("missao_obra"),
-                                  progresso=(rot.get("obra_progresso") or [0, 100])[1], dias=rot.get("obra_dia"))
+                                  progresso=(rot.get("obra_progresso") or [0, 100])[1], dias=rot.get("obra_dia"),
+                                  resumo={k: rot.get(k) for k in ("estacao", "problema") if rot.get(k)} or None)
     job.log(f"episódio {n} registrado como publicado no Supabase")
     ep_id = db().get("episodios", {"select": "id", "numero": f"eq.{n}"})[0]["id"]
     for plat, info in copies.PLATAFORMAS.items():

@@ -3,6 +3,7 @@ import { db } from '@/lib/supabase';
 import { COOKIE_FT, COOKIE_LT, COOKIE_VID, lerToque } from '@/lib/origem';
 import { normalizarBusca, normalizarHandle, normalizarWhatsapp } from '@/lib/texto';
 import { ipDe, permitido } from '@/lib/limite';
+import { gravarSessao } from '@/lib/sessao';
 
 const PLATAFORMAS = ['instagram', 'tiktok', 'youtube'];
 
@@ -64,14 +65,21 @@ export async function POST(req: NextRequest) {
     if (error.code === '23505') {
       // já existe: mesmo WhatsApp ou mesmo @ — devolve o personagem existente
       const { data: existente } = await db()
-        .from('personagens').select('codigo')
+        .from('personagens').select('codigo, whatsapp')
         .or(`whatsapp.eq."${whatsapp}",and(handle.eq."${handle}",handle_plataforma.eq.${plataforma})`)
         .limit(1).maybeSingle();
-      if (existente) return NextResponse.json({ codigo: existente.codigo, jaExistia: true });
+      if (existente) {
+        const res = NextResponse.json({ codigo: existente.codigo, jaExistia: true });
+        // só entra na conta se o WhatsApp for o MESMO do cadastro (achar pelo @ não basta: o @ é público)
+        if (existente.whatsapp === whatsapp) gravarSessao(res, existente.codigo);
+        return res;
+      }
     }
     console.error('cadastro', error);
     return NextResponse.json({ erro: 'Não foi possível cadastrar agora.' }, { status: 500 });
   }
 
-  return NextResponse.json({ codigo: data.codigo });
+  const res = NextResponse.json({ codigo: data.codigo });
+  gravarSessao(res, data.codigo);   // já sai do cadastro logado (chat e "Meu perfil")
+  return res;
 }
