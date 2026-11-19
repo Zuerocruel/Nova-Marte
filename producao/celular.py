@@ -306,6 +306,8 @@ class Celular:
     # tela
     def tela(self) -> list[No]:
         for _ in range(3):
+            # apaga a leitura anterior: se o dump falhar (vídeo tocando, animação), NUNCA usar uma tela antiga
+            self.sh(f"rm -f {TMP_CELULAR}/omz_tela.xml")
             self.sh(f"uiautomator dump {TMP_CELULAR}/omz_tela.xml", timeout=40)
             r = self.adb("exec-out", f"cat {TMP_CELULAR}/omz_tela.xml", timeout=30, binario=True)
             xml = r.stdout.decode("utf-8", "replace")
