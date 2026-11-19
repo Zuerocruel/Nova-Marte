@@ -1,5 +1,5 @@
 {
-  "_leia": "Mapa fixo da colônia (coordenadas em casas; y negativo fica ao norte das casas dos colonos, que começam em 0,0). As obras são feitas nesta ordem, uma Missão do Dia por episódio. O estágio de cada obra vem do Supabase (tabela colonia_obras); sem a tabela, vale o campo 'estado_inicial' daqui.",
+  "_leia": "Mapa fixo da colônia (coordenadas em casas; y negativo fica ao norte das casas dos colonos, que começam em 0,0). As obras são feitas nesta ordem. Cada episódio (diário) tem uma Missão do Dia que AVANÇA a primeira obra não concluída, e uma obra pode levar vários episódios (veja \"ritmo\"). O estágio de cada obra vem do Supabase (tabela colonia_obras); sem a tabela, vale o campo 'estado_inicial' daqui (só serve para o episódio 1).",
 
   "fundadores": [
     { "id": "vega", "nome": "Comandante Vega", "curto": "Vega", "casa": [4.5, -5.6], "sprite": "vega" },
@@ -7,6 +7,10 @@
   ],
 
   "base": { "nome": "Módulo de Pouso", "x": 3, "y": -10, "w": 4, "h": 4 },
+  "ritmo": {
+    "_leia": "Quanto a obra avança por episódio: (população × pontos_por_pessoa) ÷ trabalho da obra. População = fundadores + colonos: mais colonos, mais mão de obra, obra mais rápida. Ex.: Estufa (trabalho 16) com 4 pessoas → 25% por episódio (4 episódios); com 16 pessoas → 1 episódio.",
+    "pontos_por_pessoa": 1
+  },
 
   "obras": [
     {
@@ -14,6 +18,7 @@
       "nome": "Fazenda Solar",
       "tipo": "solar",
       "x": 10, "y": -11, "w": 6, "h": 5,
+      "trabalho": 8,
       "estado_inicial": { "status": "em_obra", "progresso": 0 },
       "missao": {
         "titulo": "Construir a Fazenda Solar",
@@ -61,6 +66,7 @@
       "nome": "Estufa Hidropônica",
       "tipo": "estufa",
       "x": -4, "y": -11, "w": 5, "h": 4,
+      "trabalho": 16,
       "estado_inicial": { "status": "planejada", "progresso": 0 },
       "missao": {
         "titulo": "Plantar a primeira Estufa",
@@ -79,6 +85,7 @@
       "nome": "Antena de Comunicação",
       "tipo": "antena",
       "x": 7, "y": -16, "w": 3, "h": 4,
+      "trabalho": 24,
       "estado_inicial": { "status": "planejada", "progresso": 0 },
       "missao": {
         "titulo": "Falar com a Terra",

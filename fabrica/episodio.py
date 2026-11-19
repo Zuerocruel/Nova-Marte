@@ -112,7 +112,10 @@ def ultimo_episodio(db: Supabase, numero: int) -> dict | None:
 
 def obras(db: Supabase, catalogo: list[dict]) -> tuple[list[dict], str]:
     try:
-        linhas = {o["slug"]: o for o in db.get("colonia_obras", {"select": "slug,status,progresso"})}
+        try:
+            linhas = {o["slug"]: o for o in db.get("colonia_obras", {"select": "slug,status,progresso,dias"})}
+        except requests.HTTPError:   # coluna "dias" ainda não existe (falta a 005_obras_ritmo.sql)
+            linhas = {o["slug"]: o for o in db.get("colonia_obras", {"select": "slug,status,progresso"})}
         fonte = "supabase"
     except TabelaAusente:
         linhas, fonte = {}, "colonia.json (tabela colonia_obras ainda não existe)"
@@ -120,7 +123,8 @@ def obras(db: Supabase, catalogo: list[dict]) -> tuple[list[dict], str]:
     for o in catalogo:
         estado = linhas.get(o["slug"], o["estado_inicial"])
         saida.append({k: o[k] for k in ("slug", "nome", "tipo", "x", "y", "w", "h")}
-                     | {"status": estado["status"], "progresso": int(estado.get("progresso") or 0)})
+                     | {"status": estado["status"], "progresso": int(estado.get("progresso") or 0),
+                        "dias": int(estado.get("dias") or 0), "trabalho": o.get("trabalho")})
     return saida, fonte
 
 
@@ -162,6 +166,11 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
         compras.append({**colono_publico(p), "produto": c["produto"]["nome"], "produto_slug": c["produto"]["slug"]})
 
     lista_obras, fonte_obras = obras(db, col["obras"])
+    if ultimo and fonte_obras != "supabase":
+        # sem a tabela, a fábrica voltaria ao estado inicial e reconstruiria a obra do episódio 1
+        raise SystemExit("A tabela colonia_obras não existe no Supabase: rode supabase/migrations/004_colonia_obras.sql "
+                         "e 005_obras_ritmo.sql no SQL Editor antes de gerar o episódio "
+                         f"{numero} (senão ele repete a obra de episódios já publicados).")
 
     dados = {
         "numero": numero,
@@ -193,8 +202,10 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
     return dados
 
 
-def registrar_publicacao(numero: int, titulo: str, obra_slug: str | None) -> None:
-    """Marca o episódio como publicado (vira o ponto de corte do próximo) e conclui a obra."""
+def registrar_publicacao(numero: int, titulo: str, obra_slug: str | None,
+                         progresso: int = 100, dias: int | None = None) -> None:
+    """Marca o episódio como publicado (vira o ponto de corte do próximo) e grava até onde a obra chegou.
+    progresso/dias vêm do roteiro (obra_progresso / obra_dia): a obra só fica concluída quando chega a 100."""
     db = Supabase()
     agora = datetime.now(timezone.utc).isoformat()
     db.escrever("POST", "episodios", {"on_conflict": "numero"},
@@ -203,9 +214,20 @@ def registrar_publicacao(numero: int, titulo: str, obra_slug: str | None) -> Non
     print(f"episódio {numero} marcado como publicado em {agora}")
     if obra_slug:
         try:
-            db.escrever("PATCH", "colonia_obras", {"slug": f"eq.{obra_slug}"},
-                        {"status": "concluida", "progresso": 100, "atualizado_em": agora})
-            print(f"obra {obra_slug} → concluída")
+            progresso = max(0, min(100, int(progresso)))
+            corpo = {"status": "concluida" if progresso >= 100 else "em_obra", "progresso": progresso,
+                     "atualizado_em": agora}
+            if dias is not None:
+                corpo["dias"] = int(dias)
+            try:
+                db.escrever("PATCH", "colonia_obras", {"slug": f"eq.{obra_slug}"}, corpo)
+            except requests.HTTPError:
+                if "dias" not in corpo:
+                    raise
+                corpo.pop("dias")       # sem a 005_obras_ritmo.sql: grava o resto
+                db.escrever("PATCH", "colonia_obras", {"slug": f"eq.{obra_slug}"}, corpo)
+                print("aviso: rode supabase/migrations/005_obras_ritmo.sql para contar os dias de cada obra")
+            print(f"obra {obra_slug} → {corpo['status']} ({progresso}%)")
         except TabelaAusente:
             print("aviso: rode supabase/migrations/004_colonia_obras.sql para guardar o estágio das obras")
 
@@ -236,9 +258,10 @@ if __name__ == "__main__":
     if a.registrar_publicacao:
         n = a.registrar_publicacao
         rot = config.pasta_episodio(n) / "roteiro.json"
-        obra = a.obra or (config.ler_json(rot).get("missao_obra") if rot.exists() else None)
-        titulo = a.titulo or (config.ler_json(rot)["titulo"] if rot.exists() else f"Episódio {n}")
-        registrar_publicacao(n, titulo, obra)
+        r = config.ler_json(rot) if rot.exists() else {}
+        obra = a.obra or r.get("missao_obra")
+        titulo = a.titulo or r.get("titulo") or f"Episódio {n}"
+        registrar_publicacao(n, titulo, obra, progresso=(r.get("obra_progresso") or [0, 100])[1], dias=r.get("obra_dia"))
     elif a.episodio:
         d = coletar(a.episodio, a.so_fundadores)
         config.gravar_json(config.pasta_episodio(a.episodio) / "dados.json", d)

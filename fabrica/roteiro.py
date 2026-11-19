@@ -4,6 +4,10 @@ Ordem das cenas:
   abertura → população → boas-vindas (se houver novos) → compras pagas (se houver)
   → Missão do Dia (5 cenas) → gancho final.
 
+Episódios são diários e uma obra leva vários episódios: o avanço do dia é
+(população × pontos_por_pessoa) ÷ trabalho da obra (fabrica/colonia.json → "ritmo").
+Quanto mais colonos, mais mão de obra e mais rápida a construção.
+
 Cada fala pode ter "marcas": pontos do texto em que a câmera muda de foco
 (ex.: no instante em que o narrador diz o nome de um colono). O tempo exato de
 cada marca vem dos timestamps da voz (voz.py).
@@ -97,10 +101,78 @@ ABERTURAS = [
 BOAS_VINDAS_1 = ["Boas-vindas a {nome}! Tem casa nova na colônia.",
                  "Chegou gente nova: {nome}! A casa já está de pé."]
 BOAS_VINDAS_N = ["Bem-vindos, ", "Chegaram à colônia: "]
+# Episódio 1 tem gancho próprio. Do 2 em diante a série é diária: "amanhã tem episódio novo".
 GANCHOS = [
-    "Será que a sua casa já está no mapa? Procure seu nome em {site}. No próximo episódio: {proxima}.",
-    "Quer fazer parte da Operação Marte Zero? Entre em {site} e procure seu nome no mapa. No próximo episódio: {proxima}.",
+    "Será que a sua casa já está no mapa? Procure seu nome em {site}. Amanhã tem episódio novo: {proxima}.",
+    "Quer fazer parte da Operação Marte Zero? Entre em {site} e procure seu nome no mapa. Amanhã: {proxima}.",
+    "Cada colono novo é mais uma mão na obra. Cadastre-se em {site} e procure seu nome no mapa. Amanhã: {proxima}.",
 ]
+
+# Missão do Dia quando a obra NÃO termina e/ou NÃO começa no episódio (a obra leva vários dias)
+RETOMAR = ["Missão do Dia: continuar a obra da {obra}. Ontem paramos em {p0} por cento.",
+           "De volta ao canteiro: a {obra} está em {p0} por cento. Hora de trabalhar."]
+MAO_DE_OBRA_IGUAL = ["Hoje são {pop} na obra. Cada colono é mais uma mão trabalhando.",
+                     "A equipe segue com {pop}. Quanto mais gente, mais rápido a obra anda."]
+MAO_DE_OBRA_MAIS = ["Hoje a obra ganhou reforço: são {pop} trabalhando, {novos} a mais que ontem.",
+                    "Com {novos} recém-chegados, a equipe da obra cresceu para {pop}."]
+CONSTRUIR = ["Viga por viga, a {obra} vai tomando forma.",
+             "Os robôs de carga trazem material do módulo de pouso, e a estrutura sobe mais um pouco.",
+             "Solda, encaixe, aperto. A {obra} está cada vez mais perto de ficar pronta."]
+AVANCO = ["Fim do turno: a {obra} chegou a {p1} por cento.",
+          "Hoje a obra avançou {ganho} por cento. Já são {p1} por cento da {obra}."]
+FIM_DO_DIA = ["O sol se põe em Marte. Amanhã a obra continua, e cada novo colono deixa a construção mais rápida.",
+              "Ferramentas guardadas. Quando a {obra} fica pronta? Depende de você: quanto mais colonos, mais rápido ela sai."]
+
+
+
+def avanco_da_obra(d: dict, obra: dict, n: int) -> tuple[int, int]:
+    """(progresso de ontem, progresso ao fim de hoje) em %, pela mão de obra da colônia."""
+    p0 = int(obra.get("progresso") or 0)
+    trabalho = obra.get("trabalho")
+    if n == 1 or not trabalho:
+        return p0, 100            # episódio 1 (já publicado) construiu a Fazenda Solar inteira
+    ritmo = config.colonia().get("ritmo", {})
+    pontos = d["populacao"] * float(ritmo.get("pontos_por_pessoa", 1))
+    ganho = max(1, round(100 * pontos / float(trabalho)))
+    return p0, min(100, p0 + ganho)
+
+
+def cenas_da_missao(d: dict, obra: dict, missao: dict, p0: int, p1: int, rnd: random.Random) -> list[dict]:
+    """Sempre 5 cenas. Progresso das cenas em fração ABSOLUTA da obra (o diretor parte do progresso salvo)."""
+    base = missao["cenas"]
+    a, b = p0 / 100, p1 / 100
+    meio = a + (b - a) / 2
+    nome = obra["nome"]
+    pop, antes = d["populacao"], d.get("populacao_anterior", d["populacao"])
+    fmt = dict(obra=nome, p0=extenso(p0), p1=extenso(p1), ganho=extenso(p1 - p0),
+               pop=plural(pop, "colono", "colonos"), novos=extenso(max(0, pop - antes)))
+    gen = lambda textos: rnd.choice(textos).format(**fmt)
+
+    def original(i: int, prog=None) -> dict:
+        mc = base[i]
+        return {"fala": mc["fala"], "acao": mc["acao"], "camera": mc["camera"],
+                "progresso": prog if prog is not None else mc.get("progresso", [0, 0]), "atores": mc.get("atores", {})}
+
+    def generica(fala: str, acao: str, alvo: str, zoom: float, prog) -> dict:
+        return {"fala": fala, "acao": acao, "camera": {"alvo": alvo, "zoom": zoom}, "progresso": prog, "atores": {}}
+
+    mao = gen(MAO_DE_OBRA_MAIS if pop > antes else MAO_DE_OBRA_IGUAL)
+    if p0 == 0 and p1 >= 100:          # colônia grande: a obra inteira num dia (cenas originais)
+        return [original(i) for i in range(5)]
+    if p0 == 0:                        # primeiro dia da obra, ela continua amanhã
+        return [original(0, [0, 0]), original(1, [0, 0]), original(2, [a, meio]),
+                generica(gen(AVANCO), "construir", "obra", 6, [meio, b]),
+                generica(gen(FIM_DO_DIA), "construir", "colonia", 3.2, [b, b])]
+    if p1 >= 100:                      # dia da conclusão: fecha com as cenas originais (ligar)
+        return [generica(gen(RETOMAR), "apresentar", "obra", 4.5, [a, a]),
+                generica(mao, "construir", "colonia", 3.2, [a, a]),
+                generica(gen(CONSTRUIR), "construir", "obra", 6, [a, meio]),
+                original(3, [meio, 1]), original(4, [1, 1])]
+    return [generica(gen(RETOMAR), "apresentar", "obra", 4.5, [a, a]),   # dia do meio
+            generica(mao, "construir", "colonia", 3.2, [a, a]),
+            generica(gen(CONSTRUIR), "construir", "obra", 6, [a, meio]),
+            generica(gen(AVANCO), "construir", "obra", 6, [meio, b]),
+            generica(gen(FIM_DO_DIA), "construir", "colonia", 3.2, [b, b])]
 
 
 def montar(d: dict) -> dict:
@@ -172,17 +244,22 @@ def montar(d: dict) -> dict:
     missao = catalogo[obra["slug"]]["missao"]
     if len(missao["cenas"]) != 5:
         raise SystemExit(f"A missão de {obra['slug']} precisa ter 5 cenas (tem {len(missao['cenas'])}).")
-    for i, mc in enumerate(missao["cenas"], 1):
+    obra = {**obra, "trabalho": obra.get("trabalho") or catalogo[obra["slug"]].get("trabalho")}
+    p0, p1 = avanco_da_obra(d, obra, n)
+    dia = int(obra.get("dias") or 0) + 1
+    concluida = p1 >= 100
+    for i, mc in enumerate(cenas_da_missao(d, obra, missao, p0, p1, rnd), 1):
         cenas.append(cena(f"missao_{i}", "missao", Fala().add(mc["fala"]),
                           passo=i, acao=mc["acao"], camera=mc["camera"],
-                          progresso=mc.get("progresso", [0, 0]), atores=mc.get("atores", {})))
+                          progresso=mc["progresso"], atores=mc["atores"]))
+    proxima = missao["proxima"] if concluida else f"a obra da {obra['nome']} continua"
 
     # 6. gancho final
     if n == 1:
         f = Fala().add(f"Quer ser um dos primeiros colonos da Operação Marte Zero? Entre em {config.SITE_FALADO}, "
-                       f"faça seu cadastro e procure seu nome no mapa. No próximo episódio: {missao['proxima']}.")
+                       f"faça seu cadastro e procure seu nome no mapa. No próximo episódio: {proxima}.")
     else:
-        f = Fala().add(rnd.choice(GANCHOS).format(site=config.SITE_FALADO, proxima=missao["proxima"]))
+        f = Fala().add(rnd.choice(GANCHOS).format(site=config.SITE_FALADO, proxima=proxima))
     cenas.append(cena("gancho", "gancho", f, camera={"alvo": "panorama", "zoom": 2.2}))
 
     titulo = f"Episódio {n} · {obra['nome']}"
@@ -190,8 +267,12 @@ def montar(d: dict) -> dict:
         "numero": n,
         "titulo": titulo,
         "missao_obra": obra["slug"],
-        "missao_titulo": missao["titulo"],
-        "proxima": missao["proxima"],
+        # 1º dia: o título da missão; depois "… · dia 2", "… · dia 3" (os posts não repetem o título)
+        "missao_titulo": missao["titulo"] if dia == 1 else f"{missao['titulo']} · dia {dia}",
+        "proxima": proxima,
+        "obra_progresso": [p0, p1],     # % de ontem → % ao fim deste episódio (gravado ao publicar)
+        "obra_dia": dia,
+        "obra_concluida": concluida,
         "cenas": cenas,
     }
 
@@ -204,6 +285,10 @@ def legenda_post(d: dict, r: dict) -> str:
     if d["novos"]:
         linhas.append("Boas-vindas: " + ", ".join(c["nome"] for c in d["novos"]) +
                       (f" e mais {d['novos_total'] - len(d['novos'])}" if d["novos_total"] > len(d["novos"]) else ""))
+    if r.get("obra_progresso"):
+        linhas.append(f"Obra: {r['titulo'].split(' · ', 1)[-1]} {r['obra_progresso'][1]}%.")
+    if r["numero"] >= 2:
+        linhas.append("Episódio novo todo dia.")
     linhas += ["", f"Vire personagem e procure seu nome no mapa: {config.SITE_TELA}", "",
                "#operacaomartezero #pixelart #marte #colonia"]
     return "\n".join(linhas)

@@ -21,7 +21,18 @@ Também precisa do FFmpeg no PATH e do Chrome **ou** do Edge (sem nenhum dos doi
 
 No `.env.local` da raiz: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ELEVENLABS_API_KEY` (a chave que começa com `sk_`) e, se quiser, `ELEVENLABS_VOICE_ID` para fixar a voz.
 
-Para guardar o estágio das obras no banco, rode `supabase/migrations/004_colonia_obras.sql` no SQL Editor. Sem a tabela, vale o `estado_inicial` de `colonia.json`.
+Para guardar o estágio das obras no banco, rode `supabase/migrations/004_colonia_obras.sql` e depois `005_obras_ritmo.sql` no SQL Editor. Sem a tabela, vale o `estado_inicial` de `colonia.json`, o que só serve para o episódio 1: do 2 em diante a fábrica se recusa a gerar sem a tabela (senão repetiria obras já feitas).
+
+### Ritmo das obras (episódios diários)
+
+Uma obra leva vários episódios. A cada episódio ela avança `população × pontos_por_pessoa ÷ trabalho` (em `colonia.json`: bloco `ritmo` e o `trabalho` de cada obra). População = fundadores + colonos, então quanto mais gente se cadastra, mais rápido a colônia constrói. Com 4 pessoas, a Estufa (trabalho 16) leva 4 episódios; com 16 pessoas, sai num só.
+
+- 1º dia da obra: as cenas de apresentar e demarcar, um trecho da construção e "amanhã a obra continua".
+- Dias do meio: retomar de onde parou, a mão de obra do dia ("dois a mais que ontem"), o avanço em % e o fim do turno.
+- Dia da conclusão: fecha com as cenas originais de terminar e ligar a obra.
+- Se a colônia for grande o bastante para fazer a obra inteira num dia, entram as 5 cenas originais.
+
+O título dos posts ganha "· dia 2", "· dia 3"… e, do episódio 2 em diante, o gancho e as legendas dizem que o episódio é diário. Cadastre novas obras em `colonia.json` antes que acabem: com 4 pessoas, as três atuais acabam no episódio 11.
 
 ## Gerar um episódio
 
@@ -42,7 +53,7 @@ O resultado fica em `saida/epNNN/`: `episodio_NNN.mp4`, `post.txt` (texto do pos
 python episodio.py --registrar-publicacao 2
 ```
 
-Isso grava `publicado_em` em `episodios` (vira o corte de "novos desde o último episódio") e marca a obra da missão como concluída.
+Isso grava `publicado_em` em `episodios` (vira o corte de "novos desde o último episódio") e grava até onde a obra da missão chegou (`obra_progresso` do roteiro). Ela só fica concluída ao chegar a 100%. O botão 🚀 Publicar do painel faz o mesmo.
 
 ## Regras embutidas
 

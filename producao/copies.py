@@ -79,7 +79,11 @@ def gerar(numero: int) -> dict:
     lt = config.ler_json(pasta / "linha_do_tempo.json") if (pasta / "linha_do_tempo.json").exists() else None
     n, missao = numero, r["missao_titulo"]
     tags = " ".join(HASHTAGS)
-    linhas_dest = "\n".join(destaques(d))
+    dest = destaques(d)
+    if r.get("obra_progresso") and r["obra_progresso"][1] < 100:
+        dest.append(f"🏗️ Obra: {r['titulo'].split(' · ', 1)[-1]} em {r['obra_progresso'][1]}%")
+    linhas_dest = "\n".join(dest)
+    diario = n >= 2          # do episódio 2 em diante a série é diária
 
     yt_desc = [
         f"Episódio {n} da {NOME}: {missao}.",
@@ -89,6 +93,8 @@ def gerar(numero: int) -> dict:
         (f"🚀 Vire personagem e procure seu nome no mapa: https://{link('youtube', n)}" if YT_LINK_NA_DESCRICAO
          else "🚀 Vire personagem e procure seu nome no mapa: link no perfil do canal 👆"),
     ]
+    if diario:
+        yt_desc += ["📺 Episódio novo todo dia."]
     if lt:
         yt_desc += ["", "Capítulos:", *capitulos(lt)]
     yt_desc += ["", tags]
@@ -108,6 +114,7 @@ def gerar(numero: int) -> dict:
                 "",
                 linhas_dest,
                 "",
+                *(["📺 Episódio novo todo dia!", ""] if diario else []),
                 "Quer virar personagem? Link na bio 👆 Cadastre-se e procure seu nome no mapa.",
                 "",
                 tags,
@@ -116,7 +123,8 @@ def gerar(numero: int) -> dict:
             "obs": "Instagram não deixa link clicável na legenda: use este link na bio ou no story.",
         },
         "tiktok": {
-            "legenda": f"Ep. {n}: {missao} 🚀 Vire personagem: link na bio! {tags}"[:2200],
+            "legenda": (f"Ep. {n}: {missao} 🚀 " + ("Episódio novo todo dia! " if diario else "")
+                        + f"Vire personagem: link na bio! {tags}")[:2200],
             "link": f"https://{link('tiktok', n)}",
             "obs": "Coloque o link na bio do TikTok antes de postar.",
         },

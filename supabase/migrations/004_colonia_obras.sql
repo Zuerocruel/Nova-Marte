@@ -1,6 +1,6 @@
 -- Estágio das obras da colônia (usado pela Fábrica de Vídeos em fabrica/).
--- Cada episódio tem uma "Missão do Dia" que constrói a primeira obra não concluída.
--- Depois de publicar: python fabrica/episodio.py --registrar-publicacao N  (marca a obra como concluída)
+-- Cada episódio tem uma "Missão do Dia" que avança a primeira obra não concluída (veja 005_obras_ritmo.sql).
+-- Depois de publicar: python fabrica/episodio.py --registrar-publicacao N  (grava até onde a obra chegou)
 
 create table if not exists colonia_obras (
   slug          text primary key,                         -- igual a fabrica/colonia.json
