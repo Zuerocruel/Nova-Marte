@@ -16,3 +16,6 @@ fabrica/saida/
 fabrica/cache_voz/
 fabrica/musica/
 __pycache__/
+
+# Painel local (estado e logs ficam só neste computador)
+producao/dados/

@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel · Operação Marte Zero</title>
+<link rel="icon" href="data:,">
+<style>
+  @font-face { font-family: "Pixel"; src: url("/fontes/PressStart2P-Regular.ttf") format("truetype"); }
+  :root {
+    --ceu: #140f26; --ceu2: #1e1838; --ceu3: #281f4a; --borda: #3a2f63; --areia: #f6d7a7;
+    --texto: #f3eefe; --texto2: #b9b0d6; --marte: #e2603b; --marte2: #a83d22; --agua: #3fd0c9;
+    --ok: #4ed37a; --aviso: #f4b400; --erro: #ff6b6b; --ouro: #ffc83d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--ceu); color: var(--texto); font: 15px/1.5 system-ui, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--agua); }
+  .pixel, h1, h2, h3 { font-family: "Pixel", monospace; letter-spacing: .5px; line-height: 1.5; }
+  h1 { font-size: 14px; margin: 0; color: var(--areia); }
+  h2 { font-size: 13px; margin: 28px 0 12px; color: var(--areia); }
+  h3 { font-size: 11px; margin: 0 0 10px; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--ceu2); border-bottom: 4px solid var(--borda); }
+  .topo { display: flex; align-items: center; gap: 16px; padding: 12px 20px; flex-wrap: wrap; }
+  .vivo { font-size: 12px; color: var(--texto2); display: flex; align-items: center; gap: 6px; }
+  .vivo i { width: 9px; height: 9px; background: var(--erro); display: inline-block; }
+  .vivo.on i { background: var(--ok); }
+  .fila-mini { margin-left: auto; font-size: 12px; color: var(--texto2); max-width: 55%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  nav { display: flex; gap: 2px; padding: 0 12px; overflow-x: auto; }
+  nav button { background: none; border: 0; color: var(--texto2); padding: 10px 12px; font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap; border-bottom: 3px solid transparent; }
+  nav button:hover { color: var(--texto); }
+  nav button.ativa { color: var(--texto); border-bottom-color: var(--agua); }
+  .badge { background: var(--marte); color: #fff; font-size: 11px; padding: 1px 6px; margin-left: 4px; }
+  main { padding: 20px; max-width: 1400px; margin: 0 auto; }
+  .card { background: var(--ceu2); border: 3px solid var(--borda); padding: 16px; margin-bottom: 14px; }
+  .linha { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+  .mudo { color: var(--texto2); font-size: 13px; }
+  .btn { font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: 0; padding: 8px 14px; color: #fff; background: var(--borda); box-shadow: inset -3px -3px 0 #241c45; }
+  .btn:hover { filter: brightness(1.15); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; filter: none; }
+  .btn.aprovar { background: #2b8a52; box-shadow: inset -3px -3px 0 #1d5e38; }
+  .btn.publicar { background: var(--marte); box-shadow: inset -3px -3px 0 var(--marte2); }
+  .btn.perigo { background: #8a2b2b; box-shadow: inset -3px -3px 0 #5e1d1d; }
+  .btn.peq { padding: 4px 9px; font-size: 12px; }
+  input, select, textarea { font: inherit; font-size: 14px; color: var(--texto); background: var(--ceu); border: 2px solid var(--borda); padding: 7px 9px; }
+  textarea { width: 100%; min-height: 120px; resize: vertical; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--agua); }
+  label.chk { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--borda); vertical-align: top; }
+  th { color: var(--texto2); font-weight: 600; position: sticky; top: 0; background: var(--ceu2); }
+  .tabela { overflow-x: auto; max-height: 70vh; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .st { font-size: 11px; font-weight: 700; padding: 2px 7px; text-transform: uppercase; letter-spacing: .4px; white-space: nowrap; }
+  .st.ok, .st.configurado, .st.aprovado { background: #1f4d33; color: var(--ok); }
+  .st.pendente, .st.aguardando { background: #4d3d12; color: var(--aviso); }
+  .st.erro, .st.recusado { background: #4d1f1f; color: var(--erro); }
+  .st.opcional, .st.neutro { background: var(--ceu3); color: var(--texto2); }
+  .st.publicado { background: #4d2a1a; color: var(--ouro); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+  .kpi { background: var(--ceu); border: 2px solid var(--borda); padding: 12px; }
+  .kpi b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
+  .kpi span { color: var(--texto2); font-size: 12px; }
+  video { width: 100%; max-width: 300px; background: #000; display: block; }
+  .ep { display: grid; grid-template-columns: 300px 1fr; gap: 18px; }
+  @media (max-width: 760px) { .ep { grid-template-columns: 1fr; } }
+  pre.log { background: #0b0816; border: 2px solid var(--borda); padding: 10px; max-height: 260px; overflow: auto; font-size: 12px; white-space: pre-wrap; margin: 8px 0 0; }
+  .chip { display: inline-block; background: var(--ceu3); border: 1px solid var(--borda); padding: 1px 7px; font-size: 12px; margin: 2px 3px 2px 0; }
+  .chip button { background: none; border: 0; color: var(--texto2); cursor: pointer; padding: 0 0 0 4px; }
+  .aviso { border-left: 4px solid var(--aviso); background: #2a2310; padding: 10px 14px; margin-bottom: 14px; font-size: 14px; }
+  .erro-box { border-left: 4px solid var(--erro); background: #2a1010; padding: 10px 14px; margin-bottom: 14px; }
+  .item { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--borda); flex-wrap: wrap; }
+  .item .txt { flex: 1; min-width: 260px; }
+  .item .txt small { display: block; color: var(--texto2); }
+  .previa { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .previa iframe { border: 3px solid var(--borda); background: #fff; }
+  #toast { position: fixed; bottom: 18px; right: 18px; z-index: 9; display: flex; flex-direction: column; gap: 8px; }
+  #toast div { background: var(--ceu3); border-left: 4px solid var(--ok); padding: 10px 14px; max-width: 420px; box-shadow: 4px 4px 0 #0008; }
+  #toast div.erro { border-left-color: var(--erro); }
+  .contador { font-size: 12px; color: var(--texto2); text-align: right; }
+  .contador.passou { color: var(--erro); }
+  details summary { cursor: pointer; color: var(--texto2); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="topo">
+    <h1>OPERAÇÃO MARTE ZERO · PAINEL</h1>
+    <span class="vivo" id="vivo"><i></i><span>conectando…</span></span>
+    <span class="fila-mini" id="filaMini"></span>
+  </div>
+  <nav id="abas"></nav>
+</header>
+<main id="conteudo"></main>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const TOKEN = '__TOKEN__', BOOT = '__BOOT__';
+const ABAS = [
+  ['aprovacoes', '✅ Aprovações'], ['episodios', '🎬 Episódios'], ['divulgacao', '📢 Divulgação'],
+  ['colonos', '👥 Colonos'], ['visao', '📊 Visão geral'], ['compras', '🛒 Compras'], ['site', '🌐 Site'],
+  ['chat', '💬 Chat'], ['produtos', '🏪 Produtos'], ['cargos', '🏅 Cargos'], ['conexoes', '🔌 Conexões'],
+];
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const reais = (c) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const quando = (iso) => iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+const lembrar = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } };
+
+let aba = location.hash.slice(1) || lembrar('aba') || 'aprovacoes';
+if (!ABAS.some(([id]) => id === aba)) aba = 'aprovacoes';
+let epDivulgacao = null, filtroColonos = '', filtroStatusColonos = 'todos', filtroCompras = 'pagos';
+let jobs = [], ultimoDados = -1, primeiroRecarregar = null, carregando = false, pendente = false;
+
+// ---------------------------------------------------------------- comunicação
+async function get(url) {
+  const r = await fetch(url);
+  const j = await r.json();
+  if (!r.ok || j.erro) throw new Error(j.erro || r.statusText);
+  return j;
+}
+async function acao(nome, dados = {}, msg = 'Feito') {
+  const r = await fetch('/api/acao', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Painel-Token': TOKEN },
+    body: JSON.stringify({ acao: nome, ...dados }),
+  });
+  const j = await r.json().catch(() => ({ erro: 'resposta inválida' }));
+  if (!r.ok || j.erro) { toast(j.erro || 'Erro', true); throw new Error(j.erro); }
+  toast(j.msg || msg);
+  atualizar(true);
+  return j;
+}
+function toast(texto, erro = false) {
+  const d = document.createElement('div');
+  d.className = erro ? 'erro' : '';
+  d.textContent = texto;
+  $('#toast').appendChild(d);
+  setTimeout(() => d.remove(), erro ? 7000 : 3000);
+}
+
+// tempo real: o servidor avisa quando algo muda (sem F5)
+function conectar() {
+  const es = new EventSource('/api/eventos');
+  es.onopen = () => { $('#vivo').className = 'vivo on'; $('#vivo span').textContent = 'ao vivo'; };
+  es.onerror = () => { $('#vivo').className = 'vivo'; $('#vivo span').textContent = 'reconectando…'; };
+  es.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.boot !== BOOT) return location.reload();          // servidor reiniciou (código mudou)
+    if (primeiroRecarregar === null) primeiroRecarregar = m.recarregar;
+    else if (m.recarregar !== primeiroRecarregar) return location.reload();  // painel.html mudou
+    jobs = m.jobs;
+    desenharFila();
+    if (m.dados !== ultimoDados) { ultimoDados = m.dados; atualizar(); }
+  };
+}
+
+function desenharFila() {
+  const rodando = jobs.find((j) => j.status === 'rodando');
+  const fila = jobs.filter((j) => j.status === 'na fila').length;
+  $('#filaMini').textContent = rodando ? `⚙️ ${rodando.titulo}: ${rodando.log.at(-1) || 'começando…'}` + (fila ? ` (+${fila} na fila)` : '') : (fila ? `${fila} na fila` : '');
+  const box = $('#logsFila');
+  if (box) box.innerHTML = htmlFila();
+}
+function htmlFila() {
+  if (!jobs.length) return '<p class="mudo">Nenhum trabalho ainda.</p>';
+  return jobs.map((j) => `<details ${j.status === 'rodando' ? 'open' : ''}><summary><span class="st ${j.status === 'ok' ? 'ok' : j.status === 'erro' ? 'erro' : 'pendente'}">${esc(j.status)}</span> ${esc(j.titulo)} · ${quando(j.inicio)}</summary><pre class="log">${esc(j.log.join('\n'))}</pre></details>`).join('');
+}
+
+// ---------------------------------------------------------------- abas
+function desenharAbas(badge = null) {
+  $('#abas').innerHTML = ABAS.map(([id, nome]) =>
+    `<button class="${id === aba ? 'ativa' : ''}" data-aba="${id}">${nome}${id === 'aprovacoes' && badge ? `<span class="badge">${badge}</span>` : ''}</button>`).join('');
+}
+$('#abas').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-aba]');
+  if (b) irPara(b.dataset.aba);
+});
+function irPara(id, extra) {
+  aba = id; location.hash = id; lembrar('aba', id);
+  if (extra && extra.ep) epDivulgacao = extra.ep;
+  $('#conteudo').innerHTML = '<p class="mudo">Carregando…</p>';
+  desenharAbas(contagemAprov);
+  atualizar(true);
+}
+
+let contagemAprov = 0;
+async function atualizar(forcar = false) {
+  // não atrapalha quem está digitando: espera sair do campo
+  const foco = document.activeElement;
+  if (!forcar && foco && foco.closest('#conteudo') && /INPUT|TEXTAREA|SELECT/.test(foco.tagName)) { pendente = true; return; }
+  if (carregando) { pendente = true; return; }
+  carregando = true;
+  try {
+    const r = await RENDER[aba]();
+    if (aba !== 'aprovacoes') get('/api/aprovacoes').then((a) => { contagemAprov = a.pendentes.length; desenharAbas(contagemAprov); }).catch(() => {});
+    return r;
+  } catch (e) {
+    $('#conteudo').innerHTML = `<div class="erro-box">Erro ao carregar: ${esc(e.message)}</div>`;
+  } finally {
+    carregando = false;
+    if (pendente) { pendente = false; setTimeout(() => atualizar(), 300); }
+  }
+}
+document.addEventListener('focusout', () => { if (pendente) setTimeout(() => atualizar(), 200); });
+
+// troca só os pedaços que mudaram (o vídeo não reinicia e o que você digita não some)
+function remendar(html) {
+  const novo = document.createElement('div');
+  novo.innerHTML = html;
+  const atual = $('#conteudo');
+  const blocosNovos = [...novo.children];
+  if (atual.children.length !== blocosNovos.length || [...atual.children].some((c, i) => c.dataset.k !== blocosNovos[i].dataset.k)) {
+    atual.replaceChildren(...blocosNovos);
+    return;
+  }
+  blocosNovos.forEach((b, i) => { if (atual.children[i].dataset.h !== b.dataset.h) atual.children[i].replaceWith(b); });
+}
+function bloco(k, html, tag = 'section') {
+  let h = 0; for (let i = 0; i < html.length; i++) h = (h * 31 + html.charCodeAt(i)) | 0;
+  return `<${tag} data-k="${esc(k)}" data-h="${h}">${html}</${tag}>`;
+}
+
+// clique em qualquer botão com data-acao
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-acao]');
+  if (!b) return;
+  const d = JSON.parse(b.dataset.dados || '{}');
+  if (b.dataset.confirma && !confirm(b.dataset.confirma)) return;
+  b.disabled = true;
+  try { await acao(b.dataset.acao, d, b.dataset.msg); } catch { } finally { b.disabled = false; }
+});
+const botao = (rotulo, acaoNome, dados = {}, cls = '', extra = '') =>
+  `<button class="btn ${cls}" data-acao="${acaoNome}" data-dados='${esc(JSON.stringify(dados))}' ${extra}>${rotulo}</button>`;
+
+// ================================================================ APROVAÇÕES
+async function rAprovacoes() {
+  const a = await get('/api/aprovacoes');
+  contagemAprov = a.pendentes.length; desenharAbas(contagemAprov);
+  const botoesPend = (i) => {
+    if (i.tipo === 'episodio') return `<button class="btn" onclick="irPara('episodios')">Assistir</button>${botao('Aprovar', 'aprovar_episodio', { numero: i.id }, 'aprovar')}`;
+    if (i.tipo === 'copy') return `<button class="btn" onclick="irPara('divulgacao',{ep:${i.id}})">Revisar</button>${botao('Aprovar', 'aprovar_copy', { numero: i.id, plataforma: i.plataforma }, 'aprovar')}`;
+    if (i.tipo === 'site') return `<button class="btn" onclick="irPara('site')">Ver mudanças</button>${botao('Aprovar', 'aprovar_site', {}, 'aprovar')}`;
+    if (i.tipo === 'resgate') return botao('Aprovar', 'resgate', { id: i.id, status: 'aprovado' }, 'aprovar') + botao('Recusar', 'resgate', { id: i.id, status: 'recusado' }, 'perigo') + botao('Recusar e liberar', 'resgate', { id: i.id, status: 'recusado', liberar: true }, '', 'title="Apaga o pedido para a pessoa tentar outro nome"');
+    if (i.tipo === 'colono') return botao('Nome ok', 'aprovar_colono', { codigo: i.id }, 'aprovar') + botao('Ocultar', 'colono', { codigo: i.id, oculto: true }, 'perigo', 'data-confirma="Ocultar este colono do site e dos vídeos?"');
+    return '';
+  };
+  const botoesPub = (i) => {
+    if (i.tipo === 'episodio') return `${botao('Desaprovar', 'desaprovar_episodio', { numero: i.id })}${botao('Publicar', 'publicar_episodio', { numero: i.id }, 'publicar', `data-confirma="Publicar o episódio ${i.id}? Isso registra a publicação no banco (vira o corte dos próximos episódios) e cria os links rastreáveis. A postagem nas redes continua manual."`)}`;
+    if (i.tipo === 'copy') return `<button class="btn publicar" onclick="irPara('divulgacao',{ep:${i.id}})">Marcar como postado</button>`;
+    if (i.tipo === 'site') return botao('Publicar site', 'publicar_site', {}, 'publicar', 'data-confirma="Enviar o site para o GitHub? A Vercel publica em 1–2 min."');
+    return '';
+  };
+  const lista = (itens, fn, vazio) => itens.length ? itens.map((i) =>
+    `<div class="item"><div class="txt"><b>${esc(i.titulo)}</b><small>${esc(i.detalhe)}</small></div><div class="linha">${fn(i)}</div></div>`).join('') : `<p class="mudo">${vazio}</p>`;
+  remendar(
+    bloco('pend', `<h2>Aguardando sua aprovação (${a.pendentes.length})</h2><div class="card">${lista(a.pendentes, botoesPend, 'Nada para aprovar. 🎉')}</div>`) +
+    bloco('pub', `<h2>Aprovados, aguardando publicar (${a.prontos.length})</h2><div class="card"><p class="mudo">Nada publica sozinho: cada item só vai ao ar quando você clica em Publicar.</p>${lista(a.prontos, botoesPub, 'Nenhum item aprovado esperando.')}</div>`) +
+    bloco('fila', `<h2>Fila de produção</h2><div class="card" id="logsFila">${htmlFila()}</div>`)
+  );
+}
+
+// ================================================================ EPISÓDIOS
+async function rEpisodios() {
+  const d = await get('/api/episodios');
+  const form = `<h2>Gerar episódio</h2><div class="card"><div class="linha">
+      <label>Número <input id="epNum" type="number" min="1" max="999" value="${d.proximo}" style="width:90px"></label>
+      <label class="chk"><input id="epFund" type="checkbox"> só fundadores (ignora colonos e compras do banco)</label>
+      <label class="chk"><input id="epSemVoz" type="checkbox"> prévia sem voz (não gasta créditos)</label>
+      <button class="btn publicar" onclick="gerarEp()">▶ Gerar episódio</button></div>
+      <p class="mudo">Roda a fábrica inteira (coleta no Supabase → roteiro → voz → filmagem → montagem) em segundo plano, uns 5 minutos. Ao terminar, gera as copies e o vídeo aparece aqui para aprovar.</p></div>`;
+  const cards = d.episodios.map((e) => {
+    const estado = e.publicado_em ? '<span class="st publicado">publicado</span>' : e.aprovado_em ? '<span class="st aprovado">aprovado</span>' : e.video ? '<span class="st aguardando">aguardando aprovação</span>' : '<span class="st neutro">sem vídeo</span>';
+    return bloco('ep' + e.numero, `<div class="card"><div class="ep">
+      <div>${e.video ? `<video controls preload="metadata" src="${e.video}"></video>` : '<p class="mudo">Ainda sem vídeo.</p>'}</div>
+      <div><h3>${esc(e.titulo)}</h3>
+        <div class="linha">${estado}${e.sem_voz ? '<span class="st pendente">prévia sem voz</span>' : ''}${e.gerando ? '<span class="st pendente">gerando…</span>' : ''}
+        <span class="mudo">${e.duracao ? Math.round(e.duracao) + ' s · ' : ''}gerado ${quando(e.gerado_em)}</span></div>
+        <details style="margin:12px 0"><summary>Roteiro (${e.falas.length} falas)</summary><ol>${e.falas.map((f) => `<li><b>${esc(f.id)}</b>: ${esc(f.fala)}</li>`).join('')}</ol></details>
+        <div class="linha">
+          ${e.aprovado_em ? botao('Desaprovar', 'desaprovar_episodio', { numero: e.numero }) : botao('✅ Aprovar', 'aprovar_episodio', { numero: e.numero }, 'aprovar', e.video && !e.gerando ? '' : 'disabled')}
+          ${botao('🚀 Publicar', 'publicar_episodio', { numero: e.numero }, 'publicar',
+            (e.aprovado_em && !e.publicado_em && !e.sem_voz && !e.gerando ? '' : 'disabled ') + `data-confirma="Publicar o episódio ${e.numero}? Registra a publicação no Supabase e cria os links /l/yt-ep…, /l/ig-ep…, /l/tt-ep…. Postar nas redes continua manual (aba Divulgação)."`)}
+          <button class="btn" onclick="irPara('divulgacao',{ep:${e.numero}})">📢 Copies</button>
+          ${botao('↻ Regerar', 'gerar_episodio', { numero: e.numero, sem_voz: e.sem_voz }, '', `data-confirma="Gerar o episódio ${e.numero} de novo? A aprovação atual é desfeita."` + (e.gerando ? ' disabled' : ''))}
+        </div>
+        ${e.publicado_em ? `<p class="mudo">Publicado em ${quando(e.publicado_em)}</p>` : ''}
+        ${!e.aprovado_em || e.sem_voz ? '<p class="mudo">Publicar só libera depois de Aprovar (e com voz).</p>' : ''}
+      </div></div></div>`);
+  }).join('');
+  if (!document.getElementById('epNum')) remendar(bloco('form', form) + cards + bloco('fila', `<h2>Fila de produção</h2><div class="card" id="logsFila">${htmlFila()}</div>`));
+  else remendar($('#conteudo').children[0].outerHTML + cards + bloco('fila', `<h2>Fila de produção</h2><div class="card" id="logsFila">${htmlFila()}</div>`));
+}
+window.gerarEp = () => acao('gerar_episodio', {
+  numero: Number($('#epNum').value), so_fundadores: $('#epFund').checked, sem_voz: $('#epSemVoz').checked,
+}, 'Episódio na fila de produção');
+
+// ================================================================ DIVULGAÇÃO
+const LIMITES = { titulo: 100, descricao: 5000, legenda: 2200, tags: 500 };
+async function rDivulgacao() {
+  const eps = (await get('/api/episodios')).episodios.filter((e) => e.copies);
+  if (!eps.length) return remendar(bloco('v', '<div class="card"><p class="mudo">Nenhum episódio com copies ainda. Gere um episódio na aba 🎬 Episódios.</p></div>'));
+  if (!epDivulgacao || !eps.some((e) => e.numero === epDivulgacao)) epDivulgacao = eps[0].numero;
+  const ep = eps.find((e) => e.numero === epDivulgacao);
+  const c = await get('/api/copies?ep=' + epDivulgacao);
+  const seletor = `<div class="linha"><label>Episódio <select onchange="epDivulgacao=Number(this.value);atualizar(true)">${eps.map((e) => `<option value="${e.numero}" ${e.numero === epDivulgacao ? 'selected' : ''}>${esc(e.titulo)}</option>`).join('')}</select></label>
+    ${botao('↻ Gerar copies de novo', 'gerar_copies', { numero: epDivulgacao }, '', 'data-confirma="Gerar as copies de novo a partir dos templates? Suas edições deste episódio serão perdidas."')}
+    ${ep.publicado_em ? '<span class="st publicado">episódio publicado</span>' : '<span class="st pendente">episódio ainda não publicado</span>'}</div>`;
+  const campos = { youtube: ['titulo', 'descricao', 'tags'], instagram: ['legenda'], tiktok: ['legenda'] };
+  const cards = Object.entries(c.copies).map(([p, v]) => bloco('c' + p + epDivulgacao + (v.aprovado_em || '') + (v.postado_url || ''), `<div class="card" data-plat="${p}">
+    <div class="linha" style="justify-content:space-between"><h3>${esc(v.rotulo)}</h3>
+      ${v.postado_url ? '<span class="st publicado">postado</span>' : v.aprovado_em ? '<span class="st aprovado">aprovada</span>' : '<span class="st aguardando">aguardando aprovação</span>'}</div>
+    ${campos[p].map((k) => `<label class="mudo">${k}</label>${k === 'titulo' || k === 'tags' ? `<input style="width:100%" data-campo="${k}" value="${esc(v[k])}" oninput="contar(this)">` : `<textarea data-campo="${k}" oninput="contar(this)">${esc(v[k])}</textarea>`}
+      <div class="contador" data-limite="${LIMITES[k]}">${(v[k] || '').length}/${LIMITES[k]}</div>`).join('')}
+    <p class="mudo">Link rastreável: <code>${esc(v.link)}</code>${v.obs ? '<br>' + esc(v.obs) : ''}</p>
+    <div class="linha">
+      <button class="btn" onclick="copiar('${p}')">📋 Copiar texto</button>
+      <button class="btn" onclick="salvarCopy('${p}')">💾 Salvar</button>
+      <button class="btn aprovar" onclick="aprovarCopy('${p}')" ${v.aprovado_em ? 'disabled' : ''}>✅ Aprovar</button>
+    </div>
+    <div class="linha" style="margin-top:12px;border-top:1px solid var(--borda);padding-top:12px">
+      ${v.postado_url ? `<span class="mudo">Post: <a href="${esc(v.postado_url)}" target="_blank" rel="noopener">${esc(v.postado_url)}</a></span>` : `
+      <input placeholder="Cole aqui o link do post no ${esc(v.rotulo)}" data-url style="flex:1;min-width:220px">
+      <button class="btn publicar" onclick="marcarPostado('${p}')" ${v.aprovado_em && ep.publicado_em ? '' : 'disabled title="Aprove a copy e publique o episódio antes"'}>🚀 Publicar (marcar como postado)</button>`}
+    </div>
+    <p class="mudo">Postar nas redes é manual: copie o texto, poste o vídeo e cole o link do post aqui.</p></div>`)).join('');
+  remendar(bloco('sel' + epDivulgacao, seletor) + bloco('g' + epDivulgacao, `<div class="grade">${cards}</div>`));
+  document.querySelectorAll('[data-campo]').forEach(contar);
+}
+window.contar = (el) => {
+  const ct = el.nextElementSibling; const lim = Number(ct.dataset.limite);
+  ct.textContent = `${el.value.length}/${lim}`; ct.classList.toggle('passou', el.value.length > lim);
+};
+const camposDe = (p) => Object.fromEntries([...document.querySelectorAll(`[data-plat="${p}"] [data-campo]`)].map((el) => [el.dataset.campo, el.value]));
+window.copiar = async (p) => {
+  const c = camposDe(p);
+  const texto = p === 'youtube' ? `${c.titulo}\n\n${c.descricao}\n\nTags: ${c.tags}` : c.legenda;
+  await navigator.clipboard.writeText(texto); toast('Texto copiado');
+};
+window.salvarCopy = (p) => acao('salvar_copy', { numero: epDivulgacao, plataforma: p, campos: camposDe(p) }, 'Copy salva (aprove de novo)');
+window.aprovarCopy = (p) => acao('aprovar_copy', { numero: epDivulgacao, plataforma: p, campos: camposDe(p) }, 'Copy aprovada');
+window.marcarPostado = (p) => acao('marcar_postado', { numero: epDivulgacao, plataforma: p, url: $(`[data-plat="${p}"] [data-url]`).value }, 'Marcado como postado');
+
+// ================================================================ COLONOS
+async function rColonos() {
+  const d = await get('/api/colonos');
+  const cat = Object.fromEntries(d.catalogo.map((c) => [c.id, c]));
+  const q = filtroColonos.toLowerCase();
+  const lista = d.colonos.filter((c) =>
+    (!q || [c.codigo, c.nome, c.handle, c.origem_source, c.origem_campaign].some((x) => (x || '').toLowerCase().includes(q))) &&
+    (filtroStatusColonos === 'todos' || (filtroStatusColonos === 'ocultos' ? c.oculto : filtroStatusColonos === 'testes' ? c.teste : c.status === filtroStatusColonos)));
+  const topo = `<div class="linha"><input id="buscaColono" placeholder="Buscar nome, @, código, origem…" value="${esc(filtroColonos)}" style="min-width:280px" oninput="filtroColonos=this.value;atualizar(true)">
+    <select onchange="filtroStatusColonos=this.value;atualizar(true)">${['todos', 'fila', 'desenhado', 'estreou', 'ocultos', 'testes'].map((s) => `<option ${s === filtroStatusColonos ? 'selected' : ''}>${s}</option>`).join('')}</select>
+    <span class="mudo">${lista.length} de ${d.colonos.length} colonos</span></div>`;
+  const origem = (c) => c.origem_source ? `<b>${esc(c.origem_source)}</b>${c.origem_medium ? ' / ' + esc(c.origem_medium) : ''}${c.origem_campaign ? '<br>campanha: ' + esc(c.origem_campaign) : ''}${c.origem_link_slug ? '<br>link: /l/' + esc(c.origem_link_slug) : ''}${c.origem_referer ? '<br><span class="mudo">' + esc(c.origem_referer) + '</span>' : ''}` : '<span class="mudo">direto</span>';
+  const linhas = lista.map((c) => `<tr>
+    <td><b>${esc(c.codigo)}</b>${c.teste ? '<br><span class="st neutro">teste</span>' : ''}${c.oculto ? '<br><span class="st erro">oculto</span>' : ''}</td>
+    <td>${esc(c.nome)}<br><span class="mudo">@${esc(c.handle)} · ${esc(c.handle_plataforma)}</span>${c.compras ? `<br><span class="chip">💎 ${c.compras} compra(s)</span>` : ''}</td>
+    <td><select data-cod="${c.codigo}" onchange="acao('colono',{codigo:this.dataset.cod,status:this.value},'Status atualizado')">${['fila', 'desenhado', 'estreou'].map((s) => `<option ${s === c.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+    <td>${origem(c)}</td>
+    <td>${c.ultimo_source ? esc(c.ultimo_source) + (c.ultimo_campaign ? ' / ' + esc(c.ultimo_campaign) : '') : '<span class="mudo">—</span>'}</td>
+    <td>${d.itens.map(([k, rot]) => `<label class="chk" style="display:flex"><input type="checkbox" ${c.checklist[k] ? 'checked' : ''} ${k === 'aviso' && !c.aceita_whatsapp ? 'disabled title="Não aceitou aviso no WhatsApp"' : ''} onchange="acao('checklist',{codigo:'${c.codigo}',item:'${k}',valor:this.checked},'Checklist salvo')">${esc(rot)}</label>`).join('')}</td>
+    <td>${c.cargos.map((id) => cat[id] ? `<span class="chip">${esc(cat[id].emoji)} ${esc(cat[id].nome)}<button title="Tirar" onclick="acao('cargo_atribuir',{codigo:'${c.codigo}',cargo:'${id}',valor:false})">×</button></span>` : '').join('')}
+      <select onchange="if(this.value)acao('cargo_atribuir',{codigo:'${c.codigo}',cargo:this.value,valor:true},'Cargo dado')"><option value="">+ cargo</option>${d.catalogo.filter((x) => !c.cargos.includes(x.id)).map((x) => `<option value="${x.id}">${esc(x.emoji)} ${esc(x.nome)}</option>`).join('')}</select></td>
+    <td class="mudo">${quando(c.created_at)}</td>
+    <td><label class="chk"><input type="checkbox" ${c.teste ? 'checked' : ''} onchange="acao('teste',{tipo:'personagens',id:'${c.codigo}',valor:this.checked},'Marcação de teste salva')">teste</label>
+      <br>${botao(c.oculto ? 'Mostrar' : 'Ocultar', 'colono', { codigo: c.codigo, oculto: !c.oculto }, 'peq ' + (c.oculto ? '' : 'perigo'), c.oculto ? '' : 'data-confirma="Ocultar do site, da busca e dos vídeos?"')}</td></tr>`).join('');
+  const temBusca = document.getElementById('buscaColono');
+  const tabela = bloco('t', `<div class="card tabela"><table><thead><tr><th>Código</th><th>Colono</th><th>Status</th><th>Origem (1º toque / UTM)</th><th>Último toque</th><th>Checklist</th><th>Cargos</th><th>Chegou</th><th></th></tr></thead><tbody>${linhas || '<tr><td colspan="9" class="mudo">Ninguém encontrado.</td></tr>'}</tbody></table></div>`);
+  if (temBusca) remendar($('#conteudo').children[0].outerHTML + tabela); else remendar(bloco('topo', topo) + tabela);
+}
+
+// ================================================================ VISÃO GERAL
+async function rVisao() {
+  const ocultar = lembrar('ocultarTestes') !== '0';
+  const d = await get('/api/visao?ocultar=' + (ocultar ? 1 : 0));
+  const tot = d.periodos.find((p) => p.periodo === '7 dias');
+  const kpis = [['Visitas (7 dias)', tot.visitas], ['Cadastros (7 dias)', tot.cadastros], ['Vendas pagas (7 dias)', tot.vendas], ['Receita (7 dias)', reais(tot.receita_centavos)]];
+  remendar(
+    bloco('topo', `<div class="linha"><label class="chk"><input type="checkbox" ${ocultar ? 'checked' : ''} onchange="lembrar('ocultarTestes',this.checked?'1':'0');atualizar(true)"> Ocultar testes</label>
+      <span class="mudo">${d.testes_marcados} item(ns) marcado(s) como teste (marque na aba Colonos ou Compras)</span></div>`) +
+    bloco('k', `<h2>Últimos 7 dias</h2><div class="kpis">${kpis.map(([r, v]) => `<div class="kpi"><b>${v}</b><span>${r}</span></div>`).join('')}</div><p class="mudo">${esc(d.obs)}</p>`) +
+    bloco('p', `<h2>Por período</h2><div class="card tabela"><table><thead><tr><th>Período</th><th class="num">Visitas</th><th class="num">Cliques em comprar</th><th class="num">Cadastros</th><th class="num">Vendas pagas</th><th class="num">Receita</th></tr></thead><tbody>${d.periodos.map((p) => `<tr><td>${esc(p.periodo)}</td><td class="num">${p.visitas}</td><td class="num">${p.cliques_comprar}</td><td class="num">${p.cadastros}</td><td class="num">${p.vendas}</td><td class="num">${reais(p.receita_centavos)}</td></tr>`).join('')}</tbody></table></div>`) +
+    bloco('d', `<h2>Dia a dia (14 dias)</h2><div class="card tabela"><table><thead><tr><th>Dia</th><th class="num">Visitas</th><th class="num">Cadastros</th><th class="num">Vendas</th><th class="num">Receita</th></tr></thead><tbody>${d.dias.map((x) => `<tr><td>${new Date(x.dia + 'T12:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })}</td><td class="num">${x.visitas}</td><td class="num">${x.cadastros}</td><td class="num">${x.vendas}</td><td class="num">${reais(x.receita_centavos)}</td></tr>`).join('')}</tbody></table></div>`) +
+    bloco('o', `<h2>Origem dos cadastros</h2><div class="card tabela"><table><thead><tr><th>Origem</th><th class="num">Cadastros</th><th class="num">Compradores</th></tr></thead><tbody>${d.origens.map((o) => `<tr><td>${esc(o.origem)}</td><td class="num">${o.cadastros}</td><td class="num">${o.compradores}</td></tr>`).join('') || '<tr><td colspan="3" class="mudo">Sem cadastros.</td></tr>'}</tbody></table></div>`));
+}
+
+// ================================================================ COMPRAS
+async function rCompras() {
+  const d = await get('/api/compras');
+  const filtros = { pagos: (p) => p.pago, pendentes: (p) => p.status === 'pendente', 'reembolsos/chargeback': (p) => /reembols|chargeback/.test(p.status), todos: () => true };
+  const lista = d.compras.filter(filtros[filtroCompras]);
+  const pagos = d.compras.filter((p) => p.pago && !p.teste);
+  remendar(
+    bloco('topo', `<div class="linha"><select onchange="filtroCompras=this.value;atualizar(true)">${Object.keys(filtros).map((f) => `<option ${f === filtroCompras ? 'selected' : ''}>${f}</option>`).join('')}</select>
+      <span class="mudo">${lista.length} pedido(s) · pagos sem testes: ${pagos.length} = ${reais(pagos.reduce((s, p) => s + p.valor_centavos, 0))}</span></div>
+      <p class="mudo">Só pedidos pagos (status aprovado) aparecem nos episódios. Pendentes nunca entram.</p>`) +
+    bloco('t', `<div class="card tabela"><table><thead><tr><th>#</th><th>Data</th><th>Produto</th><th class="num">Valor</th><th>Status</th><th>Método</th><th>Colono</th><th>Cliente</th><th>UTM</th><th>Opção / texto</th><th>Teste</th></tr></thead><tbody>${lista.map((p) => `<tr>
+      <td>${p.id}</td><td class="mudo">${quando(p.created_at)}</td><td>${esc((p.produto || {}).nome || '—')}</td><td class="num">${reais(p.valor_centavos)}</td>
+      <td><span class="st ${p.pago ? 'ok' : p.status === 'pendente' ? 'pendente' : 'erro'}">${esc(p.status)}</span></td><td>${esc(p.metodo || '—')}</td>
+      <td>${p.personagem ? esc(p.personagem.codigo) + '<br>' + esc(p.personagem.nome) : '<span class="mudo">não ligado</span>'}</td><td>${esc(p.cliente_nome || '—')}</td>
+      <td class="mudo">${esc([p.utm_source, p.utm_campaign].filter(Boolean).join(' / ') || '—')}</td><td>${esc([p.opcao, p.texto_personalizado].filter(Boolean).join(' · ') || '—')}</td>
+      <td><label class="chk"><input type="checkbox" ${p.teste ? 'checked' : ''} onchange="acao('teste',{tipo:'pedidos',id:${p.id},valor:this.checked},'Marcação salva')">teste</label></td></tr>`).join('') || '<tr><td colspan="11" class="mudo">Nenhum pedido.</td></tr>'}</tbody></table></div>`));
+}
+
+// ================================================================ SITE
+async function rSite() {
+  const s = await get('/api/site');
+  const estado = s.aprovado ? '<span class="st aprovado">aprovado</span>' : s.aprovacao_vencida ? '<span class="st erro">mudou depois da aprovação</span>' : (s.mudancas.length || s.commits_nao_enviados !== '0') ? '<span class="st aguardando">aguardando aprovação</span>' : '<span class="st ok">em dia</span>';
+  const temAlgo = s.mudancas.length || (s.commits_nao_enviados !== '0' && s.commits_nao_enviados !== '?');
+  remendar(
+    bloco('st' + s.aprovado + s.publicando + s.mudancas.length, `<div class="card"><div class="linha" style="justify-content:space-between"><h3>Mudanças para publicar</h3>${estado}</div>
+      <p class="mudo">Branch <b>${esc(s.branch)}</b> · último commit: ${esc(s.ultimo_commit)}${s.commits_nao_enviados !== '0' ? ` · <b>${esc(s.commits_nao_enviados)} commit(s) não enviado(s)</b>` : ''}${s.publicado_em ? ` · publicado pelo painel em ${quando(s.publicado_em)}` : ''}</p>
+      ${s.mudancas.length ? `<details><summary>${s.mudancas.length} arquivo(s) alterado(s)</summary><pre class="log">${esc(s.mudancas.join('\n'))}</pre></details>` : '<p class="mudo">Nenhum arquivo alterado.</p>'}
+      <div class="linha" style="margin-top:12px">
+        ${botao('✅ Aprovar', 'aprovar_site', {}, 'aprovar', temAlgo && !s.aprovado ? '' : 'disabled')}
+        ${botao('🚀 Publicar na Vercel', 'publicar_site', {}, 'publicar', (s.aprovado && !s.publicando ? '' : 'disabled ') + 'data-confirma="Publicar? Faz commit das mudanças e envia ao GitHub; a Vercel coloca no ar em 1–2 min."')}
+        <a class="btn" href="${esc(s.producao_url)}" target="_blank" rel="noopener">Abrir site no ar ↗</a>
+      </div><p class="mudo">Aprovar vale para exatamente estas mudanças: se algum arquivo mudar depois, é preciso aprovar de novo. Antes de enviar, o painel confere os tipos do código.</p></div>`) +
+    bloco('pv' + s.previa_rodando, `<h2>Prévia local</h2><div class="card">
+      <div class="linha">${s.previa_rodando ? botao('⏹ Parar prévia', 'previa_parar', {}, 'perigo') + `<a href="${s.previa_url}" target="_blank" rel="noopener">${s.previa_url} ↗</a>` : botao('▶ Iniciar prévia (npm run dev)', 'previa_iniciar', {}, 'publicar')}
+      <span class="mudo">A prévia roda o site do seu computador, com as mudanças ainda não publicadas.</span></div>
+      ${s.previa_rodando ? `<div class="previa" style="margin-top:14px"><div><p class="mudo">Celular</p><iframe src="${s.previa_url}" width="390" height="760"></iframe></div><div style="flex:1;min-width:400px"><p class="mudo">Computador</p><iframe src="${s.previa_url}" style="width:100%" height="760"></iframe></div></div>` : ''}</div>`) +
+    bloco('fila', `<h2>Fila de produção</h2><div class="card" id="logsFila">${htmlFila()}</div>`));
+}
+
+// ================================================================ CHAT
+async function rChat() {
+  const d = await get('/api/chat');
+  if (!d.existe) return remendar(bloco('x', `<div class="aviso">${esc(d.obs)}</div>`));
+  remendar(bloco('topo', `<div class="linha"><button class="btn perigo" onclick="limparChat()">🧹 Limpar chat</button><span class="mudo">${d.mensagens.length} mensagem(ns) recentes</span></div>`) +
+    bloco('m', `<div class="card">${d.mensagens.map((m) => `<div class="item"><div class="txt"><b>${esc(m.nome || m.autor || m.personagem_id || 'anônimo')}</b><small>${quando(m.created_at)}</small>${esc(m.texto || m.mensagem || '')}</div>${m.oculto ? '<span class="st neutro">oculta</span>' : botao('Ocultar', 'chat_ocultar', { id: m.id }, 'peq perigo')}</div>`).join('') || '<p class="mudo">Sem mensagens.</p>'}</div>`));
+}
+window.limparChat = () => {
+  const c = prompt('Isso apaga TODAS as mensagens do chat. Digite LIMPAR para confirmar:');
+  if (c) acao('chat_limpar', { confirmar: c }, 'Chat limpo');
+};
+
+// ================================================================ PRODUTOS
+async function rProdutos() {
+  const d = await get('/api/produtos');
+  remendar(bloco('t', `<p class="mudo">Preço e checkout são definidos na Cakto (mudar aqui não muda o valor cobrado). Aqui você liga/desliga na loja, muda a ordem e a descrição.</p>
+    <div class="card tabela"><table><thead><tr><th>Produto</th><th>Tipo</th><th class="num">Preço</th><th>Na loja</th><th>Ordem</th><th>Descrição</th><th class="num">Cliques</th><th class="num">Vendas</th><th class="num">Resgates</th><th class="num">Receita</th></tr></thead><tbody>
+    ${d.produtos.map((p) => `<tr><td><b>${esc(p.nome)}</b><br><span class="mudo">${esc(p.slug)}</span>${p.tipo === 'pago' && !p.checkout_configurado ? '<br><span class="st erro">sem checkout</span>' : ''}</td>
+      <td>${esc(p.tipo)}</td><td class="num">${reais(p.preco_centavos)}</td>
+      <td><label class="chk"><input type="checkbox" ${p.ativo ? 'checked' : ''} onchange="acao('produto',{id:${p.id},ativo:this.checked},this.checked?'Produto na loja':'Produto fora da loja')">ativo</label></td>
+      <td><input type="number" value="${p.ordem}" style="width:70px" onchange="acao('produto',{id:${p.id},ordem:Number(this.value)},'Ordem salva')"></td>
+      <td style="min-width:260px"><textarea style="min-height:60px" onchange="acao('produto',{id:${p.id},descricao:this.value},'Descrição salva')">${esc(p.descricao || '')}</textarea></td>
+      <td class="num">${p.cliques_comprar}</td><td class="num">${p.vendas}</td><td class="num">${p.resgates}</td><td class="num">${reais(p.receita_centavos)}</td></tr>`).join('')}
+    </tbody></table></div>`));
+}
+
+// ================================================================ CARGOS
+async function rCargos() {
+  const d = await get('/api/cargos');
+  const membros = (m) => m.length ? m.map((x) => `<span class="chip">${esc(x.nome)}</span>`).join('') : '<span class="mudo">ninguém ainda</span>';
+  remendar(
+    bloco('a', `<h2>Automáticos</h2><div class="grade">${d.automaticos.map((c) => `<div class="card"><h3>${esc(c.emoji)} ${esc(c.nome)}</h3><p class="mudo">${esc(c.regra)}</p>${membros(c.membros)}</div>`).join('')}</div>`) +
+    bloco('m', `<h2>Manuais</h2><p class="mudo">${esc(d.obs)} Para dar um cargo, use a coluna Cargos na aba 👥 Colonos.</p><div class="grade">${d.catalogo.map((c) => `<div class="card"><div class="linha" style="justify-content:space-between"><h3>${esc(c.emoji)} ${esc(c.nome)}</h3>${botao('Remover', 'cargo_remover', { id: c.id }, 'peq perigo', 'data-confirma="Remover este cargo de todo mundo?"')}</div>${membros(c.membros)}</div>`).join('')}</div>`) +
+    bloco('n', `<h2>Novo cargo</h2><div class="card linha"><input id="cargoEmoji" value="🏅" style="width:60px"><input id="cargoNome" placeholder="Nome do cargo (ex.: Piloto)" style="min-width:260px"><button class="btn aprovar" onclick="acao('cargo_criar',{emoji:$('#cargoEmoji').value,nome:$('#cargoNome').value},'Cargo criado')">Criar cargo</button></div>`));
+}
+
+// ================================================================ CONEXÕES
+async function rConexoes() {
+  const d = await get('/api/conexoes');
+  const grupos = {};
+  d.itens.forEach((i) => (grupos[i.grupo] ||= []).push(i));
+  remendar(bloco('topo', `<div class="linha">${botao('↻ Testar de novo', 'testar_conexoes', {}, '', 'data-msg="Conexões testadas"')}<span class="mudo">Testado em ${quando(d.testado_em)}. As chaves nunca aparecem aqui: só se estão configuradas.</span></div>`) +
+    Object.entries(grupos).map(([g, itens]) => bloco(g, `<h2>${esc(g)}</h2><div class="card">${itens.map((i) => `<div class="item"><div class="txt"><b>${esc(i.nome)}</b><small>${esc(i.detalhe)}</small></div><span class="st ${esc(i.status)}">${esc(i.status)}</span></div>`).join('')}</div>`)).join(''));
+}
+
+const RENDER = { aprovacoes: rAprovacoes, episodios: rEpisodios, divulgacao: rDivulgacao, colonos: rColonos, visao: rVisao, compras: rCompras, site: rSite, chat: rChat, produtos: rProdutos, cargos: rCargos, conexoes: rConexoes };
+window.irPara = irPara; window.acao = acao; window.atualizar = atualizar; window.lembrar = lembrar; window.$ = $;
+
+desenharAbas();
+irPara(aba);
+conectar();
+</script>
+</body>
+</html>

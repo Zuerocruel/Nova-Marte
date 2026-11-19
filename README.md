@@ -10,6 +10,8 @@ Este repositório tem o site (cadastro + mundo ao vivo + loja), o banco, o paine
 | Loja/checkout | Cakto + `app/comprar/` + `app/api/webhooks/cakto/` | Botão leva ao checkout; webhook grava a venda |
 | Painel | `app/painel/` (com senha) | Seguidores, cadastros, origens, funil, vendas, fila de produção |
 | Seguidores | `app/api/cron/seguidores/` (Vercel Cron, 1x/dia) | Puxa números do YouTube, Instagram e TikTok |
+| Fábrica de vídeos | `fabrica/` (Python, roda no seu PC) | Gera os episódios: dados → roteiro → voz → filmagem → MP4 |
+| Painel local | `producao/` + `ABRIR_PAINEL.bat` → http://127.0.0.1:8800 | Aprova e publica episódios, copies e site; colonos, vendas, produtos, conexões |
 
 Leia nesta ordem:
 1. [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md): como tudo se conecta, as pastas e o banco
