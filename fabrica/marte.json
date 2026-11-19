@@ -1,0 +1,356 @@
+{
+  "_leia": "Clima de Marte e Problemas do Dia (usados por fabrica/eventos.py). Cada episódio é um dia na colônia. As estações seguem a ordem da Terra, mas comprimidas e muito mais extremas: o episódio 1 foi o pouso, no começo da primavera. 'episodios' é quantos episódios a estação dura (em Marte de verdade: primavera 194 sóis, verão 178, outono 142, inverno 154; aqui é proporcional, comprimido). Os problemas NÃO mexem no tempo das obras: são resolvidos no mesmo episódio, em paralelo. Marcadores nas falas: {heroi} (colono ou fundador que resolve, a câmera vai até ele), {temp} (temperatura falada), {estacao} (nome da estação). 'requer' = obra que precisa estar concluída. 'peso' = chance por estação (padrão 1; 0 = nunca).",
+
+  "inicio": { "estacao": "primavera", "dia": 1 },
+
+  "estacoes": [
+    {
+      "id": "primavera", "nome": "Primavera", "falado": "primavera marciana", "episodios": 34,
+      "temp": [-75, -20], "efeito": "redemoinho",
+      "frases": [
+        "O gelo seco dos polos começa a derreter, e o vento acorda com ele.",
+        "Primavera em Marte não tem flor: tem redemoinho de poeira do tamanho de um prédio.",
+        "Os dias ficam mais longos, mas a poeira não dá trégua."
+      ]
+    },
+    {
+      "id": "verao", "nome": "Verão", "falado": "verão marciano", "episodios": 31,
+      "temp": [-60, 5], "efeito": "tempestade",
+      "frases": [
+        "Temporada de tempestades de poeira: tem dia em que o sol some por completo.",
+        "No verão de Marte, o meio-dia até esquenta, mas a noite continua congelando.",
+        "O céu está cor de ferrugem. A tempestade pode cobrir o planeta inteiro."
+      ]
+    },
+    {
+      "id": "outono", "nome": "Outono", "falado": "outono marciano", "episodios": 25,
+      "temp": [-90, -35], "efeito": "vento",
+      "frases": [
+        "Os dias encurtam, e a primeira geada de gelo seco aparece de madrugada.",
+        "Ventos de cem quilômetros por hora varrem a planície.",
+        "O frio está chegando, e cada watt de energia passa a valer ouro."
+      ]
+    },
+    {
+      "id": "inverno", "nome": "Inverno", "falado": "inverno marciano", "episodios": 27,
+      "temp": [-125, -70], "efeito": "geada",
+      "frases": [
+        "Noite de inverno em Marte: o ar congela e vira neve de gelo seco.",
+        "Pouco sol, muito frio. Os aquecedores trabalham sem parar.",
+        "Lá fora, o metal fica tão frio que racha. Ninguém sai sem traje térmico."
+      ]
+    }
+  ],
+
+  "categorias": {
+    "agua": "FALTA DE ÁGUA",
+    "oxigenio": "OXIGÊNIO EM RISCO",
+    "manutencao": "MANUTENÇÃO",
+    "ataque": "ATAQUE SELVAGEM",
+    "clima": "ALERTA DE CLIMA"
+  },
+
+  "problemas": [
+    {
+      "id": "cano-congelado", "categoria": "agua", "titulo": "Cano de água congelado", "alvo": "base",
+      "peso": { "primavera": 1, "verao": 0.5, "outono": 2, "inverno": 3 },
+      "alerta": [
+        "Alerta na base: a pressão da água despencou. Com {temp} lá fora, um cano congelou e rachou.",
+        "Torneira seca no módulo de pouso! O frio de {temp} congelou a tubulação do reservatório."
+      ],
+      "solucao": [
+        "{heroi} encontra a rachadura, aquece o cano com uma manta térmica e sela com resina. A água volta a correr.",
+        "{heroi} isola o trecho rachado e instala um cano reserva com aquecimento. Reservatório estável de novo."
+      ]
+    },
+    {
+      "id": "filtro-agua-entupido", "categoria": "agua", "titulo": "Reciclador de água entupido", "alvo": "base",
+      "alerta": [
+        "O reciclador de água parou. A poeira fina de Marte entupiu o filtro, e cada gota aqui é reaproveitada.",
+        "Problema sério: a reciclagem de água caiu pela metade. Sem ela, a reserva dura poucos dias."
+      ],
+      "solucao": [
+        "{heroi} desmonta o filtro, lava as membranas e troca a peça mais gasta. Água limpa de novo.",
+        "{heroi} instala um pré-filtro improvisado com tecido de traje espacial. Gambiarra marciana aprovada."
+      ]
+    },
+    {
+      "id": "extrator-gelo-travado", "categoria": "agua", "titulo": "Extrator de gelo travado", "alvo": "colonia",
+      "alerta": [
+        "A broca que tira gelo do subsolo bateu numa rocha e travou. Sem gelo, não tem água nova.",
+        "O extrator de gelo parou a dois metros de profundidade. A reserva de água começa a baixar."
+      ],
+      "solucao": [
+        "{heroi} recua a broca, muda o ângulo e passa ao lado da rocha. O gelo volta a subir.",
+        "{heroi} troca a ponta da broca por uma de diamante. Rocha marciana nenhuma segura agora."
+      ]
+    },
+    {
+      "id": "agua-percloratos", "categoria": "agua", "titulo": "Água contaminada", "alvo": "base",
+      "alerta": [
+        "O sensor acusou percloratos na água: um sal tóxico que existe no solo de Marte. Ninguém bebe nada até segunda ordem.",
+        "Água contaminada! O gelo novo veio cheio de sal tóxico do solo marciano."
+      ],
+      "solucao": [
+        "{heroi} liga a destilação de emergência e ferve tudo duas vezes. Teste refeito: água potável.",
+        "{heroi} cria um filtro com carvão e resina de troca iônica. O sal fica para trás."
+      ]
+    },
+    {
+      "id": "conversor-oxigenio", "categoria": "oxigenio", "titulo": "Conversor de oxigênio falhou", "alvo": "base",
+      "alerta": [
+        "Alarme vermelho: o conversor que transforma o gás carbônico de Marte em oxigênio desligou sozinho.",
+        "O oxigênio da base está caindo. A máquina que fabrica o nosso ar apagou durante a madrugada."
+      ],
+      "solucao": [
+        "{heroi} descobre um eletrodo queimado, troca pela peça reserva e religa o conversor. Todo mundo respira aliviado.",
+        "{heroi} reinicia o conversor em modo seguro e limpa a entrada de ar cheia de poeira. Oxigênio subindo."
+      ]
+    },
+    {
+      "id": "vazamento-camara", "categoria": "oxigenio", "titulo": "Vazamento na câmara de ar", "alvo": "base",
+      "alerta": [
+        "Chiado na câmara de descompressão: a vedação da porta está deixando o ar escapar para fora.",
+        "Perda de pressão! A porta que separa a base do lado de fora não está fechando direito."
+      ],
+      "solucao": [
+        "{heroi} encontra a borracha da vedação ressecada pelo frio e troca por uma nova. Pressão estável.",
+        "{heroi} passa espuma de selagem no batente e reaperta a porta. Nenhum chiado a mais."
+      ]
+    },
+    {
+      "id": "filtro-co2", "categoria": "oxigenio", "titulo": "Gás carbônico subindo", "alvo": "base",
+      "alerta": [
+        "O ar da base está ficando pesado: o filtro que tira o gás carbônico que a gente expira saturou.",
+        "Dor de cabeça geral na base. O nível de gás carbônico dentro do módulo está acima do seguro."
+      ],
+      "solucao": [
+        "{heroi} troca o cartucho do filtro e põe o velho para regenerar no forno. Ar leve de novo.",
+        "{heroi} liga o filtro reserva e ajusta a ventilação. Em uma hora, o ar volta ao normal."
+      ]
+    },
+    {
+      "id": "valvula-tanque", "categoria": "oxigenio", "titulo": "Válvula do tanque reserva travada", "alvo": "base",
+      "alerta": [
+        "Teste de rotina revelou: a válvula do tanque reserva de oxigênio não abre. Se precisar dele, não vai sair nada.",
+        "O tanque de emergência está cheio, mas travado. Gelo dentro da válvula."
+      ],
+      "solucao": [
+        "{heroi} esquenta a válvula devagar, para não rachar, e o gelo derrete. Reserva liberada.",
+        "{heroi} troca a válvula inteira com o tanque isolado. Teste feito: tudo abrindo."
+      ]
+    },
+    {
+      "id": "robo-carga-parado", "categoria": "manutencao", "titulo": "Robô de carga parado", "alvo": "colonia",
+      "alerta": [
+        "Um dos robôs de carga travou no meio do caminho. Poeira dentro das juntas das rodas.",
+        "O robô que leva material até a obra simplesmente parou de responder."
+      ],
+      "solucao": [
+        "{heroi} abre as juntas, sopra a poeira com ar comprimido e lubrifica tudo. O robô volta a rodar.",
+        "{heroi} reinstala o programa do robô e troca um sensor queimado. De volta ao trabalho."
+      ]
+    },
+    {
+      "id": "paineis-poeira", "categoria": "manutencao", "titulo": "Painéis solares cobertos de poeira", "alvo": "obra:fazenda-solar", "requer": "fazenda-solar",
+      "peso": { "primavera": 1.5, "verao": 3, "outono": 1, "inverno": 0.5 },
+      "alerta": [
+        "A energia da Fazenda Solar caiu quarenta por cento. Uma camada de poeira cobriu os painéis.",
+        "Os painéis solares estão cor de ferrugem. Menos luz, menos energia para a colônia."
+      ],
+      "solucao": [
+        "{heroi} passa painel por painel com a escova eletrostática. Energia de volta ao máximo.",
+        "{heroi} programa os painéis para inclinarem e sacudirem a poeira sozinhos. Problema resolvido de vez."
+      ]
+    },
+    {
+      "id": "bateria-fria", "categoria": "manutencao", "titulo": "Baterias congelando", "alvo": "base",
+      "peso": { "primavera": 0.5, "verao": 0, "outono": 2, "inverno": 3 },
+      "alerta": [
+        "O aquecedor das baterias quebrou. Com {temp}, a bateria perde carga a cada minuto.",
+        "Bateria fria é bateria fraca: o banco de energia da base está esfriando rápido."
+      ],
+      "solucao": [
+        "{heroi} troca a resistência do aquecedor e cobre as baterias com manta térmica. Carga estabilizada.",
+        "{heroi} desvia o calor do conversor de oxigênio para as baterias. Nada se perde em Marte."
+      ]
+    },
+    {
+      "id": "rover-atolado", "categoria": "manutencao", "titulo": "Rover atolado na duna", "alvo": "colonia",
+      "alerta": [
+        "O rover de exploração atolou numa duna fofa a três quilômetros da base.",
+        "Rover preso! As rodas giram, mas só afundam mais na areia."
+      ],
+      "solucao": [
+        "{heroi} vai até lá com placas de tração e tira o rover devagar, de ré. Ninguém fica para trás.",
+        "{heroi} esvazia um pouco os pneus para espalhar o peso, e o rover sai sozinho da duna."
+      ]
+    },
+    {
+      "id": "impressora-pecas", "categoria": "manutencao", "titulo": "Impressora de peças entupida", "alvo": "base",
+      "alerta": [
+        "A impressora 3D que fabrica peças de reposição entupiu. Sem ela, qualquer quebra vira um problemão.",
+        "A fábrica de peças da colônia parou: bico entupido com metal derretido."
+      ],
+      "solucao": [
+        "{heroi} desmonta o bico, limpa e recalibra a impressora. A primeira peça sai perfeita.",
+        "{heroi} imprime um bico novo usando a impressora reserva. A máquina conserta a máquina."
+      ]
+    },
+    {
+      "id": "fungo-estufa", "categoria": "manutencao", "titulo": "Fungo na estufa", "alvo": "obra:estufa", "requer": "estufa",
+      "alerta": [
+        "Manchas brancas nas folhas da estufa: um fungo está se espalhando pelas plantas.",
+        "Umidade alta demais na estufa. As mudas começaram a mofar."
+      ],
+      "solucao": [
+        "{heroi} isola as plantas doentes, baixa a umidade e liga luz ultravioleta. A plantação está salva.",
+        "{heroi} ajusta a ventilação da estufa e troca o substrato. Mudas novas e saudáveis."
+      ]
+    },
+    {
+      "id": "besouros-ferrugem", "categoria": "ataque", "titulo": "Enxame de besouros-de-ferrugem", "alvo": "colonia",
+      "peso": { "primavera": 2, "verao": 1.5, "outono": 1, "inverno": 0.3 },
+      "alerta": [
+        "Ataque! Um enxame de besouros-de-ferrugem saiu da areia e está roendo os cabos da colônia.",
+        "Os sensores mostram milhares de pontinhos se mexendo: besouros-de-ferrugem, famintos por metal."
+      ],
+      "solucao": [
+        "{heroi} espalha iscas de ferro velho longe da base, e o enxame vai atrás. Cabos salvos.",
+        "{heroi} liga uma cerca de baixa voltagem em volta dos cabos. Os besouros dão meia-volta."
+      ]
+    },
+    {
+      "id": "vermes-areia", "categoria": "ataque", "titulo": "Vermes de areia sob a colônia", "alvo": "colonia",
+      "peso": { "primavera": 1.5, "verao": 2, "outono": 1, "inverno": 0.5 },
+      "alerta": [
+        "O chão tremeu. Vermes de areia estão cavando túneis embaixo das casas da colônia.",
+        "Rachaduras no solo e um barulho grave lá embaixo: vermes de areia rondando a colônia."
+      ],
+      "solucao": [
+        "{heroi} instala emissores de vibração na borda da colônia. Os vermes odeiam o barulho e vão embora.",
+        "{heroi} enche os túneis com espuma que endurece. As casas ficam firmes, e os vermes mudam de rota."
+      ]
+    },
+    {
+      "id": "acaros-gelo", "categoria": "ataque", "titulo": "Ácaros de gelo nas entradas de ar", "alvo": "base",
+      "peso": { "primavera": 0.5, "verao": 0, "outono": 2, "inverno": 3 },
+      "alerta": [
+        "Ácaros de gelo, bichinhos que só aparecem no frio extremo, estão entupindo as entradas de ar da base.",
+        "As grades de ventilação amanheceram cobertas de ácaros de gelo. O ar da base está ficando parado."
+      ],
+      "solucao": [
+        "{heroi} aquece as grades por dez minutos. Os ácaros de gelo se soltam e somem na neve.",
+        "{heroi} instala uma tela fina na frente das grades. O ar passa, os ácaros não."
+      ]
+    },
+    {
+      "id": "lagarto-duna", "categoria": "ataque", "titulo": "Lagarto-de-duna curioso", "alvo": "colonia",
+      "peso": { "primavera": 1, "verao": 2, "outono": 1, "inverno": 0 },
+      "alerta": [
+        "Um lagarto-de-duna do tamanho de um carro está rondando a colônia, atraído pelo calor das casas.",
+        "Visitante inesperado: um lagarto-de-duna gigante cheirando a porta da base."
+      ],
+      "solucao": [
+        "{heroi} acende as luzes estroboscópicas. O lagarto se assusta e volta para as dunas, sem ninguém se machucar.",
+        "{heroi} deixa uma placa de metal quente longe da base. O lagarto vai tomar sol lá e esquece da gente."
+      ]
+    },
+    {
+      "id": "redemoinho", "categoria": "clima", "titulo": "Redemoinho de poeira gigante", "alvo": "colonia",
+      "peso": { "primavera": 3, "verao": 1, "outono": 0.5, "inverno": 0 },
+      "alerta": [
+        "Redemoinho de poeira à vista! Uma coluna de quilômetros de altura vem direto para a colônia.",
+        "O radar mostra um redemoinho de poeira gigante girando na nossa direção."
+      ],
+      "solucao": [
+        "{heroi} recolhe as ferramentas e prende tudo que pode voar. O redemoinho passa, e a colônia fica de pé.",
+        "{heroi} dá o alerta a tempo, e todos se abrigam. Depois, só poeira para varrer."
+      ]
+    },
+    {
+      "id": "geiser-co2", "categoria": "clima", "titulo": "Gêiseres de gás carbônico", "alvo": "colonia",
+      "peso": { "primavera": 2.5, "verao": 0, "outono": 0, "inverno": 0 },
+      "alerta": [
+        "Com o degelo da primavera, gêiseres de gás carbônico estão explodindo do chão perto da colônia.",
+        "Jatos de gás e areia saindo do solo! O gelo seco embaixo da terra está virando gás de uma vez."
+      ],
+      "solucao": [
+        "{heroi} mapeia os gêiseres e marca uma rota segura para os robôs. Ninguém passa perto.",
+        "{heroi} muda o caminho até a obra para longe da área dos gêiseres. Rota nova liberada."
+      ]
+    },
+    {
+      "id": "tempestade-global", "categoria": "clima", "titulo": "Tempestade de poeira chegando", "alvo": "colonia",
+      "peso": { "primavera": 0.5, "verao": 3, "outono": 1, "inverno": 0 },
+      "alerta": [
+        "A tempestade de poeira chegou. O céu escureceu ao meio-dia, e a energia solar caiu quase a zero.",
+        "Tempestade de poeira! Pode durar semanas e cobrir o planeta inteiro."
+      ],
+      "solucao": [
+        "{heroi} coloca a colônia em modo de economia: só o essencial fica ligado. A reserva aguenta.",
+        "{heroi} organiza turnos e desliga tudo que não é vital. A colônia atravessa a escuridão."
+      ]
+    },
+    {
+      "id": "tempestade-solar", "categoria": "clima", "titulo": "Tempestade solar", "alvo": "base",
+      "peso": { "primavera": 1, "verao": 2, "outono": 1, "inverno": 1 },
+      "alerta": [
+        "O Sol cuspiu uma tempestade de radiação. Marte não tem campo magnético para nos proteger.",
+        "Alerta de radiação! Uma explosão solar vai atingir Marte em poucas horas."
+      ],
+      "solucao": [
+        "{heroi} leva todos para o abrigo blindado com água nas paredes. Duas horas depois, perigo passado.",
+        "{heroi} conta todo mundo dentro do abrigo e fecha a porta. A radiação passa, e a colônia está inteira."
+      ]
+    },
+    {
+      "id": "ventania", "categoria": "clima", "titulo": "Ventania de cem por hora", "alvo": "colonia",
+      "peso": { "primavera": 1, "verao": 0.5, "outono": 3, "inverno": 1 },
+      "alerta": [
+        "Ventania de cem quilômetros por hora! Areia batendo nas janelas como lixa.",
+        "O vento de outono está arrancando a lona das obras e jogando pedra nas casas."
+      ],
+      "solucao": [
+        "{heroi} amarra as lonas com cabo de aço e fecha as persianas de metal. A colônia aguenta firme.",
+        "{heroi} recolhe o que estava solto e reforça as estacas da obra. O vento passa sem estrago."
+      ]
+    },
+    {
+      "id": "geada-paineis", "categoria": "clima", "titulo": "Geada de gelo seco", "alvo": "colonia",
+      "peso": { "primavera": 0, "verao": 0, "outono": 2, "inverno": 2.5 },
+      "alerta": [
+        "Amanheceu tudo branco: uma geada de gelo seco cobriu a colônia, e com {temp} nada derrete sozinho.",
+        "Gelo seco nos painéis, nas janelas e nas rodas dos robôs. A colônia amanheceu congelada."
+      ],
+      "solucao": [
+        "{heroi} liga o aquecimento dos painéis e raspa o gelo das rodas. Colônia descongelada.",
+        "{heroi} espera o sol da tarde e usa o calor da base para derreter o resto. Tudo funcionando."
+      ]
+    },
+    {
+      "id": "nevasca-co2", "categoria": "clima", "titulo": "Nevasca de gelo seco", "alvo": "colonia",
+      "peso": { "primavera": 0, "verao": 0, "outono": 0.5, "inverno": 3 },
+      "alerta": [
+        "Neva em Marte, mas não é água: é gás carbônico congelado caindo do céu, com {temp}.",
+        "Nevasca de gelo seco! A visibilidade caiu a dez metros."
+      ],
+      "solucao": [
+        "{heroi} guia os robôs pelo rádio até a garagem, um por um. Ninguém se perde na nevasca.",
+        "{heroi} limpa o caminho entre as casas com o robô de carga. A colônia continua conectada."
+      ]
+    },
+    {
+      "id": "noite-extrema", "categoria": "clima", "titulo": "Noite mais fria do ano", "alvo": "base",
+      "peso": { "primavera": 0, "verao": 0, "outono": 0.5, "inverno": 2 },
+      "alerta": [
+        "Previsão para esta noite: {temp}. O aquecimento da base vai trabalhar no limite.",
+        "A noite mais fria da {estacao} está chegando, e o aquecedor principal já está fazendo barulho."
+      ],
+      "solucao": [
+        "{heroi} junta todo mundo no módulo central e desliga as áreas vazias. Menos espaço, mais calor.",
+        "{heroi} revisa o aquecedor antes do anoitecer e troca uma correia gasta. A base atravessa a noite."
+      ]
+    }
+  ]
+}

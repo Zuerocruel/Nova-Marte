@@ -34,6 +34,8 @@ def montar_ep(pasta: Path) -> dict:
     d = config.ler_json(pasta / "dados.json")
     return {
         **{k: lt[k] for k in ("numero", "titulo", "missao_obra", "missao_titulo", "proxima", "duracao", "fps", "cenas")},
+        "estacao": lt.get("estacao"),      # clima/etiqueta do topo (eventos.py)
+        "problema": lt.get("problema"),    # problema do dia (deixa o clima mais forte se for de clima)
         "site_tela": config.SITE_TELA,
         "mundo": {
             "fundadores": d["fundadores"],

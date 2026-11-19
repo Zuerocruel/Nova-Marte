@@ -16,6 +16,15 @@ const FONTE = '"Press Start 2P", monospace';
 const COR = {
   ceu: '#140f26', ceu2: '#1e1838', borda: '#3a2f63', areia: '#f6d7a7', texto: '#f3eefe',
   marte: '#e2603b', marteEsc: '#a83d22', agua: '#3fd0c9', ouro: '#ffc83d', ok: '#4ed37a',
+  alerta: '#ff4d4d', gelo: '#dff3ff',
+};
+
+// Clima da estação (fabrica/marte.json → "efeito"). Problema do dia de clima deixa tudo mais forte.
+const CLIMA = {
+  redemoinho: { n: 46, vel: 1, cor: '#f6d7a7', tinta: null, cai: false, risco: false },
+  tempestade: { n: 170, vel: 2.2, cor: '#ffe2b8', tinta: ['#b5562b', 0.22], cai: false, risco: true },
+  vento: { n: 95, vel: 3.2, cor: '#f6d7a7', tinta: ['#7a5a48', 0.08], cai: false, risco: true },
+  geada: { n: 140, vel: 0.35, cor: '#ffffff', tinta: ['#a9d2f2', 0.24], cai: true, risco: false, grande: true },
 };
 
 const cv = document.getElementById('tela');
@@ -331,7 +340,7 @@ function caixaColonia() {
 function posAlvo(alvo, t) {
   const [tipo, id] = alvo.split(':');
   if (tipo === 'base') return centro(EP.mundo.base);
-  if (tipo === 'obra') return centro(obraDaMissao());
+  if (tipo === 'obra') return centro((id && EP.mundo.obras.find((o) => o.slug === id)) || obraDaMissao());
   if (tipo === 'colonia' || tipo === 'panorama') return caixaColonia();
   if (tipo === 'ator' || tipo === 'fundador') {
     const f = EP.mundo.fundadores.find((x) => x.id === id);
@@ -646,14 +655,38 @@ function desenharFocos(cam, t, cena) {
   }
 }
 
+function climaAtual() {
+  const c = CLIMA[(EP.estacao && EP.estacao.efeito) || 'redemoinho'] || CLIMA.redemoinho;
+  const forte = EP.problema && EP.problema.categoria === 'clima' ? 1.5 : 1;
+  return { ...c, n: Math.round(c.n * forte), forte };
+}
+
 function poeira(t) {
-  for (let i = 0; i < 46; i++) {
-    const vel = 30 + hash(i, 1) * 70;
-    const x = ((hash(i, 2) * W + t * vel) % (W + 40)) - 20;
-    const y = (hash(i, 3) * H + Math.sin(t * 0.8 + i) * 30 + H) % H;
-    ctx.globalAlpha = 0.18 + hash(i, 4) * 0.25;
-    ret(x, y, 4 + Math.floor(hash(i, 5) * 3) * 2, 4, '#f6d7a7');
+  const c = climaAtual();
+  if (c.tinta) { ctx.globalAlpha = Math.min(0.35, c.tinta[1] * c.forte); ret(0, 0, W, H, c.tinta[0]); }
+  for (let i = 0; i < c.n; i++) {
+    const vel = (30 + hash(i, 1) * 70) * c.vel;
+    let x, y;
+    if (c.cai) {   // neve de gelo seco: cai devagar, balançando
+      x = (hash(i, 2) * W + Math.sin(t * 0.9 + i) * 24 + W) % W;
+      y = ((hash(i, 3) * H + t * (40 + hash(i, 6) * 60)) % (H + 20)) - 10;
+    } else {
+      x = ((hash(i, 2) * W + t * vel) % (W + 40)) - 20;
+      y = (hash(i, 3) * H + Math.sin(t * 0.8 + i) * 30 + H) % H;
+    }
+    ctx.globalAlpha = c.grande ? 0.45 + hash(i, 4) * 0.4 : 0.18 + hash(i, 4) * 0.25;
+    if (c.grande) { const s = 6 + Math.floor(hash(i, 5) * 3) * 2; ret(x, y, s, s, c.cor); continue; }
+    const w = c.risco ? 12 + Math.floor(hash(i, 5) * 4) * 4 : 4 + Math.floor(hash(i, 5) * 3) * 2;
+    ret(x, y, w, c.risco ? 2 : 4, c.cor);
   }
+  ctx.globalAlpha = 1;
+}
+
+function alarme(t, cena) {   // luz vermelha pulsando durante o alerta do problema do dia
+  if (!cena || cena.tipo !== 'problema') return;
+  const a = fadeCena(cena, t, 0.2, 0.4) * (0.10 + 0.10 * Math.max(0, Math.sin(t * 7)));
+  ctx.globalAlpha = a;
+  ret(0, 0, W, H, COR.alerta);
   ctx.globalAlpha = 1;
 }
 
@@ -665,11 +698,15 @@ function hudTopo(t) {
   const a = clamp((t - 2.6) / 0.5);
   if (a <= 0) return;
   ctx.globalAlpha = a;
-  const rot = `OPERAÇÃO MARTE ZERO · EP ${String(EP.numero).padStart(2, '0')}`;
+  const ep = `EP ${String(EP.numero).padStart(2, '0')}`;
+  const e = EP.estacao;
+  // do episódio 2 em diante o selo leva a estação e a temperatura do dia (no lugar do nome, que já está na abertura)
+  const rot = e && EP.numero >= 2 ? `${ep} · ${e.nome.toUpperCase()} · DIA ${e.dia} · ${e.temp}°C` : `OPERAÇÃO MARTE ZERO · ${ep}`;
   ctx.font = `24px ${FONTE}`;
   const w = ctx.measureText(rot).width + 44;
-  caixa(54, 132, w, 62, 0.8);
-  texto(rot, 54 + w / 2, 165, 24, COR.areia, { contorno: false });
+  const frio = e && EP.numero >= 2 && e.efeito === 'geada';
+  caixa(54, 132, Math.min(w, W - 108), 62, 0.8, frio ? '#4f7fa8' : COR.borda);
+  texto(rot, 54 + Math.min(w, W - 108) / 2, 165, 24, frio ? COR.gelo : COR.areia, { contorno: false, maxW: W - 150 });
   ctx.globalAlpha = 1;
 }
 
@@ -721,6 +758,15 @@ function cartao(cena, t, cam) {
     ret(140, 470 - sobe, W - 280, 22, COR.borda);
     ret(140, 470 - sobe, (W - 280) * st.p, 22, st.energia ? COR.ok : COR.marte);
     texto(`${Math.round(st.p * 100)}%`, W - 150, 481 - sobe, 18, COR.texto, { alinhar: 'right', contorno: false });
+  } else if (cena.tipo === 'problema' || cena.tipo === 'solucao') {
+    const p = cena.problema || {};
+    const ok = cena.tipo === 'solucao';
+    caixa(70, 236 - sobe, W - 140, 250, 0.9, ok ? COR.ok : COR.alerta);
+    const pisca = ok || Math.floor(t * 3) % 3 !== 0;   // aceso 2/3 do tempo
+    if (pisca) texto(ok ? 'RESOLVIDO!' : 'ALERTA!', W / 2, 296 - sobe, 40, ok ? COR.ok : COR.alerta);
+    texto((p.rotulo || '').toUpperCase(), W / 2, 356 - sobe, 22, COR.areia, { contorno: false, maxW: W - 220 });
+    texto((p.titulo || '').toUpperCase(), W / 2, 408 - sobe, 26, COR.texto, { contorno: false, maxW: W - 200 });
+    if (ok && cena.heroi) texto(`POR ${cena.heroi.toUpperCase()}`, W / 2, 452 - sobe, 20, COR.ouro, { contorno: false });
   } else if (cena.tipo === 'gancho') {
     texto('PROCURE SEU NOME', W / 2, 330 - sobe, 50, COR.ouro);
     ctx.font = `38px ${FONTE}`;
@@ -768,6 +814,7 @@ function desenhar(t) {
     ctx.globalAlpha = 1;
   }
   ctx.drawImage(vinheta, 0, 0);
+  alarme(t, cena);
   desenharFocos(cam, t, cena);
   hudTopo(t);
   cartao(cena, t, cam);

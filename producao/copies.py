@@ -45,7 +45,8 @@ def _mmss(s: float) -> str:
 
 
 ROTULO_CENA = {"abertura": "Abertura", "populacao": "População", "boas_vindas": "Boas-vindas",
-               "compras": "Novidades na vizinhança", "gancho": "Próximo episódio"}
+               "compras": "Novidades na vizinhança", "problema": "Alerta: problema do dia",
+               "solucao": "Problema resolvido", "gancho": "Próximo episódio"}
 
 
 def capitulos(lt: dict) -> list[str]:
@@ -80,6 +81,11 @@ def gerar(numero: int) -> dict:
     n, missao = numero, r["missao_titulo"]
     tags = " ".join(HASHTAGS)
     dest = destaques(d)
+    e, prob = r.get("estacao"), r.get("problema")
+    if e and n >= 2:
+        dest.insert(0, f"{'❄️' if e['efeito'] == 'geada' else '🌡️'} {e['nome']} em Marte, dia {e['dia']}: {e['temp']}°C")
+    if prob:
+        dest.append(f"⚠️ Problema do dia: {prob['titulo']}. Resolvido por {prob['heroi']}!")
     if r.get("obra_progresso") and r["obra_progresso"][1] < 100:
         dest.append(f"🏗️ Obra: {r['titulo'].split(' · ', 1)[-1]} em {r['obra_progresso'][1]}%")
     linhas_dest = "\n".join(dest)
@@ -123,7 +129,8 @@ def gerar(numero: int) -> dict:
             "obs": "Instagram não deixa link clicável na legenda: use este link na bio ou no story.",
         },
         "tiktok": {
-            "legenda": (f"Ep. {n}: {missao} 🚀 " + ("Episódio novo todo dia! " if diario else "")
+            "legenda": (f"Ep. {n}: {missao} 🚀 " + (f"⚠️ {prob['titulo']}! " if prob else "")
+                        + ("Episódio novo todo dia! " if diario else "")
                         + f"Vire personagem: link na bio! {tags}")[:2200],
             "link": f"https://{link('tiktok', n)}",
             "obs": "Coloque o link na bio do TikTok antes de postar.",

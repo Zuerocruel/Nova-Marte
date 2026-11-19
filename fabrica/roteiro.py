@@ -1,8 +1,11 @@
 """Roteiro: monta as falas do episódio por templates (sem IA).
 
 Ordem das cenas:
-  abertura → população → boas-vindas (se houver novos) → compras pagas (se houver)
-  → Missão do Dia (5 cenas) → gancho final.
+  abertura (com estação e temperatura) → população → boas-vindas (se houver novos)
+  → compras pagas (se houver) → ALERTA do Problema do Dia → Missão do Dia (5 cenas)
+  → problema RESOLVIDO → gancho final.
+
+O Problema do Dia (eventos.py + marte.json) corre em paralelo à obra e não muda o tempo dela.
 
 Episódios são diários e uma obra leva vários episódios: o avanço do dia é
 (população × pontos_por_pessoa) ÷ trabalho da obra (fabrica/colonia.json → "ritmo").
@@ -20,6 +23,7 @@ import random
 import re
 
 import config
+import eventos
 
 # ---------------------------------------------------------------- números
 _UNI = "zero um dois três quatro cinco seis sete oito nove dez onze doze treze catorze quinze dezesseis dezessete dezoito dezenove".split()
@@ -85,6 +89,24 @@ class Fala:
                 self.add(" e " if i == len(itens) - 1 else ", ")
             self.add(nome, foco)
         return self
+
+
+def fala_com_heroi(molde: str, heroi: dict, **campos) -> Fala:
+    """Monta a fala trocando {heroi} pelo nome com foco (a câmera vai até ele quando o nome é dito)."""
+    f = Fala()
+    partes = molde.split("{heroi}")
+    for i, parte in enumerate(partes):
+        if i:
+            f.add(heroi["falado"], heroi["foco"])
+        f.add(parte.format(**campos))
+    return f
+
+
+CAMERA_PROBLEMA = {"base": {"alvo": "base", "zoom": 5.0}, "colonia": {"alvo": "colonia", "zoom": 3.2}}
+
+
+def camera_do_problema(alvo: str) -> dict:
+    return CAMERA_PROBLEMA.get(alvo) or {"alvo": alvo, "zoom": 5.0}   # "obra:<slug>"
 
 
 def cena(id_: str, tipo: str, fala: Fala, **extra) -> dict:
@@ -180,6 +202,10 @@ def montar(d: dict) -> dict:
     rnd = random.Random(n)  # mesma escolha de template sempre que o mesmo episódio for gerado
     fund = d["fundadores"]
     cenas: list[dict] = []
+    est, dia_est = eventos.estacao(n)
+    temp = eventos.temperatura(n, est)
+    problema = eventos.escolher(n, d)
+    campos = {"temp": eventos.temp_falada(temp, extenso), "estacao": est["falado"]}
 
     # 1. abertura
     if n == 1:
@@ -187,6 +213,9 @@ def montar(d: dict) -> dict:
                        "a primeira nave acaba de pousar no planeta vermelho.")
     else:
         f = Fala().add(rnd.choice(ABERTURAS).format(n=extenso(n)))
+        f.add(f" {est['falado'].capitalize()}, dia {extenso(dia_est)}. Lá fora, {eventos.temp_falada(temp, extenso)}.")
+        if dia_est == 1 or rnd.random() < 0.35:           # 1º dia da estação sempre ganha a frase do clima
+            f.add(" " + rnd.choice(est["frases"]))
     cenas.append(cena("abertura", "abertura", f, camera={"alvo": "base", "zoom": 4.2}))
 
     # 2. população
@@ -236,6 +265,12 @@ def montar(d: dict) -> dict:
         f.add("Obrigado por apoiar a Operação Marte Zero!")
         cenas.append(cena("compras", "compras", f, camera={"alvo": "colonia", "zoom": 5}))
 
+    # 4b. ALERTA do Problema do Dia (resolvido depois da missão, em paralelo à obra)
+    if problema:
+        f = Fala().add(f"{problema['rotulo'].capitalize()}! ").add(problema["alerta"].format(**campos))
+        cenas.append(cena("problema", "problema", f, camera=camera_do_problema(problema["alvo"]),
+                          problema={k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")}))
+
     # 5. Missão do Dia (5 cenas, da primeira obra não concluída)
     obra = next((o for o in d["obras"] if o["status"] != "concluida"), None)
     catalogo = {o["slug"]: o for o in config.colonia()["obras"]}
@@ -253,6 +288,13 @@ def montar(d: dict) -> dict:
                           passo=i, acao=mc["acao"], camera=mc["camera"],
                           progresso=mc["progresso"], atores=mc["atores"]))
     proxima = missao["proxima"] if concluida else f"a obra da {obra['nome']} continua"
+
+    # 5b. problema RESOLVIDO (quem resolve é um colono de verdade, chamado pelo nome)
+    if problema:
+        f = fala_com_heroi("E o problema do dia? " + problema["solucao"], problema["heroi"], **campos)
+        cenas.append(cena("solucao", "solucao", f, camera=camera_do_problema(problema["alvo"]),
+                          problema={k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")},
+                          heroi=problema["heroi"]["nome"]))
 
     # 6. gancho final
     if n == 1:
@@ -273,6 +315,9 @@ def montar(d: dict) -> dict:
         "obra_progresso": [p0, p1],     # % de ontem → % ao fim deste episódio (gravado ao publicar)
         "obra_dia": dia,
         "obra_concluida": concluida,
+        "estacao": {"id": est["id"], "nome": est["nome"], "falado": est["falado"], "dia": dia_est, "temp": temp, "efeito": est["efeito"]},
+        "problema": ({k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")} | {"heroi": problema["heroi"]["nome"]})
+                    if problema else None,
         "cenas": cenas,
     }
 
@@ -287,6 +332,11 @@ def legenda_post(d: dict, r: dict) -> str:
                       (f" e mais {d['novos_total'] - len(d['novos'])}" if d["novos_total"] > len(d["novos"]) else ""))
     if r.get("obra_progresso"):
         linhas.append(f"Obra: {r['titulo'].split(' · ', 1)[-1]} {r['obra_progresso'][1]}%.")
+    if r.get("estacao") and r["numero"] >= 2:
+        e = r["estacao"]
+        linhas.append(f"{e['falado'].capitalize()}, dia {e['dia']}: {e['temp']}°C.")
+    if r.get("problema"):
+        linhas.append(f"Problema do dia: {r['problema']['titulo']}, resolvido por {r['problema']['heroi']}.")
     if r["numero"] >= 2:
         linhas.append("Episódio novo todo dia.")
     linhas += ["", f"Vire personagem e procure seu nome no mapa: {config.SITE_TELA}", "",

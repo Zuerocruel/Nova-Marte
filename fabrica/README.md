@@ -34,6 +34,20 @@ Uma obra leva vários episódios. A cada episódio ela avança `população × p
 
 O título dos posts ganha "· dia 2", "· dia 3"… e, do episódio 2 em diante, o gancho e as legendas dizem que o episódio é diário. Cadastre novas obras em `colonia.json` antes que acabem: com 4 pessoas, as três atuais acabam no episódio 11.
 
+### Clima de Marte e Problema do Dia
+
+Para os episódios diários não ficarem repetitivos, cada um tem (do episódio 2 em diante), além da obra:
+
+- **Estação marciana** (`marte.json` → `estacoes`): primavera, verão, outono e inverno, na ordem da Terra, comprimidas e bem mais extremas. O episódio 1 foi o pouso, no começo da primavera. Cada estação dura `episodios` episódios, proporcional à de Marte de verdade (primavera 34, verão 31, outono 25, inverno 27: um ano marciano a cada 117 episódios). A temperatura segue a estação: a primavera esquenta, o outono esfria, e o inverno chega a -125 °C. A abertura fala a estação, o dia e a temperatura, e o selo do topo do vídeo mostra `EP 12 · INVERNO · DIA 8 · -115°C`. No vídeo: poeira normal na primavera, tempestade alaranjada no verão, vento em riscos no outono e neve de gelo seco no inverno.
+- **Problema do Dia** (`marte.json` → `problemas`, lógica em `eventos.py`): água, oxigênio, manutenção, ataque selvagem e clima. O alerta entra antes da Missão do Dia e a solução depois dela. **Não mexe no tempo das obras.** Quem resolve, em 3 de cada 4 episódios, é um colono de verdade, chamado pelo nome, e a câmera vai até a casa dele.
+  - O mesmo problema não volta antes de 8 episódios, e a mesma categoria nunca cai dois dias seguidos. O histórico vem dos `roteiro.json` de `saida/`.
+  - `peso` define a chance de cada problema por estação (os de clima são da sua estação), e `requer` faz o problema só aparecer depois que a obra existe (ex.: poeira nos painéis só com a Fazenda Solar pronta).
+  - Para criar um problema novo, é só acrescentar no `marte.json`: 2 falas de alerta e 2 de solução, com `{heroi}`, `{temp}` e `{estacao}`.
+
+```
+python eventos.py --de 2 --ate 40    # mostra estação, temperatura e problema de cada episódio
+```
+
 ## Gerar um episódio
 
 ```
