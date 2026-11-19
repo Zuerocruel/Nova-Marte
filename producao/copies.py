@@ -23,6 +23,11 @@ PLATAFORMAS = {
     "instagram": {"rotulo": "Instagram", "prefixo": "ig", "plataforma": "instagram"},
     "tiktok": {"rotulo": "TikTok", "prefixo": "tt", "plataforma": "tiktok"},
 }
+# O YouTube só aceita link externo na descrição depois que o canal libera os recursos
+# avançados (verificação por telefone + histórico). Até lá: 0 → "link no perfil do canal".
+import os  # noqa: E402
+YT_LINK_NA_DESCRICAO = (os.environ.get("YOUTUBE_LINK_NA_DESCRICAO") or "0").strip() == "1"
+
 HASHTAGS = ["#operacaomartezero", "#pixelart", "#marte", "#colonia", "#jogoindie"]
 
 
@@ -81,7 +86,8 @@ def gerar(numero: int) -> dict:
         "",
         linhas_dest,
         "",
-        f"🚀 Vire personagem e procure seu nome no mapa: https://{link('youtube', n)}",
+        (f"🚀 Vire personagem e procure seu nome no mapa: https://{link('youtube', n)}" if YT_LINK_NA_DESCRICAO
+         else "🚀 Vire personagem e procure seu nome no mapa: link no perfil do canal 👆"),
     ]
     if lt:
         yt_desc += ["", "Capítulos:", *capitulos(lt)]

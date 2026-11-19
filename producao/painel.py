@@ -44,6 +44,7 @@ sys.path.insert(0, str(PRODUCAO))
 import config  # noqa: E402  (carrega .env/.env.local e o User-Agent)
 import copies  # noqa: E402
 import episodio  # noqa: E402
+import publicacao as pub  # noqa: E402  (status de cada rede, travas contra post duplicado)
 
 HOST, PORTA = "127.0.0.1", 8800
 URL = f"http://{HOST}:{PORTA}"
@@ -313,6 +314,15 @@ def video_de(pasta: Path) -> Path | None:
     return None
 
 
+CAMPOS_REDE = ("status", "em", "detalhe", "publicar_em", "url", "ultimo_ensaio", "ultimo_ensaio_resultado")
+
+
+def redes_de(numero: int) -> dict:
+    todas = pub.ler().get(str(numero), {})
+    return {r: {k: todas.get(r, {}).get(k) for k in CAMPOS_REDE} | {"status": todas.get(r, {}).get("status", "pendente")}
+            for r in pub.REDES}
+
+
 def dados_episodios() -> dict:
     est = ESTADO.ler()
     try:
@@ -337,6 +347,9 @@ def dados_episodios() -> dict:
             "publicado_em": e.get("publicado_em") or (no_banco.get(n) or {}).get("publicado_em"),
             "copies": (pasta / "copies.json").exists(),
             "gerando": FILA.ocupada(f"Gerar episódio {n} "),
+            "redes": redes_de(n),
+            "postando": FILA.ocupada(f"Postar episódio {n} "),
+            "copies_aprovadas": {p: bool(est["copies"].get(str(n), {}).get(p, {}).get("aprovado_em")) for p in pub.REDES},
         })
     publicados = [n for n, e in no_banco.items() if e.get("publicado_em")]
     return {"episodios": lista[::-1], "proximo": (max(publicados) + 1) if publicados else 1}
@@ -348,7 +361,9 @@ def dados_copies(numero: int) -> dict:
     if not arq.exists():
         return {"existe": False}
     c = config.ler_json(arq)
-    return {"existe": True, "copies": {p: {**c[p], **est.get(p, {}), "rotulo": copies.PLATAFORMAS[p]["rotulo"]}
+    auto = redes_de(numero)
+    return {"existe": True, "copies": {p: {**c[p], **est.get(p, {}), "rotulo": copies.PLATAFORMAS[p]["rotulo"],
+                                           "auto": auto[p], "regras": pub.validar_copy(p, c[p])}
                                        for p in copies.PLATAFORMAS}}
 
 
@@ -541,15 +556,23 @@ def dados_aprovacoes() -> dict:
                          "detalhe": "Vídeo pronto para revisão" + (" (prévia SEM voz)" if e["sem_voz"] else "")})
         elif not e["publicado_em"]:
             prontos.append({"tipo": "episodio", "id": e["numero"], "titulo": f"🎬 {e['titulo']}", "detalhe": "Aprovado"})
+        for p, s in e["redes"].items():
+            if s["status"] == "conferir":
+                pend.append({"tipo": "conferir", "id": e["numero"], "plataforma": p,
+                             "titulo": f"⚠ Conferir {pub.ROTULOS[p]} · ep. {e['numero']}",
+                             "detalhe": (s.get("detalhe") or "pode ter publicado") + " · abra o app e confira antes de liberar"})
         if e["copies"]:
             c = dados_copies(e["numero"])["copies"]
             for p, v in c.items():
+                feito = v.get("postado_url") or v["auto"]["status"] in pub.TRAVADOS
                 if not v.get("aprovado_em"):
                     pend.append({"tipo": "copy", "id": e["numero"], "plataforma": p,
                                  "titulo": f"📢 Copy {v['rotulo']} · ep. {e['numero']}", "detalhe": "Texto de divulgação"})
-                elif not v.get("postado_url"):
+                elif not feito:
                     prontos.append({"tipo": "copy", "id": e["numero"], "plataforma": p,
-                                    "titulo": f"📢 Copy {v['rotulo']} · ep. {e['numero']}", "detalhe": "Aprovada, falta postar"})
+                                    "titulo": f"📢 {v['rotulo']} · ep. {e['numero']}",
+                                    "detalhe": "Aprovada, falta postar" + (" (última tentativa falhou antes de publicar)"
+                                                                          if v["auto"]["status"] == "erro" else "")})
     s = dados_site()
     if s["mudancas"] or s["commits_nao_enviados"] not in ("0", "?"):
         (prontos if s["aprovado"] else pend).append(
@@ -646,6 +669,21 @@ def dados_conexoes(forcar: bool = False) -> dict:
                  "TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET", "TIKTOK_REFRESH_TOKEN"):
         env("Redes sociais", nome, obrigatoria=False)
 
+    # Publicação automática (Capítulo 09)
+    try:
+        import youtube as yt_mod
+        for nome, ok, det in yt_mod.checar():
+            if nome != "FFmpeg":
+                add("Publicação: YouTube (n8n)", nome, "configurado" if ok else "pendente", "" if ok else det)
+    except Exception as e:  # noqa: BLE001
+        add("Publicação: YouTube (n8n)", "youtube.py", "erro", str(e)[:120])
+    try:
+        import celular as cel_mod
+        for nome, ok, det in cel_mod.checar():
+            add("Publicação: celular (ADB)", nome, "ok" if ok else "pendente", det)
+    except Exception as e:  # noqa: BLE001
+        add("Publicação: celular (ADB)", "celular.py", "erro", str(e)[:120])
+
     # Ferramentas locais
     add("Ferramentas", "FFmpeg", "ok" if shutil.which("ffmpeg") else "pendente")
     nav = next((n for n, c in (("Chrome", r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
@@ -712,27 +750,92 @@ def acao_publicar_episodio(d: dict):
         raise ValueError("este vídeo é a prévia SEM voz: gere com voz antes de publicar")
 
     def fn(job):
-        rot = config.ler_json(pasta / "roteiro.json")
-        episodio.registrar_publicacao(n, rot["titulo"], rot.get("missao_obra"))
-        job.log(f"episódio {n} registrado como publicado no Supabase")
-        ep_id = db().get("episodios", {"select": "id", "numero": f"eq.{n}"})[0]["id"]
-        for plat, info in copies.PLATAFORMAS.items():
-            slug = copies.slug_link(plat, n)
-            db().escrever("POST", "links", {"on_conflict": "slug"},
-                          {"slug": slug, "destino": "/", "plataforma": info["plataforma"], "campanha": f"ep{n:03d}",
-                           "episodio_id": ep_id, "descricao": f"Descrição do episódio {n} no {info['rotulo']}"},
-                          prefer="resolution=merge-duplicates,return=minimal")
-            job.log(f"link rastreável criado: /l/{slug}")
-        dados = config.ler_json(pasta / "dados.json")
-
-        def marcar(e):
-            e["episodios"].setdefault(str(n), {})["publicado_em"] = agora()
-            for c in dados.get("novos", []):
-                e["checklist"].setdefault(c["codigo"], {})["episodio"] = True
-        ESTADO.mudar(marcar)
-        job.log("Pronto. Agora poste o vídeo nas redes (aba Divulgação) e marque cada uma como postada.")
+        _registrar(job, n)
+        job.log("Pronto. Agora use 📤 Publicar nas redes (ou poste à mão e marque na aba Divulgação).")
     j = FILA.adicionar(f"Publicar episódio {n}", fn)
     return {"job": j.id}
+
+
+def _registrar(job: Job, n: int) -> None:
+    """Registra o episódio como publicado no Supabase e cria os links /l/ de cada rede."""
+    pasta = config.pasta_episodio(n)
+    rot = config.ler_json(pasta / "roteiro.json")
+    episodio.registrar_publicacao(n, rot["titulo"], rot.get("missao_obra"))
+    job.log(f"episódio {n} registrado como publicado no Supabase")
+    ep_id = db().get("episodios", {"select": "id", "numero": f"eq.{n}"})[0]["id"]
+    for plat, info in copies.PLATAFORMAS.items():
+        slug = copies.slug_link(plat, n)
+        db().escrever("POST", "links", {"on_conflict": "slug"},
+                      {"slug": slug, "destino": "/", "plataforma": info["plataforma"], "campanha": f"ep{n:03d}",
+                       "episodio_id": ep_id, "descricao": f"Descrição do episódio {n} no {info['rotulo']}"},
+                      prefer="resolution=merge-duplicates,return=minimal")
+        job.log(f"link rastreável criado: /l/{slug}")
+    dados = config.ler_json(pasta / "dados.json")
+
+    def marcar(e):
+        e["episodios"].setdefault(str(n), {})["publicado_em"] = agora()
+        for c in dados.get("novos", []):
+            e["checklist"].setdefault(c["codigo"], {})["episodio"] = True
+    ESTADO.mudar(marcar)
+
+
+def acao_postar_redes(d: dict):
+    """📤 Publicar nas redes: celular.py (Instagram/TikTok) e youtube.py (n8n), com log ao vivo."""
+    n = _ep(d)
+    ensaio = bool(d.get("ensaio"))
+    redes = [r for r in d.get("redes", []) if r in pub.REDES]
+    if not redes:
+        raise ValueError("marque pelo menos uma rede")
+    if FILA.ocupada("Postar episódio "):
+        raise ValueError("já tem uma postagem na fila: espere terminar")
+    est = ESTADO.ler()
+    if not est["episodios"].get(str(n), {}).get("aprovado_em"):
+        raise ValueError("aprove o episódio antes de publicar")
+    v = video_de(config.pasta_episodio(n))
+    if not v or "sem_voz" in v.name:
+        raise ValueError("o episódio precisa do vídeo COM voz")
+    for r in redes:
+        if not est["copies"].get(str(n), {}).get(r, {}).get("aprovado_em"):
+            raise ValueError(f"aprove a copy do {pub.ROTULOS[r]} antes (aba Divulgação)")
+        s = pub.status(n, r)["status"]
+        if s in pub.TRAVADOS and not ensaio:
+            raise ValueError(f"{pub.ROTULOS[r]} está '{s}': nada é reenviado sozinho. Confira no app e use Liberar se precisar.")
+    cel = [r for r in redes if r in ("instagram", "tiktok")]
+
+    def fn(job):
+        if not ensaio and not ESTADO.ler()["episodios"].get(str(n), {}).get("publicado_em"):
+            job.log("episódio ainda não registrado → registrando antes de postar (cria os links /l/)")
+            _registrar(job, n)
+        falhas = []
+        etapas = []
+        if cel:
+            etapas.append(("celular", [sys.executable, "celular.py", "--episodio", str(n)]
+                           + (["--so", cel[0]] if len(cel) == 1 else []) + (["--ensaio"] if ensaio else [])))
+        if "youtube" in redes:
+            etapas.append(("youtube", [sys.executable, "youtube.py", "--episodio", str(n)] + (["--ensaio"] if ensaio else [])))
+        for nome, cmd in etapas:
+            try:
+                rodar(job, cmd, PRODUCAO)
+            except RuntimeError:
+                falhas.append(nome)
+            SINAL.mudou()
+        resumo = " · ".join(f"{pub.ROTULOS[r]}: {pub.status(n, r)['status']}" for r in redes)
+        job.log(("ENSAIO terminado. " if ensaio else "") + resumo)
+        if falhas:
+            raise RuntimeError(f"problema em: {', '.join(falhas)} (veja o log acima)")
+    j = FILA.adicionar(f"Postar episódio {n} " + ("(ensaio) " if ensaio else "") + "· " + ", ".join(pub.ROTULOS[r] for r in redes), fn)
+    return {"job": j.id, "msg": "Postagem na fila" + (" (ensaio)" if ensaio else "")}
+
+
+def acao_liberar_rede(d: dict):
+    """Volta uma rede para 'pendente' depois que VOCÊ conferiu no app. Única forma de reenviar."""
+    n, r = _ep(d), d.get("plataforma")
+    if r not in pub.REDES:
+        raise ValueError("rede inválida")
+    if FILA.ocupada(f"Postar episódio {n} "):
+        raise ValueError("espere a postagem em andamento terminar")
+    pub.liberar(n, r, "liberado no painel depois de conferir")
+    SINAL.mudou()
 
 
 def acao_gerar_copies(d: dict):
@@ -762,6 +865,9 @@ def acao_aprovar_copy(d: dict):
     n, plat = _ep(d), d["plataforma"]
     if d.get("campos"):
         _salvar_copy(n, plat, d["campos"])
+    problemas = pub.validar_copy(plat, config.ler_json(config.pasta_episodio(n) / "copies.json")[plat])
+    if problemas:
+        raise ValueError("não aprovei: " + "; ".join(problemas))
     ESTADO.mudar(lambda e: e["copies"].setdefault(str(n), {}).setdefault(plat, {}).update(aprovado_em=agora()))
 
 

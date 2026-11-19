@@ -1,0 +1,482 @@
+{
+  "name": "Operação Marte Zero - Publicar no YouTube (Shorts)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "operacao-marte-zero/publicar",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "02e36b69-62c4-4207-b9fb-92092bef1560",
+      "name": "Webhook do painel",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "16352e4c-d576-462e-9933-24307f72538f",
+      "notes": "Credencial Header Auth: Name = X-Painel-Chave, Value = N8N_PAINEL_CHAVE do .env.local"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Confere o envio do painel antes de tocar no YouTube. Nada aqui chama a API.\nconst MINIMO_MINUTOS = 20; // o painel agenda +30 min; abaixo de 20 recusa (folga para o tempo do upload)\nconst item = $input.first();\nconst b = item.json.body || {};\nconst erros = [];\n\n// arquivo: campo \"video\" (ou o primeiro anexo video/*)\nconst bin = item.binary || {};\nconst campoVideo = bin.video ? 'video' : Object.keys(bin).find(k => String(bin[k].mimeType || '').startsWith('video/'));\nconst arquivo = campoVideo ? bin[campoVideo] : null;\nif (!arquivo) erros.push('faltou o arquivo de vídeo (campo \"video\")');\nelse if (!String(arquivo.mimeType || '').startsWith('video/')) erros.push(`o anexo não é vídeo (${arquivo.mimeType})`);\n\nconst titulo = String(b.titulo ?? '').replace(/[<>]/g, '').trim();\nif (!titulo) erros.push('faltou o título');\nif (titulo.length > 100) erros.push(`título com ${titulo.length} caracteres (máximo 100)`);\n\nconst descricao = String(b.descricao ?? '').replace(/[<>]/g, '').trim();\nif (descricao.length > 5000) erros.push(`descrição com ${descricao.length} caracteres (máximo 5000)`);\n\nconst tags = String(b.tags ?? '').split(',').map(t => t.trim().replace(/^#/, '')).filter(Boolean);\nif (tags.join(',').length > 500) erros.push('tags passam de 500 caracteres');\n\n// horário: aceita publicar_em_utc ou publicar_em, sempre com fuso\nconst bruto = String(b.publicar_em_utc || b.publicar_em || '').trim();\nconst quando = new Date(bruto);\nlet publishAt = null;\nif (!bruto || isNaN(quando.getTime())) erros.push('publicar_em ausente ou inválido (ISO 8601, ex.: 2026-11-19T19:30:00-03:00)');\nelse if (!/(Z|[+-]\\d{2}:?\\d{2})$/i.test(bruto)) erros.push('publicar_em precisa trazer o fuso (-03:00 ou Z)');\nelse {\n  const minutos = (quando.getTime() - Date.now()) / 60000;\n  if (minutos < MINIMO_MINUTOS) erros.push(`publicar_em está a ${Math.round(minutos)} min; o mínimo é ${MINIMO_MINUTOS}`);\n  publishAt = quando.toISOString().replace(/\\.\\d{3}Z$/, 'Z');\n}\n\n// duplicado: mesma \"chave\" já agendada por este fluxo\nconst chave = String(b.chave ?? '').trim();\nconst memoria = $getWorkflowStaticData('global');\nconst anterior = chave && memoria.chaves ? memoria.chaves[chave] : null;\nconst duplicado = Boolean(anterior && anterior.status !== 'falhou'); // falhou = nada foi agendado, pode reenviar\nif (duplicado) erros.push(`este envio (${chave}) já foi recebido antes (${anterior.status || 'agendado'}; vídeo ${anterior.video_id || '?'})`);\n\nreturn [{\n  json: {\n    valido: erros.length === 0,\n    status: duplicado ? 409 : 400,\n    erros,\n    titulo, descricao, tags: tags.join(','),\n    publish_at: publishAt,\n    publicar_em: String(b.publicar_em || bruto),\n    episodio: String(b.episodio ?? ''),\n    chave,\n  },\n  binary: arquivo ? { video: arquivo } : {},\n}];\n"
+      },
+      "id": "20381acb-86a2-461d-8dcf-eabd19cf846f",
+      "name": "Validar dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "147e8525-2f3e-4474-9cd5-a9d158778558",
+              "leftValue": "={{ $json.valido }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1a7362f6-0995-4c68-8464-79c6f7525fb7",
+      "name": "Dados ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, erro: $json.erros.join('; ') }) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}"
+        }
+      },
+      "id": "f5a420b0-073f-46b2-a549-f03816cad4ee",
+      "name": "Recusar dados",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "channel",
+        "operation": "getAll",
+        "part": [
+          "snippet"
+        ],
+        "returnAll": false,
+        "limit": 5,
+        "filters": {}
+      },
+      "id": "f63ab809-38a5-48ce-aa74-9849337fe126",
+      "name": "YouTube: canal conectado",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        660,
+        200
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput",
+      "notes": "Get Many sem filtros = mine=true: devolve o canal dono da credencial OAuth (Get por ID só leria dados públicos e não provaria nada)."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, erro: 'não consegui consultar o canal do YouTube (credencial expirada?): ' + ($json.error?.message || $json.error || 'erro desconhecido') }) }}",
+        "options": {
+          "responseCode": 424
+        }
+      },
+      "id": "5fd05ef8-8408-40c0-9ddf-7044c9fbd605",
+      "name": "Recusar: canal inacessível",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Só segue se a credencial OAuth estiver ligada ao canal do projeto.\nconst CANAL_ESPERADO = 'UCKSkHV2WKpfezCBBi6BeFUQ'; // ID do canal do projeto, começa com UC (24 caracteres)\n\nconst canais = $input.all().map(i => i.json).filter(c => c && c.id);\nconst ids = canais.map(c => c.id);\nlet erro = null;\nif (!/^UC[\\w-]{22}$/.test(CANAL_ESPERADO)) {\n  erro = 'o ID do canal do projeto ainda não foi preenchido no nó \"Conferir canal\"';\n} else if (!ids.includes(CANAL_ESPERADO)) {\n  const achados = canais.map(c => `${(c.snippet && c.snippet.title) || '?'} (${c.id})`).join(', ') || 'nenhum canal';\n  erro = `a credencial do YouTube está ligada a ${achados}, não ao canal do projeto (${CANAL_ESPERADO})`;\n}\nif (erro) return [{ json: { canal_ok: false, erro } }];\n\nconst v = $('Validar dados').first();\nconst canal = canais.find(c => c.id === CANAL_ESPERADO);\nreturn [{\n  json: { ...v.json, canal_ok: true, canal_id: canal.id, canal_nome: (canal.snippet && canal.snippet.title) || '' },\n  binary: v.binary,\n}];\n"
+      },
+      "id": "2bf1a79f-8a69-4e24-9635-20265df62840",
+      "name": "Conferir canal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "2e92fc27-fd1c-4ff9-bf1d-ecd2a2b0e836",
+              "leftValue": "={{ $json.canal_ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "52f0c546-1a1c-4dd9-a214-b74a422e2cef",
+      "name": "Canal certo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, erro: $json.erro }) }}",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "cb4723ef-9272-4451-9a86-fdb5db6527ad",
+      "name": "Recusar: canal errado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $json.titulo }}",
+        "regionCode": "BR",
+        "categoryId": "1",
+        "binaryProperty": "video",
+        "options": {
+          "description": "={{ $json.descricao }}",
+          "tags": "={{ $json.tags }}",
+          "privacyStatus": "private",
+          "publishAt": "={{ $json.publish_at }}",
+          "notifySubscribers": true,
+          "selfDeclaredMadeForKids": false,
+          "embeddable": true
+        }
+      },
+      "id": "2e07cba6-16fa-4dda-b09e-ff9a93d80115",
+      "name": "YouTube: enviar e agendar",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        0
+      ],
+      "onError": "continueErrorOutput",
+      "notes": "Agendamento no YouTube = privado + publishAt: vira público sozinho no horário."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Guarda o resultado pela chave do envio: o painel consulta pelo webhook de status\n// (e um reenvio com a mesma chave é recusado como duplicado).\nconst r = $input.first().json;\nconst v = $('Conferir canal').first().json;\nconst videoId = r.id || r.videoId || null;\nconst memoria = $getWorkflowStaticData('global');\nmemoria.chaves = memoria.chaves || {};\nif (v.chave) {\n  memoria.chaves[v.chave] = videoId\n    ? { status: 'agendado', video_id: videoId, url: `https://youtube.com/shorts/${videoId}`,\n        publicar_em: v.publicar_em, episodio: v.episodio, em: new Date().toISOString() }\n    : { status: 'conferir', video_id: null, episodio: v.episodio, em: new Date().toISOString(),\n        erro: 'o YouTube aceitou o envio mas não devolveu o ID do vídeo; confira no YouTube Studio' };\n  const todas = Object.entries(memoria.chaves).sort((a, b) => String(a[1].em).localeCompare(String(b[1].em)));\n  for (const [k] of todas.slice(0, Math.max(0, todas.length - 300))) delete memoria.chaves[k];\n}\nreturn [{ json: { chave: v.chave, ...(memoria.chaves[v.chave] || {}) } }];"
+      },
+      "id": "ed23c7e0-e419-4c3b-b8eb-b975ed63517c",
+      "name": "Registrar envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, recebido: true, chave: $json.chave, publicar_em: $json.publicar_em, canal: $json.canal_nome, status_em: 'GET .../operacao-marte-zero/status?chave=' + $json.chave }) }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "4f34910b-a35a-41cb-9d8a-f8fb37c50a06",
+      "name": "Responder: recebido",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        0
+      ],
+      "notes": "Responde ANTES do upload: o proxy do n8n Cloud derruba a conexão (502) se a resposta demora ~100 s. O resultado do upload fica no webhook de status."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pega de novo os dados + o arquivo conferidos (não depende do nó de resposta repassar o binário).\nconst v = $('Conferir canal').first();\nreturn [{ json: v.json, binary: v.binary }];"
+      },
+      "id": "2b0195e6-3f6c-43c7-963d-c7b8fd8b00d5",
+      "name": "Recuperar vídeo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// O upload deu erro: guarda para o painel ver no webhook de status. 'falhou' libera reenviar a mesma chave.\nconst e = $input.first().json;\nconst v = $('Conferir canal').first().json;\nconst memoria = $getWorkflowStaticData('global');\nmemoria.chaves = memoria.chaves || {};\nconst erro = (e.error && (e.error.message || e.error.description)) || e.error || e.message || 'erro desconhecido';\nif (v.chave) memoria.chaves[v.chave] = { status: 'falhou', video_id: null, episodio: v.episodio,\n  em: new Date().toISOString(), erro: 'falha no envio ao YouTube: ' + String(erro) };\nreturn [{ json: { chave: v.chave, ...(memoria.chaves[v.chave] || {}) } }];"
+      },
+      "id": "dd4f6aea-0bfa-4dab-b353-368537574f2a",
+      "name": "Registrar falha",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "operacao-marte-zero/status",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "8d2a6035-6c90-4ac9-8a31-dde29c0ce7dc",
+      "name": "Webhook de status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        700
+      ],
+      "webhookId": "6bc3af82-1911-4111-8447-52a33be7033f",
+      "notes": "Mesma credencial Header Auth do Webhook do painel (X-Painel-Chave)."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resultado de um envio pela chave. 'desconhecido' = ainda subindo (o n8n só grava ao fim da execução)\n// ou a chave nunca chegou.\nconst chave = String(($json.query || {}).chave || '').trim();\nconst memoria = $getWorkflowStaticData('global');\nconst r = chave && memoria.chaves ? memoria.chaves[chave] : null;\nreturn [{ json: r ? { ok: true, chave, ...r, status: r.status || 'agendado' } : { ok: true, chave, status: 'desconhecido' } }];"
+      },
+      "id": "529b2287-a7f3-4ce5-b84e-0f00c62cdd73",
+      "name": "Ler resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "ba3fded8-519c-4519-8ba7-1d97c5dc9f98",
+      "name": "Responder status",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        700
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook do painel": {
+      "main": [
+        [
+          {
+            "node": "Validar dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar dados": {
+      "main": [
+        [
+          {
+            "node": "Dados ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados ok?": {
+      "main": [
+        [
+          {
+            "node": "YouTube: canal conectado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recusar dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube: canal conectado": {
+      "main": [
+        [
+          {
+            "node": "Conferir canal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recusar: canal inacessível",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conferir canal": {
+      "main": [
+        [
+          {
+            "node": "Canal certo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Canal certo?": {
+      "main": [
+        [
+          {
+            "node": "Responder: recebido",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recusar: canal errado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube: enviar e agendar": {
+      "main": [
+        [
+          {
+            "node": "Registrar envio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder: recebido": {
+      "main": [
+        [
+          {
+            "node": "Recuperar vídeo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperar vídeo": {
+      "main": [
+        [
+          {
+            "node": "YouTube: enviar e agendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook de status": {
+      "main": [
+        [
+          {
+            "node": "Ler resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler resultado": {
+      "main": [
+        [
+          {
+            "node": "Responder status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {}
+}

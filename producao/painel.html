@@ -243,11 +243,14 @@ async function rAprovacoes() {
     if (i.tipo === 'site') return `<button class="btn" onclick="irPara('site')">Ver mudanças</button>${botao('Aprovar', 'aprovar_site', {}, 'aprovar')}`;
     if (i.tipo === 'resgate') return botao('Aprovar', 'resgate', { id: i.id, status: 'aprovado' }, 'aprovar') + botao('Recusar', 'resgate', { id: i.id, status: 'recusado' }, 'perigo') + botao('Recusar e liberar', 'resgate', { id: i.id, status: 'recusado', liberar: true }, '', 'title="Apaga o pedido para a pessoa tentar outro nome"');
     if (i.tipo === 'colono') return botao('Nome ok', 'aprovar_colono', { codigo: i.id }, 'aprovar') + botao('Ocultar', 'colono', { codigo: i.id, oculto: true }, 'perigo', 'data-confirma="Ocultar este colono do site e dos vídeos?"');
+    if (i.tipo === 'conferir') return `<button class="btn" onclick="irPara('episodios')">Ver log</button>${botaoLiberar(i.id, i.plataforma)}`;
     return '';
   };
   const botoesPub = (i) => {
-    if (i.tipo === 'episodio') return `${botao('Desaprovar', 'desaprovar_episodio', { numero: i.id })}${botao('Publicar', 'publicar_episodio', { numero: i.id }, 'publicar', `data-confirma="Publicar o episódio ${i.id}? Isso registra a publicação no banco (vira o corte dos próximos episódios) e cria os links rastreáveis. A postagem nas redes continua manual."`)}`;
-    if (i.tipo === 'copy') return `<button class="btn publicar" onclick="irPara('divulgacao',{ep:${i.id}})">Marcar como postado</button>`;
+    if (i.tipo === 'episodio') return `${botao('Desaprovar', 'desaprovar_episodio', { numero: i.id })}${botao('Publicar', 'publicar_episodio', { numero: i.id }, 'publicar', `data-confirma="Registrar o episódio ${i.id} como publicado? Isso grava no banco (vira o corte dos próximos episódios) e cria os links rastreáveis. Depois use 📤 Publicar nas redes."`)}`;
+    if (i.tipo === 'copy') return botao('📤 Publicar', 'postar_redes', { numero: i.id, redes: [i.plataforma] }, 'publicar',
+      `data-confirma="${esc(confirmaPostar(i.id, [i.plataforma], false))}"`) +
+      `<button class="btn" onclick="irPara('divulgacao',{ep:${i.id}})">Postei à mão</button>`;
     if (i.tipo === 'site') return botao('Publicar site', 'publicar_site', {}, 'publicar', 'data-confirma="Enviar o site para o GitHub? A Vercel publica em 1–2 min."');
     return '';
   };
@@ -258,6 +261,53 @@ async function rAprovacoes() {
     bloco('pub', `<h2>Aprovados, aguardando publicar (${a.prontos.length})</h2><div class="card"><p class="mudo">Nada publica sozinho: cada item só vai ao ar quando você clica em Publicar.</p>${lista(a.prontos, botoesPub, 'Nenhum item aprovado esperando.')}</div>`) +
     bloco('fila', `<h2>Fila de produção</h2><div class="card" id="logsFila">${htmlFila()}</div>`)
   );
+}
+
+// ================================================================ REDES (postagem automática)
+const REDES = [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['youtube', 'YouTube']];
+const ROT_REDE = Object.fromEntries(REDES);
+const ST_REDE = {
+  pendente: ['neutro', '—'], erro: ['erro', '✖ falhou antes de publicar'], enviando: ['pendente', '⏳ enviando'],
+  publicado: ['publicado', '✅'], agendado: ['aprovado', '🕒 agendado'], conferir: ['erro', '⚠ conferir'],
+};
+const TRAVADOS = ['enviando', 'publicado', 'agendado', 'conferir'];
+function chipRede(r, s) {
+  const [cls, txt] = ST_REDE[s.status] || ['neutro', s.status];
+  const hora = s.status === 'agendado' && s.publicar_em ? ' ' + quando(s.publicar_em) : '';
+  const dica = [s.detalhe, s.em && 'em ' + quando(s.em), s.ultimo_ensaio && `ensaio ${quando(s.ultimo_ensaio)}: ${s.ultimo_ensaio_resultado || ''}`].filter(Boolean).join(' · ');
+  return `<span class="st ${cls}" title="${esc(dica)}">${esc(ROT_REDE[r])} ${esc(txt)}${esc(hora)}</span>`;
+}
+const botaoLiberar = (n, r) => botao('Liberar', 'liberar_rede', { numero: n, plataforma: r }, 'peq perigo',
+  `data-confirma="${esc(`Liberar o ${ROT_REDE[r]} do episódio ${n} para postar de novo?\n\nSó faça isso DEPOIS de abrir o app e conferir que o vídeo NÃO foi publicado (ou que você apagou o post). Senão vai sair duplicado.`)}"`);
+function confirmaPostar(n, redes, ensaio) {
+  const nomes = redes.map((r) => ROT_REDE[r]).join(', ');
+  if (ensaio) return `ENSAIO do episódio ${n} em ${nomes}: faz tudo (celular, legenda, n8n) MENOS o toque final de publicar. Nada vai ao ar.`;
+  return `Publicar o episódio ${n} em ${nomes}?\n\n` +
+    (redes.some((r) => r !== 'youtube') ? '• Instagram/TikTok: o celular precisa estar no USB, desbloqueado.\n' : '') +
+    (redes.includes('youtube') ? '• YouTube: envia ao n8n e agenda para daqui a 30 min.\n' : '') +
+    '\nSe algo falhar depois do toque final, a rede fica "⚠ conferir" e não é reenviada sozinha.';
+}
+window.postarRedes = (n, ensaio) => {
+  const redes = REDES.map(([r]) => r).filter((r) => $(`#rd-${n}-${r}`)?.checked);
+  if (!redes.length) return toast('Marque pelo menos uma rede', true);
+  if (!confirm(confirmaPostar(n, redes, ensaio))) return;
+  acao('postar_redes', { numero: n, redes, ensaio }, ensaio ? 'Ensaio na fila' : 'Postagem na fila');
+};
+function blocoRedes(e) {
+  const pode = e.aprovado_em && !e.sem_voz && !e.gerando && !e.postando;
+  const caixas = REDES.map(([r, nome]) => {
+    const s = e.redes[r], copyOk = e.copies_aprovadas[r], travado = TRAVADOS.includes(s.status);
+    const marcar = copyOk && !travado;
+    return `<label class="chk" title="${copyOk ? '' : 'aprove a copy na aba Divulgação'}"><input type="checkbox" id="rd-${e.numero}-${r}" ${marcar ? 'checked' : ''} ${copyOk ? '' : 'disabled'}> ${nome}${copyOk ? '' : ' (copy não aprovada)'}</label>`;
+  }).join('');
+  return `<div style="margin-top:12px;border-top:1px solid var(--borda);padding-top:12px">
+    <div class="linha"><b>Redes:</b> ${REDES.map(([r]) => chipRede(r, e.redes[r]) + (e.redes[r].status !== 'pendente' && e.redes[r].status !== 'erro' ? botaoLiberar(e.numero, r) : '')).join(' ')}</div>
+    <div class="linha" style="margin-top:8px">${caixas}
+      <button class="btn publicar" onclick="postarRedes(${e.numero}, false)" ${pode ? '' : 'disabled'}>📤 Publicar nas redes</button>
+      <button class="btn" onclick="postarRedes(${e.numero}, true)" ${pode ? '' : 'disabled'} title="Faz tudo menos o toque final">🧪 Ensaio</button>
+      ${e.postando ? '<span class="st pendente">postando…</span>' : ''}</div>
+    <p class="mudo">Instagram e TikTok pelo celular (ADB), YouTube pelo n8n (agenda +30 min). O log aparece ao vivo na Fila de produção.
+      Rede com ✅, 🕒 ou ⚠ não é reenviada sozinha: confira no app e use Liberar.</p></div>`;
 }
 
 // ================================================================ EPISÓDIOS
@@ -280,12 +330,13 @@ async function rEpisodios() {
         <div class="linha">
           ${e.aprovado_em ? botao('Desaprovar', 'desaprovar_episodio', { numero: e.numero }) : botao('✅ Aprovar', 'aprovar_episodio', { numero: e.numero }, 'aprovar', e.video && !e.gerando ? '' : 'disabled')}
           ${botao('🚀 Publicar', 'publicar_episodio', { numero: e.numero }, 'publicar',
-            (e.aprovado_em && !e.publicado_em && !e.sem_voz && !e.gerando ? '' : 'disabled ') + `data-confirma="Publicar o episódio ${e.numero}? Registra a publicação no Supabase e cria os links /l/yt-ep…, /l/ig-ep…, /l/tt-ep…. Postar nas redes continua manual (aba Divulgação)."`)}
+            (e.aprovado_em && !e.publicado_em && !e.sem_voz && !e.gerando ? '' : 'disabled ') + `data-confirma="Registrar o episódio ${e.numero} como publicado? Grava no Supabase e cria os links /l/yt-ep…, /l/ig-ep…, /l/tt-ep…. (O 📤 Publicar nas redes também faz isso sozinho se você esquecer.)"`)}
           <button class="btn" onclick="irPara('divulgacao',{ep:${e.numero}})">📢 Copies</button>
           ${botao('↻ Regerar', 'gerar_episodio', { numero: e.numero, sem_voz: e.sem_voz }, '', `data-confirma="Gerar o episódio ${e.numero} de novo? A aprovação atual é desfeita."` + (e.gerando ? ' disabled' : ''))}
         </div>
-        ${e.publicado_em ? `<p class="mudo">Publicado em ${quando(e.publicado_em)}</p>` : ''}
+        ${e.publicado_em ? `<p class="mudo">Registrado como publicado em ${quando(e.publicado_em)}</p>` : ''}
         ${!e.aprovado_em || e.sem_voz ? '<p class="mudo">Publicar só libera depois de Aprovar (e com voz).</p>' : ''}
+        ${e.video ? blocoRedes(e) : ''}
       </div></div></div>`);
   }).join('');
   if (!document.getElementById('epNum')) remendar(bloco('form', form) + cards + bloco('fila', `<h2>Fila de produção</h2><div class="card" id="logsFila">${htmlFila()}</div>`));
@@ -307,9 +358,11 @@ async function rDivulgacao() {
     ${botao('↻ Gerar copies de novo', 'gerar_copies', { numero: epDivulgacao }, '', 'data-confirma="Gerar as copies de novo a partir dos templates? Suas edições deste episódio serão perdidas."')}
     ${ep.publicado_em ? '<span class="st publicado">episódio publicado</span>' : '<span class="st pendente">episódio ainda não publicado</span>'}</div>`;
   const campos = { youtube: ['titulo', 'descricao', 'tags'], instagram: ['legenda'], tiktok: ['legenda'] };
-  const cards = Object.entries(c.copies).map(([p, v]) => bloco('c' + p + epDivulgacao + (v.aprovado_em || '') + (v.postado_url || ''), `<div class="card" data-plat="${p}">
+  const cards = Object.entries(c.copies).map(([p, v]) => bloco('c' + p + epDivulgacao + (v.aprovado_em || '') + (v.postado_url || '') + v.auto.status, `<div class="card" data-plat="${p}">
     <div class="linha" style="justify-content:space-between"><h3>${esc(v.rotulo)}</h3>
-      ${v.postado_url ? '<span class="st publicado">postado</span>' : v.aprovado_em ? '<span class="st aprovado">aprovada</span>' : '<span class="st aguardando">aguardando aprovação</span>'}</div>
+      <span>${v.postado_url ? '<span class="st publicado">postado</span>' : v.aprovado_em ? '<span class="st aprovado">aprovada</span>' : '<span class="st aguardando">aguardando aprovação</span>'}
+      ${v.auto.status !== 'pendente' ? chipRede(p, v.auto) : ''}</span></div>
+    ${v.regras.length ? `<div class="erro-box">Fora das regras (não dá para aprovar): ${esc(v.regras.join('; '))}</div>` : ''}
     ${campos[p].map((k) => `<label class="mudo">${k}</label>${k === 'titulo' || k === 'tags' ? `<input style="width:100%" data-campo="${k}" value="${esc(v[k])}" oninput="contar(this)">` : `<textarea data-campo="${k}" oninput="contar(this)">${esc(v[k])}</textarea>`}
       <div class="contador" data-limite="${LIMITES[k]}">${(v[k] || '').length}/${LIMITES[k]}</div>`).join('')}
     <p class="mudo">Link rastreável: <code>${esc(v.link)}</code>${v.obs ? '<br>' + esc(v.obs) : ''}</p>
@@ -323,7 +376,8 @@ async function rDivulgacao() {
       <input placeholder="Cole aqui o link do post no ${esc(v.rotulo)}" data-url style="flex:1;min-width:220px">
       <button class="btn publicar" onclick="marcarPostado('${p}')" ${v.aprovado_em && ep.publicado_em ? '' : 'disabled title="Aprove a copy e publique o episódio antes"'}>🚀 Publicar (marcar como postado)</button>`}
     </div>
-    <p class="mudo">Postar nas redes é manual: copie o texto, poste o vídeo e cole o link do post aqui.</p></div>`)).join('');
+    <p class="mudo">Automático: 📤 Publicar nas redes na aba 🎬 Episódios. Se postar à mão, cole o link do post aqui.
+      Regras: menos de 15 hashtags${p === 'youtube' ? '; sem link na descrição enquanto o canal não liberar (YOUTUBE_LINK_NA_DESCRICAO)' : '; sem link na legenda (use “link na bio”)'}.</p></div>`)).join('');
   remendar(bloco('sel' + epDivulgacao, seletor) + bloco('g' + epDivulgacao, `<div class="grade">${cards}</div>`));
   document.querySelectorAll('[data-campo]').forEach(contar);
 }
