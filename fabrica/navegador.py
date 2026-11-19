@@ -40,6 +40,7 @@ def montar_ep(pasta: Path) -> dict:
         "mundo": {
             "fundadores": d["fundadores"],
             "base": d["base"],
+            "praca": d.get("praca"),
             "obras": d["obras"],
             "colonos": d["mundo"],
             "compras": [{**c, "produto_curto": produto_curto(c["produto"])} for c in d["compras"]],

@@ -1,15 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/lib/supabase';
-import { CHUNK, CHUNKS_POR_LINHA } from '@/lib/mundo';
+import { CHUNK, LIMITE_CHUNKS } from '@/lib/mundo';
 
 /**
  * Personagens de um "quarteirão" (chunk) de 32x32 casas.
- * O mundo é carregado por pedaços → aguenta milhões de personagens,
+ * O bairro (espiral em volta da base) é carregado por pedaços → aguenta milhões de personagens,
  * e a resposta fica no cache da CDN por 15 s (o banco quase não sente o tráfego).
  */
 export async function GET(req: NextRequest) {
-  const cx = Math.max(0, Math.min(CHUNKS_POR_LINHA - 1, Number(req.nextUrl.searchParams.get('cx')) | 0));
-  const cy = Math.max(0, Number(req.nextUrl.searchParams.get('cy')) | 0);
+  const lim = (v: string | null) => Math.max(-LIMITE_CHUNKS, Math.min(LIMITE_CHUNKS, Number(v) | 0));
+  const cx = lim(req.nextUrl.searchParams.get('cx'));
+  const cy = lim(req.nextUrl.searchParams.get('cy'));   // pode ser negativo: o bairro cerca a base
 
   const { data, error } = await db()
     .from('v_mundo_publico')

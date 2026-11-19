@@ -7,6 +7,7 @@
   ],
 
   "base": { "nome": "Módulo de Pouso", "x": 3, "y": -10, "w": 4, "h": 4 },
+  "praca": { "nome": "Praça da Colônia", "x": 3, "y": 1, "w": 5, "h": 3 },
   "ritmo": {
     "_leia": "Quanto a obra avança por episódio: (população × pontos_por_pessoa) ÷ trabalho da obra. População = fundadores + colonos: mais colonos, mais mão de obra, obra mais rápida. Ex.: Estufa (trabalho 16) com 4 pessoas → 25% por episódio (4 episódios); com 16 pessoas → 1 episódio.",
     "pontos_por_pessoa": 1

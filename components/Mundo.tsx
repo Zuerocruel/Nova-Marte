@@ -1,28 +1,35 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { gerarSprite } from '@/lib/sprite';
-import { CHUNK, CHUNKS_POR_LINHA, LARGURA_MUNDO, type PersonagemPublico } from '@/lib/mundo';
 import {
-  BLOCO, CASA, COR, blocoDeTerreno, desenharBase, desenharClima, desenharObra, desenharTrilha,
-  iconeDoProduto, spriteContornado, spriteMapa,
+  CENTRO, CHUNK, LIMITE_CHUNKS, anelMaximo, ehRua, idDoCodigo, limitesDoBairro, noBairro,
+  type PersonagemPublico,
+} from '@/lib/mundo';
+import {
+  BLOCO, CASA, COR, blocoDeTerreno, desenharBase, desenharClima, desenharObra, desenharPraca, desenharTrilha,
+  disco, iconeDoProduto, spriteContornado, spriteMapa,
 } from '@/lib/colonia-arte';
+import { situacao, type Situacao } from '@/lib/vida';
 import type { EstadoColonia } from '@/lib/colonia';
 import type { MensagemChat } from '@/app/api/chat/route';
 
 /**
- * Mundo ao vivo: a colônia como no vídeo (módulo de pouso, obras, Vega e Lia trabalhando, clima da
- * estação) + as casas de todos os colonos, carregadas por quarteirão. Recarrega sozinho e mostra
- * balões com as mensagens do chat em cima da casa de quem escreveu.
+ * Mundo ao vivo: a colônia como no vídeo (módulo de pouso, praça, obras, Vega e Lia trabalhando, clima da
+ * estação) + o bairro em espiral com a casa de cada colono. Os colonos vivem (lib/vida.ts): se visitam,
+ * se encontram na praça, ajudam na obra e passeiam pelas ruas, conversando com balões. Quem escreve no
+ * rádio ganha um balão com a mensagem. Tudo segue o relógio: todo mundo vê a mesma cena.
  */
 const RECARREGA_MS = 30_000;
 const ZOOM_MIN = 0.75, ZOOM_MAX = 8;
 const BALAO_MS = 12_000;
 
 type Chunk = { dados: PersonagemPublico[]; em: number } | 'carregando';
+type Pessoa = { p: PersonagemPublico; id: number; s: Situacao };
 
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 const suave = (k: number) => (k = clamp(k), k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const TELHADOS = ['#e04f5f', '#3f8efc', '#2bb673', '#f4b400', '#9b59b6', '#ff7f50', '#00b8a9', '#ec407a'];
 
 const spritesColono = new Map<number, HTMLCanvasElement>();
 function spriteColono(seed: number): HTMLCanvasElement {
@@ -34,6 +41,17 @@ function spriteColono(seed: number): HTMLCanvasElement {
     spritesColono.set(seed, c);
   }
   return c;
+}
+
+/** Casinha do lote (cúpula com a porta e uma janela acesa quando tem gente em casa). */
+function desenharCasinha(ctx: CanvasRenderingContext2D, cx: number, cy: number, seed: number, temGente: boolean) {
+  const x = cx * CASA, y = cy * CASA;
+  ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(x + 1, y + 12, 12, 2);
+  disco(ctx, x + 7, y + 8, 6, '#6b6f86');
+  disco(ctx, x + 7, y + 8, 5, '#e4e6f0');
+  ctx.fillStyle = TELHADOS[seed % TELHADOS.length]; ctx.fillRect(x + 2, y + 8, 11, 2);
+  ctx.fillStyle = '#3a2f63'; ctx.fillRect(x + 6, y + 9, 3, 4);
+  ctx.fillStyle = temGente ? '#ffe58a' : '#2b2350'; ctx.fillRect(x + 4, y + 5, 2, 2);
 }
 
 export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
@@ -49,8 +67,11 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
   const totalRef = useRef(0);
   const mensagensRef = useRef<MensagemChat[]>([]);
   const chegada = useRef(new Map<number, number>());   // id da mensagem → quando chegou (para o balão)
+  const pessoasRef = useRef<Pessoa[]>([]);              // quem está desenhado agora (para o clique)
+  const nomes = useRef(new Map<number, string>());       // id → nome, de quem já foi carregado
 
   const [selecionado, setSelecionado] = useState<PersonagemPublico | null>(null);
+  const [fazendo, setFazendo] = useState('');
   const [q, setQ] = useState('');
   const [resultados, setResultados] = useState<PersonagemPublico[] | null>(null);
   const [total, setTotal] = useState<number | null>(null);
@@ -89,7 +110,9 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
     try {
       const r = await fetch(`/api/mundo/area?cx=${cx}&cy=${cy}`);
       const dados: PersonagemPublico[] = await r.json();
-      chunks.current.set(k, { dados: Array.isArray(dados) ? dados : [], em: Date.now() });
+      const lista = Array.isArray(dados) ? dados : [];
+      for (const p of lista) nomes.current.set(idDoCodigo(p.codigo), p.nome);
+      chunks.current.set(k, { dados: lista, em: Date.now() });
     } catch {
       chunks.current.delete(k);
     }
@@ -100,10 +123,8 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       fetch('/api/mundo/resumo').then((r) => r.json()).then((j) => {
         setTotal(j.total);
         setUltimos(j.ultimos ?? []);
-        if (j.total !== totalRef.current) {
-          totalRef.current = j.total;
-          for (const k of [...terreno.current.keys()]) if (!k.startsWith('n')) terreno.current.delete(k);   // lotes cresceram
-        }
+        if (anelMaximo(j.total) !== anelMaximo(totalRef.current)) terreno.current.clear();   // o bairro ganhou um anel
+        totalRef.current = j.total;
       }).catch(() => {});
     const colonia = () =>
       fetch('/api/colonia').then((r) => r.json()).then((j) => {
@@ -127,30 +148,38 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codigoInicial]);
 
+  // o que o selecionado está fazendo (atualiza a ficha)
+  useEffect(() => {
+    if (!selecionado) { setFazendo(''); return; }
+    const atualizar = () => {
+      const e = estadoRef.current;
+      const obra = e?.obras.find((o) => o.status !== 'concluida') ?? null;
+      const s = situacao(idDoCodigo(selecionado.codigo), Math.max(totalRef.current, 1), Date.now() / 1000, e?.praca ?? null, obra);
+      setFazendo(s.descricao((id) => nomes.current.get(id) ?? null));
+    };
+    atualizar();
+    const t = setInterval(atualizar, 1000);
+    return () => clearInterval(t);
+  }, [selecionado]);
+
   // ---------- desenho ----------
   useEffect(() => {
     const cv = canvasRef.current!;
     const ctx = cv.getContext('2d')!;
     let raf = 0;
 
-    const lotes = () => {   // área dos lotes dos colonos (igual ao vídeo)
-      const n = totalRef.current;
-      if (!n) return null;
-      const linhas = Math.ceil(n / LARGURA_MUNDO);
-      return { x1: linhas > 1 ? LARGURA_MUNDO - 1 : Math.min(LARGURA_MUNDO - 1, Math.max(15, ((n - 1) % LARGURA_MUNDO) + 3)), y1: linhas - 1 };
-    };
-
     const blocoTerreno = (bx: number, by: number) => {
-      const lt = lotes();
-      const k = by < 0 ? `n${bx},${by}` : `${bx},${by}`;
+      const k = `${bx},${by}`;
       let c = terreno.current.get(k);
       if (c) return c;
       const e = estadoRef.current;
-      const reservados = e ? [e.base, ...e.obras].map((o) => ({ x0: o.x - 1, y0: o.y - 1, x1: o.x + o.w + 1, y1: o.y + o.h + 1 })) : [];
-      const lote = (x: number, y: number) => !!lt && y >= 0 && y <= lt.y1 && x >= 0 && x <= lt.x1;
+      const n = totalRef.current;
+      const reservados = e ? [e.base, ...e.obras, ...(e.praca ? [e.praca] : [])]
+        .map((o) => ({ x0: o.x - 1, y0: o.y - 1, x1: o.x + o.w + 1, y1: o.y + o.h + 1 })) : [];
+      const lote = (x: number, y: number) => noBairro(x, y, n);
       const livre = (x: number, y: number) => !reservados.some((r) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1)
-        && !(lt && y >= -1 && y <= lt.y1 + 1 && x >= -1 && x <= lt.x1 + 1);
-      c = blocoDeTerreno(bx, by, livre, lote);
+        && !noBairro(x, y, n) && !(n > 0 && noBairro(x, y, n + 400));   // sem cratera no bairro nem logo em volta
+      c = blocoDeTerreno(bx, by, livre, lote, ehRua);
       if (terreno.current.size > 160) terreno.current.clear();
       terreno.current.set(k, c);
       return c;
@@ -158,6 +187,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
 
     const desenhar = (ms: number) => {
       const t = ms / 1000;
+      const agoraS = Date.now() / 1000;          // relógio "de verdade": todos veem a mesma cena
       const dpr = window.devicePixelRatio || 1;
       const w = cv.clientWidth, h = cv.clientHeight;
       if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
@@ -165,20 +195,21 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       }
       const e = estadoRef.current;
       const c = cam.current;
-      if (!c.pronta && e && w > 0) {   // começa olhando a colônia (base + obras + primeiras casas)
-        c.zoom = w < 600 ? 2.2 : 3;
-        c.x = (e.base.x + e.base.w / 2) * CASA - w / 2 / c.zoom;
-        c.y = (e.base.y + e.base.h + 2.5) * CASA - h / 2 / c.zoom;   // entre a base e as primeiras casas
+      if (!c.pronta && e && w > 0) {   // começa olhando a base, a praça e o começo do bairro
+        c.zoom = w < 600 ? 1.8 : 2.4;
+        c.x = (CENTRO.x + 0.5) * CASA - w / 2 / c.zoom;
+        c.y = (CENTRO.y + 7) * CASA - h / 2 / c.zoom;
         c.pronta = true;
       }
       const { x: camX, y: camY, zoom } = c;
+      const n = Math.max(totalRef.current, 0);
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.imageSmoothingEnabled = false;
       ctx.fillStyle = '#b85a37';
       ctx.fillRect(0, 0, w, h);
 
-      // ---- mundo (coordenadas em pixels do mundo)
+      // ---- mundo (pixels do mundo)
       ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, -camX * zoom * dpr, -camY * zoom * dpr);
       const vx0 = Math.floor(camX / CASA), vx1 = Math.ceil((camX + w / zoom) / CASA);
       const vy0 = Math.floor(camY / CASA), vy1 = Math.ceil((camY + h / zoom) / CASA);
@@ -187,122 +218,164 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
         for (let bx = Math.floor(vx0 / BLOCO); bx <= Math.floor(vx1 / BLOCO); bx++)
           ctx.drawImage(blocoTerreno(bx, by), bx * TB, by * TB, TB + 0.5, TB + 0.5);
 
+      const obraAtual = e?.obras.find((o) => o.status !== 'concluida') ?? null;
       if (e) {
-        desenharTrilha(ctx, e.base);
+        desenharTrilha(ctx, e.base, CENTRO.y + 13);
+        if (e.praca) desenharPraca(ctx, e.praca, t);
         const energia = e.obras.some((o) => o.tipo === 'solar' && o.status === 'concluida');
-        const atual = e.obras.find((o) => o.status !== 'concluida');
         for (const o of e.obras) {
-          if (o.status === 'planejada' && o !== atual) continue;
+          if (o.status === 'planejada' && o !== obraAtual) continue;
           desenharObra(ctx, o, { p: o.status === 'concluida' ? 1 : o.progresso / 100, dem: true, energia: o.status === 'concluida' }, e.base, t);
         }
         desenharBase(ctx, e.base, t, energia);
       }
 
-      // casas dos colonos (só existem de y = 0 para baixo)
-      const sel = selecionadoRef.current;
-      const visiveis: PersonagemPublico[] = [];
-      if (vy1 >= 0) {
-        const x0 = Math.max(0, vx0), x1 = Math.min(LARGURA_MUNDO - 1, vx1), y0 = Math.max(0, vy0);
-        const linhasMax = Math.ceil((totalRef.current || 1) / LARGURA_MUNDO) + 1;
-        const cx0 = Math.floor(x0 / CHUNK), cx1 = Math.min(CHUNKS_POR_LINHA - 1, Math.floor(x1 / CHUNK));
-        const cy0 = Math.floor(y0 / CHUNK), cy1 = Math.min(Math.floor(vy1 / CHUNK), Math.floor(linhasMax / CHUNK));
-        for (let cy = cy0; cy <= cy1; cy++)
-          for (let cx = cx0; cx <= cx1; cx++) {
-            carregarChunk(cx, cy);
-            const ch = chunks.current.get(`${cx},${cy}`);
-            if (!ch || ch === 'carregando') continue;
-            for (const p of ch.dados) {
-              if (p.pos_x < vx0 - 1 || p.pos_x > vx1 + 1 || p.pos_y < vy0 - 1 || p.pos_y > vy1 + 1) continue;
-              visiveis.push(p);
-              const x = p.pos_x * CASA, y = p.pos_y * CASA;
-              ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(x + 4, y + 14, 8, 1.5);
-              let img: HTMLImageElement | undefined;
-              if (p.sprite_url) {
-                img = imagens.current.get(p.sprite_url);
-                if (!img) { img = new Image(); img.src = p.sprite_url; imagens.current.set(p.sprite_url, img); }
-              }
-              const pula = Math.sin(t * 2 + p.pos_x * 1.7 + p.pos_y) > 0.97 ? -1 : 0;   // de vez em quando alguém dá um pulinho
-              if (img && img.complete && img.naturalWidth) ctx.drawImage(img, x + 2, y + 2 + pula, 12, 12);
-              else ctx.drawImage(spriteColono(p.seed), x + 2, y + 2 + pula, 12, 12);
-              if (p.status === 'estreou') { ctx.fillStyle = '#ffd84a'; ctx.fillRect(x + 12.5, y + 0.5, 2.5, 2.5); }
-            }
+      // casas visíveis (por quarteirão) + quem mora nelas
+      const pessoas: Pessoa[] = [];
+      const casas: PersonagemPublico[] = [];
+      const lb = limitesDoBairro(n);
+      const cx0 = Math.max(-LIMITE_CHUNKS, Math.floor(Math.max(vx0, lb.x0) / CHUNK)), cx1 = Math.min(LIMITE_CHUNKS, Math.floor(Math.min(vx1, lb.x1) / CHUNK));
+      const cy0 = Math.max(-LIMITE_CHUNKS, Math.floor(Math.max(vy0, lb.y0) / CHUNK)), cy1 = Math.min(LIMITE_CHUNKS, Math.floor(Math.min(vy1, lb.y1) / CHUNK));
+      for (let cy = cy0; cy <= cy1; cy++)
+        for (let cx = cx0; cx <= cx1; cx++) {
+          carregarChunk(cx, cy);
+          const ch = chunks.current.get(`${cx},${cy}`);
+          if (!ch || ch === 'carregando') continue;
+          for (const p of ch.dados) {
+            const id = idDoCodigo(p.codigo);
+            const s = situacao(id, Math.max(n, 1), agoraS, e?.praca ?? null, obraAtual);
+            const casaVisivel = p.pos_x >= vx0 - 1 && p.pos_x <= vx1 + 1 && p.pos_y >= vy0 - 1 && p.pos_y <= vy1 + 1;
+            if (casaVisivel) casas.push(p);
+            pessoas.push({ p, id, s });
           }
+        }
+      for (const p of casas) {
+        const pessoa = pessoas.find((x) => x.p === p);
+        desenharCasinha(ctx, p.pos_x, p.pos_y, p.seed, !!pessoa && pessoa.s.tipo === 'casa');
       }
       if (e) for (const cp of e.compras) {
         if (cp.pos_x < vx0 - 1 || cp.pos_x > vx1 + 1 || cp.pos_y < vy0 - 1 || cp.pos_y > vy1 + 1) continue;
-        const x = cp.pos_x * CASA + 4, y = cp.pos_y * CASA + 14;
-        ctx.drawImage(spriteContornado(iconeDoProduto(cp.produto_slug)), x - 1, y, 12.5, 12.5);
+        ctx.drawImage(spriteContornado(iconeDoProduto(cp.produto_slug)), cp.pos_x * CASA - 4, cp.pos_y * CASA + 7, 9, 9);
       }
 
-      // Vega e Lia: vão da casa até a obra, trabalham e voltam (ciclo de ~32 s, cada um no seu ritmo)
-      const trabalhando: { x: number; y: number; nome: string }[] = [];
-      if (e) {
-        const atual = e.obras.find((o) => o.status !== 'concluida');
-        e.fundadores.forEach((f, i) => {
-          const casa = { x: f.casa[0] * CASA, y: f.casa[1] * CASA };
-          const alvo = atual
-            ? { x: (atual.x + atual.w / 2 + (i ? 1.2 : -1.2)) * CASA, y: (atual.y + atual.h + 0.6) * CASA }
-            : { x: casa.x + (i ? 24 : -24), y: casa.y + 10 };
-          const fase = ((t + i * 13) / 32) % 1;
-          let k = 0;
-          if (fase < 0.3) k = 0; else if (fase < 0.45) k = suave((fase - 0.3) / 0.15);
-          else if (fase < 0.8) k = 1; else if (fase < 0.95) k = 1 - suave((fase - 0.8) / 0.15); else k = 0;
-          const andando = (fase > 0.3 && fase < 0.45) || (fase > 0.8 && fase < 0.95);
-          const dir = (fase < 0.6 ? alvo.x - casa.x : casa.x - alvo.x) >= 0 ? 1 : -1;
-          const px = lerp(casa.x, alvo.x, k), py = lerp(casa.y, alvo.y, k);
-          const pulo = andando && Math.floor(t * 8) % 2 ? -1 : (k === 1 && Math.floor(t * 3 + i) % 2 ? -1 : 0);
-          ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(px - 4, py - 1, 8, 2);
-          ctx.save(); ctx.translate(Math.round(px), Math.round(py + pulo)); if (dir < 0) ctx.scale(-1, 1);
-          ctx.drawImage(spriteMapa(f.sprite), -6, -12, 12, 12); ctx.restore();
-          if (k === 1 && atual && Math.floor(t * 4 + i) % 3 === 0) { ctx.fillStyle = COR.ouro; ctx.fillRect(px + (i ? -7 : 5), py - 8, 2, 2); }   // faísca da ferramenta
-          trabalhando.push({ x: px, y: py - 14, nome: f.curto });
+      // Vega e Lia: vão da casa até a obra, trabalham e voltam
+      const atores: { x: number; y: number; desenha: () => void; nome?: string; ehFundador?: boolean }[] = [];
+      if (e) e.fundadores.forEach((f, i) => {
+        const casa = { x: f.casa[0] * CASA, y: f.casa[1] * CASA };
+        const alvo = obraAtual
+          ? { x: (obraAtual.x + obraAtual.w / 2 + (i ? 1.2 : -1.2)) * CASA, y: (obraAtual.y + obraAtual.h + 0.6) * CASA }
+          : { x: casa.x + (i ? 24 : -24), y: casa.y + 10 };
+        const fase = ((agoraS + i * 13) / 32) % 1;
+        let k = 0;
+        if (fase < 0.3) k = 0; else if (fase < 0.45) k = suave((fase - 0.3) / 0.15);
+        else if (fase < 0.8) k = 1; else if (fase < 0.95) k = 1 - suave((fase - 0.8) / 0.15);
+        const andando = (fase > 0.3 && fase < 0.45) || (fase > 0.8 && fase < 0.95);
+        const dir = (fase < 0.6 ? alvo.x - casa.x : casa.x - alvo.x) >= 0 ? 1 : -1;
+        const px = lerp(casa.x, alvo.x, k), py = lerp(casa.y, alvo.y, k);
+        atores.push({
+          x: px, y: py, nome: f.curto, ehFundador: true,
+          desenha: () => {
+            const pulo = andando && Math.floor(t * 8) % 2 ? -1 : (k === 1 && Math.floor(t * 3 + i) % 2 ? -1 : 0);
+            ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(px - 4, py - 1, 8, 2);
+            ctx.save(); ctx.translate(Math.round(px), Math.round(py + pulo)); if (dir < 0) ctx.scale(-1, 1);
+            ctx.drawImage(spriteMapa(f.sprite), -6, -12, 12, 12); ctx.restore();
+            if (k === 1 && obraAtual && Math.floor(t * 4 + i) % 3 === 0) { ctx.fillStyle = COR.ouro; ctx.fillRect(px + (i ? -7 : 5), py - 8, 2, 2); }
+          },
+        });
+      });
+
+      // colonos (onde estão agora, segundo a rotina)
+      for (const pe of pessoas) {
+        const { s, p } = pe;
+        if (s.x < camX - 40 || s.x > camX + w / zoom + 40 || s.y < camY - 40 || s.y > camY + h / zoom + 40) continue;
+        atores.push({
+          x: s.x, y: s.y,
+          desenha: () => {
+            let img: HTMLImageElement | undefined;
+            if (p.sprite_url) {
+              img = imagens.current.get(p.sprite_url);
+              if (!img) { img = new Image(); img.src = p.sprite_url; imagens.current.set(p.sprite_url, img); }
+            }
+            const pulo = s.andando ? (Math.floor(t * 8 + pe.id) % 2 ? -1 : 0)
+              : (s.tipo === 'praca' && Math.sin(t * 4 + pe.id) > 0.8 ? -2 : s.tipo === 'obra' && Math.floor(t * 3 + pe.id) % 2 ? -1 : 0);
+            ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(s.x - 4, s.y - 1, 8, 2);
+            ctx.save(); ctx.translate(Math.round(s.x), Math.round(s.y + pulo)); if (s.dir < 0) ctx.scale(-1, 1);
+            if (img && img.complete && img.naturalWidth) ctx.drawImage(img, -6, -12, 12, 12);
+            else ctx.drawImage(spriteColono(p.seed), -6, -12, 12, 12);
+            ctx.restore();
+            if (p.status === 'estreou') { ctx.fillStyle = '#ffd84a'; ctx.fillRect(s.x + 4, s.y - 13, 2.5, 2.5); }
+            if (s.tipo === 'obra' && Math.floor(t * 4 + pe.id) % 3 === 0) { ctx.fillStyle = COR.ouro; ctx.fillRect(s.x + 5 * s.dir, s.y - 7, 2, 2); }
+          },
         });
       }
+      atores.sort((a, b) => a.y - b.y);
+      for (const a of atores) a.desenha();
+      pessoasRef.current = pessoas;
 
       // ---- tela (pixels da tela)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const tela = (wx: number, wy: number) => ({ x: (wx - camX) * zoom, y: (wy - camY) * zoom });
+      const sel = selecionadoRef.current;
 
-      if (zoom >= 4) {
+      if (zoom >= 5) {   // nomes (com zoom, para não embolar na multidão)
         ctx.font = `${Math.min(12, 2.6 * zoom)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
-        for (const p of visiveis) {
-          if (sel && sel.codigo === p.codigo) continue;
-          const s = tela(p.pos_x * CASA + 8, p.pos_y * CASA + 16.8);
-          ctx.fillText(p.nome, s.x, s.y, CASA * zoom);
+        for (const pe of pessoas) {
+          if (sel && sel.codigo === pe.p.codigo) continue;
+          const s = tela(pe.s.x, pe.s.y + 6);
+          if (s.x > -50 && s.x < w + 50 && s.y > -20 && s.y < h + 20) ctx.fillText(pe.p.nome, s.x, s.y, CASA * zoom * 1.4);
         }
       }
-      if (zoom >= 2.5) {
+      if (zoom >= 2) {
         ctx.font = 'bold 11px system-ui, sans-serif'; ctx.textAlign = 'center';
-        for (const f of trabalhando) {
-          const s = tela(f.x, f.y);
-          const lw = ctx.measureText(f.nome).width + 10;
+        for (const a of atores) {
+          if (!a.ehFundador || !a.nome) continue;
+          const s = tela(a.x, a.y - 14);
+          const lw = ctx.measureText(a.nome).width + 10;
           ctx.fillStyle = '#140f26cc'; ctx.fillRect(s.x - lw / 2, s.y - 16, lw, 15);
-          ctx.fillStyle = COR.areia; ctx.fillText(f.nome, s.x, s.y - 5);
+          ctx.fillStyle = COR.areia; ctx.fillText(a.nome, s.x, s.y - 5);
+        }
+      }
+
+      // balões de conversa (emojis da rotina) — o chat de verdade tem prioridade
+      const agora = performance.now();
+      const doChat = new Map<string, MensagemChat>();
+      for (const m of mensagensRef.current) if (agora - (chegada.current.get(m.id) ?? -1e9) < BALAO_MS) doChat.set(m.codigo, m);
+      if (zoom >= 1.5) {
+        const tam = Math.round(Math.min(16, 4 + zoom * 2.4));
+        ctx.font = `${tam}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`; ctx.textAlign = 'center';
+        for (const pe of pessoas) {
+          if (!pe.s.emote || doChat.has(pe.p.codigo)) continue;
+          const s = tela(pe.s.x, pe.s.y - 13);
+          if (s.x < -30 || s.x > w + 30 || s.y < -30 || s.y > h + 30) continue;
+          const bw = tam + 10, bh = tam + 6, bx = Math.round(s.x - bw / 2), by = Math.round(s.y - bh - 6);
+          ctx.fillStyle = '#f3eefe'; ctx.fillRect(bx, by, bw, bh); ctx.fillRect(Math.round(s.x) - 2, by + bh, 4, 4);
+          ctx.fillText(pe.s.emote, s.x, by + bh - 4);
         }
       }
 
       if (sel) {
-        const s = tela(sel.pos_x * CASA, sel.pos_y * CASA);
-        if (Math.floor(ms / 400) % 2 === 0) { ctx.strokeStyle = COR.agua; ctx.lineWidth = 3; ctx.strokeRect(s.x + 1, s.y + 1, CASA * zoom - 2, CASA * zoom - 2); }
+        const pe = pessoas.find((x) => x.p.codigo === sel.codigo);
+        const casa = tela(sel.pos_x * CASA, sel.pos_y * CASA);
+        if (Math.floor(ms / 400) % 2 === 0) { ctx.strokeStyle = COR.agua; ctx.lineWidth = 2; ctx.strokeRect(casa.x + 1, casa.y + 1, CASA * zoom - 2, CASA * zoom - 2); }
+        const s = pe ? tela(pe.s.x, pe.s.y - 14) : tela((sel.pos_x + 0.5) * CASA, sel.pos_y * CASA);
         const rot = `${sel.nome} @${sel.handle}`;
-        ctx.font = 'bold 13px system-ui, sans-serif';
+        ctx.font = 'bold 13px system-ui, sans-serif'; ctx.textAlign = 'center';
         const lw = ctx.measureText(rot).width + 12;
-        ctx.fillStyle = COR.ceu; ctx.fillRect(s.x + (CASA * zoom) / 2 - lw / 2, s.y - 26, lw, 20);
-        ctx.fillStyle = COR.agua; ctx.textAlign = 'center'; ctx.fillText(rot, s.x + (CASA * zoom) / 2, s.y - 11);
+        ctx.fillStyle = COR.ceu; ctx.fillRect(s.x - lw / 2, s.y - 38, lw, 20);
+        ctx.fillStyle = COR.agua; ctx.fillText(rot, s.x, s.y - 23);
       }
 
-      // balões do chat em cima da casa de quem escreveu
-      const agora = performance.now();
-      const porCasa = new Map<string, MensagemChat>();
-      for (const m of mensagensRef.current) if (agora - (chegada.current.get(m.id) ?? -1e9) < BALAO_MS) porCasa.set(`${m.pos_x},${m.pos_y}`, m);
+      // mensagens do rádio em cima de quem escreveu (onde a pessoa estiver)
       ctx.font = '12px system-ui, sans-serif'; ctx.textAlign = 'left';
-      for (const m of porCasa.values()) {
-        const s = tela(m.pos_x * CASA + 8, m.pos_y * CASA);
+      for (const m of doChat.values()) {
+        const pe = pessoas.find((x) => x.p.codigo === m.codigo);
+        const ondeX = pe ? pe.s.x : m.pos_x * CASA + 8, ondeY = pe ? pe.s.y - 14 : m.pos_y * CASA;
+        const s = tela(ondeX, ondeY);
         if (s.x < -200 || s.x > w + 200 || s.y < -60 || s.y > h + 60) continue;
         const idade = (agora - (chegada.current.get(m.id) ?? 0)) / BALAO_MS;
         ctx.globalAlpha = idade > 0.85 ? (1 - idade) / 0.15 : 1;
         const txt = m.texto.length > 42 ? m.texto.slice(0, 40) + '…' : m.texto;
-        const lw = Math.min(260, ctx.measureText(txt).width + 14), bx = Math.round(s.x - lw / 2), by = Math.round(s.y - 34);
+        const lw = Math.min(260, ctx.measureText(txt).width + 14), bx = Math.round(s.x - lw / 2), by = Math.round(s.y - 30);
         ctx.fillStyle = '#f3eefe'; ctx.fillRect(bx, by, lw, 22); ctx.fillRect(Math.round(s.x) - 3, by + 22, 6, 5);
         ctx.fillStyle = '#140f26'; ctx.fillText(txt, bx + 7, by + 15, lw - 12);
         ctx.globalAlpha = 1;
@@ -355,8 +428,9 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       const dx = p.x - ant.x, dy = p.y - ant.y;
       if (Math.abs(dx) + Math.abs(dy) > 3) arrastou = true;
       const c = cam.current;
-      c.x = Math.max(-80 * CASA, Math.min((LARGURA_MUNDO + 40) * CASA, c.x - dx / c.zoom));
-      c.y = Math.max(-90 * CASA, Math.min((Math.ceil((totalRef.current || 1) / LARGURA_MUNDO) + 60) * CASA, c.y - dy / c.zoom));
+      const lb = limitesDoBairro(Math.max(totalRef.current, 1));
+      c.x = Math.max((lb.x0 - 40) * CASA, Math.min((lb.x1 + 40) * CASA, c.x - dx / c.zoom));
+      c.y = Math.max((lb.y0 - 40) * CASA, Math.min((lb.y1 + 40) * CASA, c.y - dy / c.zoom));
       ponteiros.set(e.pointerId, p);
     };
     const up = (e: PointerEvent) => {
@@ -365,8 +439,17 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       if (ponteiros.size < 2) distPinca = 0;
       if (arrastou) return;
       const c = cam.current;
-      const tx = Math.floor((p.x / c.zoom + c.x) / CASA), ty = Math.floor((p.y / c.zoom + c.y) / CASA);
-      const ch = ty >= 0 ? chunks.current.get(`${Math.floor(tx / CHUNK)},${Math.floor(ty / CHUNK)}`) : undefined;
+      const wx = p.x / c.zoom + c.x, wy = p.y / c.zoom + c.y;
+      // 1º: alguém andando/parado ali? (o boneco ocupa ~12 px acima dos pés)
+      let melhor: Pessoa | null = null, dist = 9;
+      for (const pe of pessoasRef.current) {
+        const d = Math.hypot(pe.s.x - wx, pe.s.y - 6 - wy);
+        if (d < dist) { dist = d; melhor = pe; }
+      }
+      if (melhor) { selecionar(melhor.p, false); return; }
+      // 2º: a casa clicada
+      const tx = Math.floor(wx / CASA), ty = Math.floor(wy / CASA);
+      const ch = chunks.current.get(`${Math.floor(tx / CHUNK)},${Math.floor(ty / CHUNK)}`);
       const achado = ch && ch !== 'carregando' ? ch.dados.find((d) => d.pos_x === tx && d.pos_y === ty) : undefined;
       selecionar(achado ?? null, false);
     };
@@ -385,6 +468,12 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       cv.removeEventListener('wheel', roda);
     };
   }, [selecionar]);
+
+  const zoomBotao = (fator: number) => {
+    const cv = canvasRef.current; if (!cv) return;
+    const c = cam.current; const nz = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, c.zoom * fator));
+    c.x += cv.clientWidth / 2 / c.zoom - cv.clientWidth / 2 / nz; c.y += cv.clientHeight / 2 / c.zoom - cv.clientHeight / 2 / nz; c.zoom = nz;
+  };
 
   const e = estado;
   return (
@@ -424,18 +513,21 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
           )}
         </div>
         <div className="zoom-botoes">
-          <button aria-label="Aproximar" onClick={() => { const cv = canvasRef.current!; const c = cam.current; const nz = Math.min(ZOOM_MAX, c.zoom * 1.4); c.x += cv.clientWidth / 2 / c.zoom - cv.clientWidth / 2 / nz; c.y += cv.clientHeight / 2 / c.zoom - cv.clientHeight / 2 / nz; c.zoom = nz; }}>+</button>
-          <button aria-label="Afastar" onClick={() => { const cv = canvasRef.current!; const c = cam.current; const nz = Math.max(ZOOM_MIN, c.zoom / 1.4); c.x += cv.clientWidth / 2 / c.zoom - cv.clientWidth / 2 / nz; c.y += cv.clientHeight / 2 / c.zoom - cv.clientHeight / 2 / nz; c.zoom = nz; }}>−</button>
-          <button aria-label="Voltar para a colônia" onClick={() => { if (e) centralizarEm((e.base.x + e.base.w / 2) * CASA, (e.base.y + e.base.h) * CASA); }}>⌂</button>
+          <button aria-label="Aproximar" onClick={() => zoomBotao(1.4)}>+</button>
+          <button aria-label="Afastar" onClick={() => zoomBotao(1 / 1.4)}>−</button>
+          <button aria-label="Voltar para a colônia" onClick={() => centralizarEm((CENTRO.x + 0.5) * CASA, (CENTRO.y + 7) * CASA)}>⌂</button>
         </div>
         {selecionado && (
           <div className="ficha">
             <strong>{selecionado.nome}</strong> · @{selecionado.handle} ({selecionado.plataforma})<br />
+            {fazendo && <span style={{ color: 'var(--areia)' }}>Agora: {fazendo}<br /></span>}
             <span className="mudo">
               {selecionado.codigo} · {selecionado.status === 'estreou' ? '★ já apareceu num episódio'
                 : selecionado.status === 'desenhado' ? 'arte pronta, esperando o episódio' : 'na fila para ser desenhado'}
             </span><br />
             <a href={`/colono/${selecionado.codigo}`}>Ver perfil →</a>
+            {' · '}
+            <button type="button" className="link" onClick={() => centralizarEm((selecionado.pos_x + 0.5) * CASA, (selecionado.pos_y + 0.5) * CASA, 4)}>ver a casa</button>
           </div>
         )}
       </div>
@@ -447,7 +539,10 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
           <button key={u.codigo} style={{ all: 'unset', cursor: 'pointer', color: 'var(--agua)' }} onClick={() => selecionar(u)}>{u.nome}</button>
         ))}
       </div>
-      <p className="mudo">Arraste para andar · role ou faça pinça para dar zoom · ★ = já apareceu num episódio · ⌂ volta para a colônia</p>
+      <p className="mudo">
+        Arraste para andar · role ou faça pinça para dar zoom · toque num colono para ver o que ele está fazendo · ⌂ volta para a colônia
+      </p>
     </div>
   );
 }
+

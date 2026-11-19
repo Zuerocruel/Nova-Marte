@@ -187,24 +187,34 @@ function carregarImagem(url) {
   });
 }
 
+// Bairro em espiral (igual a lib/mundo.ts e à casa_pos do banco): rua a cada 4 casas a partir do centro da base
+const CENTRO = { x: 5, y: -8 }, ANEL_INICIAL = 10;
+const ehRua = (x, y) => ((((x - CENTRO.x) % 4) + 4) % 4) === 3 || ((((y - CENTRO.y) % 4) + 4) % 4) === 3;
+const loteDe = (d) => d - Math.floor((d + 1) / 4);
+const anelDe = (x, y) => Math.max(Math.abs(loteDe(x - CENTRO.x)), Math.abs(loteDe(y - CENTRO.y)));
+
 function retanguloDe(o) { return { x0: o.x * CASA, y0: o.y * CASA, x1: (o.x + o.w) * CASA, y1: (o.y + o.h) * CASA }; }
 
 function prepararTerreno() {
   const m = EP.mundo;
-  let maxX = 15, maxY = -1;
-  for (const c of m.colonos) { maxX = Math.max(maxX, c.x); maxY = Math.max(maxY, c.y); }
-  EP.lotes = m.colonos.length ? { x1: Math.min(255, Math.max(15, maxX + 3)), y1: maxY } : null;
+  let minX = CENTRO.x, maxX = CENTRO.x, minY = CENTRO.y, maxY = CENTRO.y, anel = 0;
+  for (const c of m.colonos) {
+    minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x); minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y);
+    anel = Math.max(anel, anelDe(c.x, c.y));
+  }
+  EP.lotes = m.colonos.length ? { anel } : null;
+  const noBairro = (x, y) => !!EP.lotes && (() => { const a = anelDe(x, y); return a >= ANEL_INICIAL && a <= EP.lotes.anel; })();
 
-  const tx0 = -48, ty0 = -64;
-  const tx1 = Math.max(80, (EP.lotes ? EP.lotes.x1 : 0) + 40);
-  const ty1 = Math.min(Math.max(0, maxY) + 48, 200);
+  const tx0 = Math.max(-200, Math.min(-48, minX - 40)), ty0 = Math.max(-220, Math.min(-64, minY - 40));
+  const tx1 = Math.min(220, Math.max(80, maxX + 40));
+  const ty1 = Math.min(220, Math.max(48, maxY + 48));
   TER = { x0: tx0, y0: ty0 };
   terreno = document.createElement('canvas');
   terreno.width = (tx1 - tx0) * CASA; terreno.height = (ty1 - ty0) * CASA;
   const t = terreno.getContext('2d');
-  const reservados = [m.base, ...m.obras].map((o) => ({ x0: o.x - 1, y0: o.y - 1, x1: o.x + o.w + 1, y1: o.y + o.h + 1 }));
+  const reservados = [m.base, ...m.obras, ...(m.praca ? [m.praca] : [])].map((o) => ({ x0: o.x - 1, y0: o.y - 1, x1: o.x + o.w + 1, y1: o.y + o.h + 1 }));
   const livre = (x, y) => !reservados.some((r) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1)
-    && !(EP.lotes && y >= -1 && y <= EP.lotes.y1 + 1 && x >= -1 && x <= EP.lotes.x1 + 1);
+    && !(EP.lotes && (() => { const a = anelDe(x, y); return a >= ANEL_INICIAL - 1 && a <= EP.lotes.anel + 1; })());
   const solos = ['#b85a37', '#bc5e3a', '#b35538', '#c0623d'];
 
   for (let y = ty0; y < ty1; y++) for (let x = tx0; x < tx1; x++) {
@@ -219,14 +229,20 @@ function prepararTerreno() {
       }
     }
   }
-  // lotes dos colonos (xadrez igual ao site)
-  if (EP.lotes) for (let y = 0; y <= EP.lotes.y1; y++) for (let x = 0; x <= EP.lotes.x1; x++) {
-    t.fillStyle = (x + y) % 2 ? '#c4693f' : '#b85f39';
+  // bairro em espiral: lotes em xadrez e ruas de terra batida (igual ao site)
+  if (EP.lotes) for (let y = ty0; y < ty1; y++) for (let x = tx0; x < tx1; x++) {
+    if (!noBairro(x, y)) continue;
+    t.fillStyle = ehRua(x, y) ? '#cd8a62' : ((x + y) % 2 ? '#c4693f' : '#b85f39');
     t.fillRect((x - tx0) * CASA, (y - ty0) * CASA, CASA, CASA);
   }
-  // trilha da base até as casas
+  // praça da colônia
+  if (m.praca) for (let y = m.praca.y; y < m.praca.y + m.praca.h; y++) for (let x = m.praca.x; x < m.praca.x + m.praca.w; x++) {
+    t.fillStyle = (x + y) % 2 ? '#d9a47e' : '#cf9670';
+    t.fillRect((x - tx0) * CASA, (y - ty0) * CASA, CASA, CASA);
+  }
+  // trilha da base, passando pela praça, até a primeira casa do bairro (ao sul)
   const b = m.base;
-  for (let y = b.y + b.h; y < 0; y++) {
+  for (let y = b.y + b.h; y < CENTRO.y + 13; y++) {
     t.fillStyle = '#cd7a52';
     t.fillRect((b.x + Math.floor(b.w / 2) - tx0) * CASA - 6, (y - ty0) * CASA, 12, CASA);
   }
@@ -330,7 +346,13 @@ function posFundador(f, t) {
 function caixaColonia() {
   const m = EP.mundo;
   const caixas = [m.base, ...m.obras.filter((o) => o.status !== 'planejada' || o.slug === EP.missao_obra)].map(retanguloDe);
-  if (EP.lotes) caixas.push({ x0: 0, y0: 0, x1: Math.min(EP.lotes.x1 + 1, 20) * CASA, y1: (Math.min(EP.lotes.y1, 6) + 1) * CASA });
+  if (m.praca) caixas.push(retanguloDe(m.praca));
+  // as casas mais perto do centro (o bairro inteiro não cabe na tela quando cresce)
+  const perto = m.colonos.filter((c) => Math.abs(c.x - CENTRO.x) <= 16 && Math.abs(c.y - CENTRO.y) <= 16);
+  if (perto.length) caixas.push({
+    x0: Math.min(...perto.map((c) => c.x)) * CASA, y0: Math.min(...perto.map((c) => c.y)) * CASA,
+    x1: (Math.max(...perto.map((c) => c.x)) + 1) * CASA, y1: (Math.max(...perto.map((c) => c.y)) + 1) * CASA,
+  });
   return {
     x: (Math.min(...caixas.map((c) => c.x0)) + Math.max(...caixas.map((c) => c.x1))) / 2,
     y: (Math.min(...caixas.map((c) => c.y0)) + Math.max(...caixas.map((c) => c.y1))) / 2,

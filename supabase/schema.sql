@@ -40,12 +40,34 @@ alter table links add constraint links_episodio_fk foreign key (episodio_id) ref
 -- ---------------------------------------------------------------------
 -- PERSONAGENS  (cada cadastro = um personagem no mundo)
 -- ---------------------------------------------------------------------
+-- Casa de cada colono: bairro em espiral em volta da base (veja migrations/007_bairro_espiral.sql)
+create or replace function casa_pos(p_id bigint) returns int[]
+language plpgsql immutable parallel safe
+as $$
+declare
+  r0 constant int := 10;      -- primeiro anel com casas
+  m bigint; r bigint; t bigint; u bigint; v bigint;
+begin
+  m := (p_id - 1) + (2 * r0 - 1)::bigint * (2 * r0 - 1);
+  r := (floor(sqrt(m::numeric))::bigint + 1) / 2;
+  t := m - (2 * r - 1) * (2 * r - 1);
+  if    t < r     then u := t;             v := r;
+  elsif t < 3 * r then u := r;             v := r - (t - r);
+  elsif t < 5 * r then u := r - (t - 3*r); v := -r;
+  elsif t < 7 * r then u := -r;            v := -r + (t - 5*r);
+  else                 u := -r + (t - 7*r); v := r;
+  end if;
+  -- rua a cada 3 lotes: o lote u vira a casa u + floor(u/3)
+  return array[(5 + u + floor(u / 3.0))::int, (-8 + v + floor(v / 3.0))::int];
+end
+$$;
+
 create table if not exists personagens (
   id                 bigserial primary key,
   -- código público e posição fixa no mundo derivam do id (nunca colidem)
   codigo             text generated always as ('NM' || lpad(id::text, 6, '0')) stored,
-  pos_x              int  generated always as (((id - 1) % 256)::int) stored,
-  pos_y              int  generated always as (((id - 1) / 256)::int) stored,
+  pos_x              int  generated always as ((casa_pos(id))[1]) stored,
+  pos_y              int  generated always as ((casa_pos(id))[2]) stored,
 
   nome               text not null,
   nome_busca         text not null,              -- minúsculo, sem acento (gerado no app)
@@ -341,3 +363,5 @@ revoke execute on function buscar_personagens(text, int) from public;
 revoke execute on function nome_exibicao(text) from public;
 grant  execute on function buscar_personagens(text, int) to service_role;
 grant  execute on function nome_exibicao(text) to service_role;
+revoke execute on function casa_pos(bigint) from public;
+grant  execute on function casa_pos(bigint) to service_role;

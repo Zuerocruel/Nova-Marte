@@ -267,7 +267,10 @@ def montar(d: dict) -> dict:
 
     # 4b. ALERTA do Problema do Dia (resolvido depois da missão, em paralelo à obra)
     if problema:
-        f = Fala().add(f"{problema['rotulo'].capitalize()}! ").add(problema["alerta"].format(**campos))
+        alerta = problema["alerta"].format(**campos)
+        # "Alerta de clima! Alerta de radiação!" soa repetido: o rótulo só entra se a fala não começar com "Alerta"
+        f = Fala() if alerta.lower().startswith("alerta") else Fala().add(f"{problema['rotulo'].capitalize()}! ")
+        f.add(alerta)
         cenas.append(cena("problema", "problema", f, camera=camera_do_problema(problema["alvo"]),
                           problema={k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")}))
 

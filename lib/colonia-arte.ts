@@ -91,14 +91,21 @@ const SOLOS = ['#b85a37', '#bc5e3a', '#b35538', '#c0623d'];
 export type Reservado = Ret;   // em casas: onde não nasce cratera (base, obras, lotes)
 
 export function blocoDeTerreno(bx: number, by: number, livre: (x: number, y: number) => boolean,
-                               lote: (x: number, y: number) => boolean): HTMLCanvasElement {
+                               lote: (x: number, y: number) => boolean,
+                               rua: (x: number, y: number) => boolean = () => false): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = c.height = BLOCO * CASA;
   const t = c.getContext('2d')!;
   const x0 = bx * BLOCO, y0 = by * BLOCO;
   for (let y = y0; y < y0 + BLOCO; y++) for (let x = x0; x < x0 + BLOCO; x++) {
     const px = (x - x0) * CASA, py = (y - y0) * CASA;
-    if (lote(x, y)) { t.fillStyle = (x + y) % 2 ? '#c4693f' : '#b85f39'; t.fillRect(px, py, CASA, CASA); continue; }
+    if (lote(x, y)) {   // bairro: ruas de terra batida e lotes em xadrez
+      if (rua(x, y)) {
+        t.fillStyle = '#cd8a62'; t.fillRect(px, py, CASA, CASA);
+        t.fillStyle = '#d99a72'; if (hash(x, y, 5) < 0.5) t.fillRect(px + Math.floor(hash(x, y, 6) * 13), py + Math.floor(hash(x, y, 7) * 13), 2, 1);
+      } else { t.fillStyle = (x + y) % 2 ? '#c4693f' : '#b85f39'; t.fillRect(px, py, CASA, CASA); }
+      continue;
+    }
     t.fillStyle = SOLOS[Math.floor(hash(x, y) * SOLOS.length)];
     t.fillRect(px, py, CASA, CASA);
     for (let k = 0; k < 3; k++) {
@@ -203,9 +210,23 @@ export function desenharObra(c: Ctx, o: Geo & { tipo: string }, st: EstadoObra, 
   }
 }
 
-/** Trilha do módulo de pouso até as casas. */
-export function desenharTrilha(c: Ctx, b: Geo) {
-  for (let y = b.y + b.h; y < 0; y++) ret(c, (b.x + Math.floor(b.w / 2)) * CASA - 6, y * CASA, 12, CASA, '#cd7a52');
+/** Trilha do módulo de pouso, passando pela praça, até a primeira casa do bairro (ao sul). */
+export function desenharTrilha(c: Ctx, b: Geo, ateY: number) {
+  for (let y = b.y + b.h; y < ateY; y++) ret(c, (b.x + Math.floor(b.w / 2)) * CASA - 6, y * CASA, 12, CASA, '#cd7a52');
+}
+
+/** Praça da colônia: piso de placas, bancos e um mastro com a bandeira. */
+export function desenharPraca(c: Ctx, p: Geo, t: number) {
+  const r = retanguloDe(p);
+  for (let y = p.y; y < p.y + p.h; y++) for (let x = p.x; x < p.x + p.w; x++)
+    ret(c, x * CASA, y * CASA, CASA, CASA, (x + y) % 2 ? '#d9a47e' : '#cf9670');
+  c.strokeStyle = '#8f5a3f'; c.lineWidth = 1; c.strokeRect(r.x0 + 0.5, r.y0 + 0.5, r.x1 - r.x0 - 1, r.y1 - r.y0 - 1);
+  for (const bx of [r.x0 + 6, r.x1 - 18]) { ret(c, bx, r.y1 - 10, 12, 3, '#6b4a2e'); ret(c, bx + 1, r.y1 - 7, 2, 3, '#4a3020'); ret(c, bx + 9, r.y1 - 7, 2, 3, '#4a3020'); }
+  const mx = (r.x0 + r.x1) / 2, my = r.y0 + 10;
+  ret(c, mx - 1, my - 14, 2, 16, '#9aa0b5');
+  const onda = Math.sin(t * 3) > 0 ? 1 : 0;
+  ret(c, mx + 1, my - 14, 8, 5 + onda, COR.marte); ret(c, mx + 3, my - 13, 3, 2, COR.ouro);
+  disco(c, mx, my + 3, 3, '#6b6f86');
 }
 
 // ------------------------------------------------------------------ clima (em coordenadas da TELA)

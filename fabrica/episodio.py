@@ -179,6 +179,7 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
         "so_fundadores": so_fundadores,
         "fundadores": col["fundadores"],
         "base": col["base"],
+        "praca": col.get("praca"),
         "obras": lista_obras,
         "fonte_obras": fonte_obras,
         "no_banco": {  # sempre registrado, mesmo quando o episódio ignora (modo só fundadores)

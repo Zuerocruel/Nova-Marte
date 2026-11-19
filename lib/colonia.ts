@@ -15,6 +15,7 @@ export type ProblemaDoDia = { titulo: string; rotulo: string; categoria: string;
 export type CompraNoMapa = { pos_x: number; pos_y: number; produto_slug: string };
 export type EstadoColonia = {
   base: { nome: string; x: number; y: number; w: number; h: number };
+  praca: { nome: string; x: number; y: number; w: number; h: number } | null;
   obras: Obra[];
   fundadores: Fundador[];
   episodio: { numero: number; titulo: string; publicado_em: string } | null;
@@ -81,6 +82,7 @@ export async function estadoColonia(): Promise<EstadoColonia> {
 
   return {
     base: colonia.base,
+    praca: (colonia as { praca?: EstadoColonia['praca'] }).praca ?? null,
     obras,
     fundadores: colonia.fundadores.map((f) => ({ id: f.id, curto: f.curto, casa: f.casa as [number, number], sprite: f.sprite })),
     episodio: ep ? { numero: ep.numero, titulo: ep.titulo, publicado_em: ep.publicado_em } : null,
