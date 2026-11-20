@@ -92,8 +92,8 @@ class Fala:
 
 
 def com_equipe(c: dict) -> str:
-    """Nome falado + profissão, para as boas-vindas: "ZéGotinha, da equipe de Engenharia,"."""
-    return f"{c['falado']}, {c['equipe']}," if c.get("equipe") else c["falado"]
+    """Nome falado + profissão, para as boas-vindas: "ZéGotinha da equipe de Engenharia"."""
+    return f"{c['falado']} {c['equipe']}" if c.get("equipe") else c["falado"]
 
 
 def fala_com_heroi(molde: str, heroi: dict, **campos) -> Fala:

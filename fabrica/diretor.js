@@ -346,9 +346,11 @@ function planejarVida() {
   const porta = { x: (base.x + base.w / 2) * CASA, y: (base.y + base.h) * CASA + 2 };
   let tEntra = Infinity, tSai = Infinity;
   if (sol) {
-    const w = (sol.palavras || []).find((x) => x.i > sol.fala_inicio + 1.5 && /depois|passa|passou|acalma|perigo|salv/i.test(x.p));
-    tEntra = sol.inicio + 0.3;
-    tSai = w ? w.i : sol.fala_inicio + 0.65 * (sol.fim - sol.fala_inicio);
+    const pal = sol.palavras || [];
+    const w = pal.find((x) => x.i > sol.fala_inicio + 1.5 && /depois|passa|passou|acalma|perigo|salv/i.test(x.p));
+    const e = pal.find((x) => /leva|junta|todos|todo|abrigo|m[oó]dulo|chama/i.test(x.p) && x.i > sol.fala_inicio + 0.8);
+    tEntra = e ? e.i - 0.2 : sol.fala_inicio + 1.5;
+    tSai = w ? w.i : sol.fala_inicio + 0.7 * (sol.fim - sol.fala_inicio);
   }
   VIDA = { reacao: sol ? (sol.reacao || 'heroi') : null, porta, tEntra, tSai,
            alerta: prob ? [prob.inicio, prob.fim] : null, sol };
@@ -373,11 +375,13 @@ function planejarVida() {
     if (sol) {
       const h = hash(c.x, c.y, 3);
       if (VIDA.reacao === 'abrigar') {
-        const chega = ir(tEntra + Math.min(k, 14) * 0.15, { x: porta.x + (h - 0.5) * 8, y: porta.y }, 0.24);
-        c.dentro = [chega, tSai + Math.min(k, 14) * 0.18];
-        pos = { x: porta.x, y: porta.y };
-        const fora = { x: porta.x + (hash(c.x, c.y, 5) - 0.5) * 110, y: porta.y + 10 + hash(c.x, c.y, 6) * 34 };
-        tr.push({ t0: c.dentro[1], t1: c.dentro[1] + 1.3, de: pos, para: fora }); pos = fora;
+        // corre até a fila na frente da porta (devagar o bastante para a câmera ver)
+        const fila = { x: porta.x + 4 + (k % 3) * 5, y: porta.y + 10 + Math.floor(k / 3) * 5 + h * 2 };
+        const dur = clamp(Math.hypot(fila.x - pos.x, fila.y - pos.y) / CASA * 0.45, 1.4, 4);
+        tr.push({ t0: tEntra + Math.min(k, 14) * 0.12, t1: tEntra + Math.min(k, 14) * 0.12 + dur, de: pos, para: fila });
+        c.filaChega = tEntra + Math.min(k, 14) * 0.12 + dur;
+        c.filaPos = fila; pos = fila;
+        c.saidaPara = { x: porta.x + (hash(c.x, c.y, 5) - 0.5) * 110, y: porta.y + 12 + hash(c.x, c.y, 6) * 34 };
       } else if (VIDA.reacao === 'recolher') {
         const chega = ir(tEntra + h * 0.8, casa, 0.24);
         c.dentro = [chega, tSai + h * 0.7];
@@ -388,16 +392,40 @@ function planejarVida() {
     }
     c.trechos = tr;
   });
+  if (sol && VIDA.reacao === 'abrigar') {
+    // um entra de cada vez, na ordem de chegada; depois saem um por um na mesma ordem
+    const fila = EP.mundo.colonos.filter((c) => c.filaChega != null).sort((a, b) => a.filaChega - b.filaChega);
+    let livre = tEntra + 0.8, sai = tSai + 0.6;
+    for (const c of fila) {
+      const entra = Math.max(c.filaChega, livre);
+      c.trechos.push({ t0: entra, t1: entra + 0.35, de: c.filaPos, para: { x: porta.x, y: porta.y } });
+      livre = entra + 0.35;
+      c.dentro = [entra + 0.35, sai];
+      c.trechos.push({ t0: sai, t1: sai + 1.3, de: { x: porta.x, y: porta.y }, para: c.saidaPara });
+      sai += 0.3;
+    }
+    VIDA.portaAberta = [[tEntra + 0.6, livre + 0.3], [tSai, sai + 0.3]];
+    VIDA.ultimaEntrada = livre;
+  }
   // fundadores também entram no abrigo (a Dra. Lia na frente, guiando todo mundo)
-  if (sol && VIDA.reacao === 'abrigar') EP.mundo.fundadores.forEach((f, i) => {
+  if (sol && VIDA.reacao === 'abrigar') EP.mundo.fundadores.forEach((f) => {
+    const guia = (sol.heroi || '').toLowerCase().includes((f.curto || f.id).toLowerCase());
     const ult = f.trechos.length ? f.trechos[f.trechos.length - 1].para : f.casa;
-    const p = [porta.x / CASA + (i ? 0.3 : -0.3), porta.y / CASA];
-    const dur = clamp(Math.hypot(p[0] - ult[0], p[1] - ult[1]) * 0.3, 0.6, 3);
-    const t0 = tEntra + (i ? 0.5 : 0);
-    f.trechos.push({ t0, t1: t0 + dur, de: ult.slice(), para: p });
-    f.dentro = [t0 + dur + (i ? 0 : 1.2), tSai + 0.2];
-    const fora = [porta.x / CASA + (i ? 1.4 : -1.4), porta.y / CASA + 1.2];
-    f.trechos.push({ t0: f.dentro[1], t1: f.dentro[1] + 1.1, de: p, para: fora });
+    const ao_lado = [porta.x / CASA - 0.9, porta.y / CASA + 0.4];       // a guia fica do lado da porta
+    const porta_c = [porta.x / CASA, porta.y / CASA];
+    const destino = guia ? ao_lado : porta_c;
+    const t0 = guia ? tEntra - 0.6 : tEntra + 0.2;
+    const dur = clamp(Math.hypot(destino[0] - ult[0], destino[1] - ult[1]) * 0.4, 0.8, 3);
+    f.trechos.push({ t0, t1: t0 + dur, de: ult.slice(), para: destino });
+    let entra = t0 + dur;
+    if (guia) {   // entra por último, depois do último colono
+      entra = Math.max(entra, (VIDA.ultimaEntrada || entra) + 0.3);
+      f.trechos.push({ t0: entra, t1: entra + 0.35, de: ao_lado, para: porta_c });
+      entra += 0.35;
+    }
+    f.dentro = [entra, tSai + (guia ? 0 : 0.25)];
+    const fora = [porta.x / CASA + (guia ? -1.3 : 1.3), porta.y / CASA + 1.3];
+    f.trechos.push({ t0: f.dentro[1], t1: f.dentro[1] + 1.1, de: porta_c, para: fora });
   });
 }
 
@@ -429,6 +457,13 @@ function chamadoEm(c, t) {   // quando o nome do colono é dito (boas-vindas / c
     if ((tipo === 'colono' || tipo === 'compra') && id === c.codigo && t >= f.t && t < f.t + 1.6) return t - f.t;
   }
   return -1;
+}
+
+function desenharPortaAbrigo(t) {
+  if (!VIDA.portaAberta || !VIDA.portaAberta.some(([a, b]) => t >= a && t < b)) return;
+  const p = VIDA.porta;
+  ret(p.x - 4, p.y - 9, 8, 8, '#140f26');
+  ret(p.x - 4, p.y - 9, 8, 1, '#ffc83d');   // luz da porta
 }
 
 function desenharPet(c, t) {   // o pet passeia pelo quintal do dono (corre, para, vira)
@@ -1101,6 +1136,7 @@ function desenhar(t) {
   desenharColonos(view, t);
   desenharCompras(t);
   desenharBase(t, energia);
+  desenharPortaAbrigo(t);
   desenharFundadores(t);
 
   // tela
