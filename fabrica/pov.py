@@ -1,16 +1,15 @@
 """Vídeos extras em PRIMEIRA PESSOA ("câmera do capacete"), para postar entre os episódios. Sem IA.
 
-    python pov.py --episodio 2                     # as 4 cenas
-    python pov.py --episodio 2 --cena obra         # uma só: obra | defesa | passeio | conversa
+    python pov.py --episodio 2                     # as 4 cenas sorteadas do episódio
+    python pov.py --episodio 2 --plano             # só mostra quem faz o quê
+    python pov.py --episodio 2 --cena botanica     # uma cena específica
     python pov.py --episodio 2 --cena obra --previa 4 12   # só imagens de teste (segundos)
 
-Cenas (o protagonista é um colono de verdade, cada cena com um diferente):
-    obra      sai de casa, vai até a obra do dia, confere o tablet e martela junto com a turma
-    defesa    noite: besouros-de-ferrugem na cerca, espanta com a luz estroboscópica
-    passeio   anda pelo bairro, acena e conversa rapidinho com os vizinhos
-    conversa  papo na praça com outro colono sobre a colônia (população, obra, problema do dia)
-
-Sem --cena, gera as 4 e junta tudo em pov_colonia.mp4 (--juntar só junta as que já existem).
+Cada episódio sorteia 4 colonos (diferentes; quem chegou no episódio tem 10% a mais de chance) e cada um
+ganha um momento ligado ao CARGO dele (pov.js: TRABALHOS): engenharia → obra, guarda → defesa noturna,
+botânica → estufa, medicina → check-up, energia → painéis, astronomia → noite de observação, etc. Se dois
+sorteados têm o mesmo cargo, o segundo ganha uma cena geral (passeio pelo bairro ou papo na praça).
+A ordem das cenas também é sorteada. Sem --cena, gera as 4 e junta tudo em pov_colonia.mp4.
 
 Saída em saida/epNNN/pov/: pov_<cena>.mp4 (1080x1920, música, falas dubladas e diário escrito na tela) e
 pov_<cena>.txt (legenda do post). Precisa do episódio já gerado (dados.json + linha_do_tempo.json).
@@ -35,19 +34,52 @@ import voz as elevenlabs
 from audio import ffmpeg, gerar_musica, gerar_narracao, mixar
 from navegador import _gravar, abrir_navegador, montar_ep, nova_aba, servidor
 
-CENAS = ["obra", "defesa", "passeio", "conversa"]
+CENAS_GERAIS = ["passeio", "conversa"]
+# cargo → cena (pov.js). Os que não estão aqui usam o próprio id do cargo como cena (TRABALHOS em pov.js).
+CENA_DO_CARGO = {"engenharia": "obra", "guarda": "defesa"}
+TRABALHOS = ["botanica", "medicina", "energia", "rover", "piloto", "ciencia", "geologia", "robotica",
+             "comunicacao", "astronomia", "cozinha"]
+CENAS = ["obra", "defesa", *TRABALHOS, *CENAS_GERAIS]
+POVS_POR_EPISODIO = 4
+PESO_NOVO = 1.10   # colono que chegou neste episódio tem 10% a mais de chance de ser sorteado
+
+
+def planejar_povs(d: dict) -> list[tuple[str, dict]]:
+    """[(cena, colono)] do episódio, em ordem sorteada. Sorteio fixo por episódio (gerar de novo dá o
+    mesmo resultado): 4 colonos diferentes enquanto houver gente, os novos 10% mais prováveis; cada um faz a
+    cena do próprio cargo e, se ela já saiu para outro, ganha uma cena geral que ainda não saiu."""
+    import random
+    colonos = d["mundo"]
+    if not colonos:
+        return []
+    novos = {c["codigo"] for c in d.get("novos", [])}
+    rnd = random.Random(f"pov-ep{d['numero']}")
+    plano, usadas, sacola = [], set(), []
+    for _ in range(POVS_POR_EPISODIO):
+        if not sacola:
+            sacola = list(colonos)
+        c = rnd.choices(sacola, weights=[PESO_NOVO if x["codigo"] in novos else 1.0 for x in sacola])[0]
+        sacola.remove(c)
+        cena = CENA_DO_CARGO.get(c.get("cargo") or "", c.get("cargo") or "")
+        if cena not in CENAS or cena in usadas:
+            livres = [x for x in CENAS_GERAIS + ["obra"] if x not in usadas] or CENAS_GERAIS
+            cena = rnd.choice(livres)
+        usadas.add(cena)
+        plano.append((cena, c))
+    rnd.shuffle(plano)
+    return plano
 
 
 def info_pov(pasta: Path, cena: str) -> dict:
+    import random
     d = config.ler_json(pasta / "dados.json")
     rot = config.ler_json(pasta / "roteiro.json")
     colonos = d["mundo"]
     if not colonos:
         raise SystemExit("O POV precisa de pelo menos um colono cadastrado.")
-    # cada cena com um protagonista diferente (e muda a cada episódio)
-    i = (CENAS.index(cena) + d["numero"]) % len(colonos)
-    prota = colonos[i]
-    vizinho = colonos[(i + 1) % len(colonos)] if len(colonos) > 1 else None
+    prota = dict(planejar_povs(d)).get(cena) or random.Random(f"pov-ep{d['numero']}-{cena}").choice(colonos)
+    outros = [c for c in colonos if c["codigo"] != prota["codigo"]]
+    vizinho = random.Random(f"viz-ep{d['numero']}-{cena}").choice(outros) if outros else None
     est, prob = rot.get("estacao"), rot.get("problema")
     obra = next((o for o in d["obras"] if o["slug"] == rot.get("missao_obra")), None)
     pets = [c for c in d["compras"] if "pet" in c["produto_slug"]]
@@ -66,6 +98,17 @@ LEGENDAS = {
     "defesa": "POV: besouros-de-ferrugem atacando a cerca à noite 🐞🔦 {quem} defende a colônia.",
     "passeio": "POV: passeio pelo bairro da colônia 👋 {quem} visita os vizinhos (todos seguidores de verdade).",
     "conversa": "POV: papo na praça de Marte 💬 {quem} conversa sobre o dia na colônia.",
+    "botanica": "POV: um turno na estufa de Marte 🌱 {quem} cuida das primeiras plantas da colônia.",
+    "medicina": "POV: ronda de saúde em Marte 🩺 {quem} confere se a colônia está bem.",
+    "energia": "POV: limpando os painéis solares em Marte ☀️ {quem} garante a luz da colônia.",
+    "rover": "POV: checagem do rover antes da viagem 🚙 {quem} prepara as seis rodas.",
+    "piloto": "POV: checagem de voo em Marte 🚀 {quem} prepara a chegada da nave de carga.",
+    "ciencia": "POV: coleta de amostras nas dunas de Marte 🔬 {quem} acha gelo debaixo da poeira.",
+    "geologia": "POV: caçando rochas em Marte ⛏️ {quem} descobre por que o planeta é vermelho.",
+    "robotica": "POV: consertando um robô de carga em Marte 🤖 {quem} coloca o R-2 de pé.",
+    "comunicacao": "POV: falando com a Terra direto de Marte 📡 {quem} manda notícias da colônia.",
+    "astronomia": "POV: noite de observação em Marte 🔭 {quem} mostra Fobos e a Terra no céu.",
+    "cozinha": "POV: café da manhã da colônia 🍲 {quem} prepara a sopa de batata da estufa.",
 }
 
 
@@ -265,7 +308,8 @@ def gerar(numero: int, cena: str, previa: list[float] | None = None, com_voz: bo
 def juntar(numero: int) -> Path:
     """pov_colonia.mp4: as cenas prontas em sequência (um dia na colônia pelos olhos dos colonos)."""
     destino = config.pasta_episodio(numero) / "pov"
-    partes = [destino / f"pov_{c}.mp4" for c in CENAS if (destino / f"pov_{c}.mp4").exists()]
+    ordem = [c for c, _ in planejar_povs(config.ler_json(config.pasta_episodio(numero) / "dados.json"))]
+    partes = [destino / f"pov_{c}.mp4" for c in ordem if (destino / f"pov_{c}.mp4").exists()]
     if len(partes) < 2:
         raise SystemExit("Gere pelo menos 2 cenas antes de juntar.")
     entradas = [x for v in partes for x in ("-i", v.name)]
@@ -274,10 +318,10 @@ def juntar(numero: int) -> Path:
     ffmpeg(*entradas, "-filter_complex", grafo, "-map", "[v]", "-map", "[a]",
            "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p", "-r", config.FPS,
            "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", final.name, cwd=destino)
-    info = [info_pov(config.pasta_episodio(numero), c)["prota"]["nome"] for c in CENAS if (destino / f"pov_{c}.mp4").exists()]
+    info = [info_pov(config.pasta_episodio(numero), c)["prota"]["nome"] for c in ordem if (destino / f"pov_{c}.mp4").exists()]
     (destino / "pov_colonia.txt").write_text(
         f"POV: um dia inteiro em Marte pelos olhos dos colonos 👀🚀 {', '.join(dict.fromkeys(info))}: "
-        "obra, defesa da base, passeio pelo bairro e papo na praça.\n\n"
+        "cada um no seu trabalho na colônia.\n\n"
         "Cada seguidor vira personagem na Operação Marte Zero. Link na bio 👆\n📺 Episódio novo todo dia.\n\n"
         "#operacaomartezero #pixelart #marte #pov #jogoindie", encoding="utf-8")
     return final
@@ -287,13 +331,17 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--episodio", type=int, required=True)
     ap.add_argument("--cena", choices=CENAS)
+    ap.add_argument("--plano", action="store_true", help="só mostra o sorteio do episódio")
     ap.add_argument("--previa", type=float, nargs="+", metavar="SEGUNDOS")
     ap.add_argument("--sem-voz", action="store_true", help="só música, sem gastar ElevenLabs")
     ap.add_argument("--juntar", action="store_true", help="só junta as cenas prontas em pov_colonia.mp4")
     a = ap.parse_args()
     if a.juntar:
         raise SystemExit(print(juntar(a.episodio)))
-    for c in ([a.cena] if a.cena else CENAS):
+    plano = planejar_povs(config.ler_json(config.pasta_episodio(a.episodio) / "dados.json"))
+    if a.plano:
+        raise SystemExit("\n".join(f"  {c:12} {p['nome']} ({p.get('cargo') or 'sem cargo'})" for c, p in plano))
+    for c in ([a.cena] if a.cena else [c for c, _ in plano]):
         r = gerar(a.episodio, c, a.previa, com_voz=not a.sem_voz)
         for p in (r if isinstance(r, list) else [r]):
             print(p)

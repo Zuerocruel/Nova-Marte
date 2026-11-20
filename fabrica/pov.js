@@ -830,7 +830,147 @@ function conversa(info, quem) {
   return l;
 }
 
+// ------------------------------------------------------------------ cenas de trabalho (uma por cargo)
+// Cada cargo tem um momento do dia dele: sai de casa, vai até o lugar de trabalho (a construção do cargo,
+// ou o módulo se ela ainda não existe), confere o tablet, trabalha e fecha o diário. As falas são em
+// primeira pessoa, sem anunciar o cargo.
+function lugarDe(tipos) {
+  for (const t of tipos) {
+    const o = EP.mundo.obras.find((x) => x.tipo === t && (x.status !== 'planejada' || x.slug === EP.missao_obra));
+    if (o) return { r: retanguloDe(o), nome: o.nome, obra: o };
+  }
+  return { r: retanguloDe(EP.mundo.base), nome: 'o Módulo de Pouso', obra: null };
+}
+function campoFora(info) {   // um ponto fora do bairro, para coletar amostras
+  const b = centro(EP.mundo.base), a = (info.prota.seed % 628) / 100;
+  const x = b.x + Math.cos(a) * 230, y = b.y + Math.abs(Math.sin(a)) * 160 + 60;
+  return { r: { x0: x - 18, x1: x + 18, y0: y - 18, y1: y + 18 }, nome: 'as dunas', obra: null };
+}
+const tempPOV = (info) => (info.estacao ? info.estacao.temp : -60);
+const TRABALHOS = {
+  botanica: {
+    titulo: 'TURNO NA ESTUFA', lugar: ['estufa'], tela: 'UMIDADE 78%', prog: 0.78,
+    falas: (i, L) => [`Diário de ${i.prota.nome}. Dia ${EP.numero} em Marte. Hoje é dia de cuidar das plantas.`,
+      `Lá fora, ${tempPOV(i)} graus. Lá dentro, sempre primavera.`, `Chegando: ${L}. Olha esse verde no meio do vermelho!`,
+      `Umidade boa, luz boa. As mudas cresceram mais um pouquinho.`, `Um pouco de água, um pouco de adubo. Planta também gosta de carinho.`,
+      `Logo, logo tem salada fresca para a colônia inteira.`],
+    vizinho: (i) => `Guarda um tomate pra mim, ${i.prota.nome}!`,
+  },
+  medicina: {
+    titulo: 'CHECK-UP DA COLÔNIA', lugar: ['enfermaria'], tela: 'SINAIS VITAIS OK', prog: 1,
+    falas: (i, L) => [`Diário de ${i.prota.nome}. Dia ${EP.numero}. Hora da ronda de saúde.`,
+      `Ar seco, poeira fina. Todo mundo tosse um pouco aqui.`, `Primeira parada: ${L}. Vamos ver como está a turma.`,
+      `Pressão boa, oxigênio bom. Ninguém com saudade demais da Terra hoje.`, `Mais um copo d'água e menos café, combinado?`,
+      `Colônia saudável é colônia que trabalha feliz.`],
+    vizinho: () => `Tô novo em folha? Posso voltar pra obra?`,
+  },
+  energia: {
+    titulo: 'LIMPANDO OS PAINÉIS', lugar: ['solar'], tela: 'GERAÇÃO 96%', prog: 0.96,
+    falas: (i, L) => [`Diário de ${i.prota.nome}. Dia ${EP.numero}. A poeira não perdoa os painéis.`,
+      `Sol baixo e vento forte. Dia perfeito para limpar tudo.`, `Chegando em ${L}. Que camada de poeira, hein.`,
+      `Geração em noventa e seis por cento. Dá pra chegar nos cem.`, `Escova pra cá, escova pra lá. Cada painel limpo é mais luz de noite.`,
+      `Prontinho. A colônia tem energia de sobra hoje.`],
+  },
+  rover: {
+    titulo: 'CHECAGEM DO ROVER', lugar: ['oficina'], tela: 'BATERIA 100%', prog: 1,
+    falas: (i, L) => [`Diário de ${i.prota.nome}. Dia ${EP.numero}. O rover precisa estar pronto antes da viagem.`,
+      `Lá fora, ${tempPOV(i)} graus. Pneu frio é pneu duro.`, `Indo até ${L}, onde o rover passa a noite.`,
+      `Bateria cheia, sensores limpos. Seis rodas prontas.`, `Aperta um parafuso aqui, calibra o pneu ali.`,
+      `Amanhã cedo eu saio pra buscar gelo nas crateras.`],
+  },
+  piloto: {
+    titulo: 'CHECAGEM DE VOO', lugar: ['antena'], tela: 'ÓRBITA LIVRE', prog: 1,
+    falas: (i, L) => [`Diário de ${i.prota.nome}. Dia ${EP.numero}. Nave de carga chegando nos próximos dias.`,
+      `Sem tempestade à vista. Bom sinal para pousar.`, `Passando por ${L} para falar com a órbita.`,
+      `Órbita livre, rota calculada. Tudo pronto pra receber a carga.`, `Confere a pista, confere as luzes de pouso.`,
+      `Quando a nave chegar, vai ter peça nova pra obra.`],
+  },
+  ciencia: {
+    titulo: 'COLETA DE AMOSTRAS', fora: true, tela: 'AMOSTRA: GELO 12%', prog: 0.12,
+    falas: (i, L) => [`Diário de ${i.prota.nome}. Dia ${EP.numero}. Hoje eu saio do bairro atrás de amostras.`,
+      `Lá fora, ${tempPOV(i)} graus. O traje aguenta, eu aguento.`, `Chegando nas dunas. Ninguém pisou aqui antes.`,
+      `Doze por cento de gelo nessa terra! Isso é muita água.`, `Pá, saquinho, etiqueta. Ciência é paciência.`,
+      `Volto pra base com a mochila cheia de descobertas.`],
+  },
+  geologia: {
+    titulo: 'COLETA DE ROCHAS', fora: true, tela: 'BASALTO + FERRO', prog: 0.6,
+    falas: (i, L) => [`Diário de ${i.prota.nome}. Dia ${EP.numero}. Martelo na mão, vamos ver o que tem debaixo da poeira.`,
+      `O chão aqui conta a história de Marte.`, `Chegando nas dunas. Rocha escura, bom sinal.`,
+      `Basalto com ferro. É por isso que Marte é vermelho.`, `Toc, toc, toc. Essa vai pra coleção.`,
+      `Amanhã eu mostro tudo pra turma na praça.`],
+  },
+  robotica: {
+    titulo: 'CONSERTO DE ROBÔ', lugar: ['oficina'], tela: 'ROBÔ R-2: 70%', prog: 0.7,
+    falas: (i, L) => [`Diário de ${i.prota.nome}. Dia ${EP.numero}. O robô de carga voltou mancando ontem.`,
+      `Poeira nas juntas: o inimigo número um dos robôs.`, `Indo até ${L}. Ferramenta pronta.`,
+      `Setenta por cento. Só falta a roda da esquerda.`, `Solda aqui, óleo ali. Aguenta firme, R-2.`,
+      `Hoje à noite ele volta a carregar material para a obra.`],
+  },
+  comunicacao: {
+    titulo: 'SINAL DA TERRA', lugar: ['antena'], tela: 'SINAL 4/5', prog: 0.8,
+    falas: (i, L) => [`Diário de ${i.prota.nome}. Dia ${EP.numero}. Hora de conversar com a Terra.`,
+      `A mensagem leva uns minutos pra chegar lá. Paciência.`, `Chegando em ${L}. Vamos ver a qualidade do sinal.`,
+      `Quatro barrinhas. Dá até pra mandar foto.`, `Ajusta a direção, um grau pra esquerda... pronto.`,
+      `Mensagem enviada: aqui é a Operação Marte Zero, e está tudo bem.`],
+  },
+  astronomia: {
+    titulo: 'NOITE DE OBSERVAÇÃO', lugar: ['laboratorio', 'antena'], tela: 'FOBOS À VISTA', prog: 1, noite: true,
+    falas: (i, L) => [`Diário de ${i.prota.nome}. Noite do dia ${EP.numero}. Céu limpo, sem poeira.`,
+      `Daqui dá pra ver estrelas que a gente nunca via da Terra.`, `Indo até ${L}, longe das luzes do bairro.`,
+      `Fobos passando rapidinho. Ele dá três voltas em Marte por dia.`, `Anota, fotografa, anota de novo.`,
+      `E aquele pontinho azul ali? É a Terra. Boa noite, pessoal de lá.`],
+  },
+  cozinha: {
+    titulo: 'CAFÉ DA COLÔNIA', lugar: ['cantina'], tela: 'CARDÁPIO: SOPA', prog: 1,
+    falas: (i, L) => [`Diário de ${i.prota.nome}. Dia ${EP.numero}. A turma acorda com fome.`,
+      `Com ${tempPOV(i)} graus lá fora, só uma sopa quentinha resolve.`, `Indo até ${L}. Panela grande hoje.`,
+      `Cardápio do dia: sopa de batata da estufa.`, `Mexe, prova, um pouco de sal. Perfeito.`,
+      `Quem trabalha na obra come primeiro!`],
+    vizinho: (i) => `Que cheiro bom, ${i.prota.nome}! Guarda um prato pra mim.`,
+  },
+};
+function cenaTrabalho(info, id) {
+  const T = TRABALHOS[id], prota = info.prota;
+  const L = T.fora ? campoFora(info) : lugarDe(T.lugar);
+  const casa = frenteDe(prota);
+  const chegada = { x: (L.r.x0 + L.r.x1) / 2, y: L.r.y1 + 26 };
+  const meio = { x: (casa.x + chegada.x) / 2 + 24, y: (casa.y + chegada.y) / 2 + 10 };
+  const f = T.falas(info, L.nome);
+  const tela = { ferramenta: 'tablet', tela: T.tela, progresso: T.prog };
+  const fim = [{ texto: f[4], atraso: 0.4 }];
+  if (T.vizinho && info.vizinho) fim.push({ texto: T.vizinho(info), quem: info.vizinho.nome, atraso: 3 });
+  const vizinhoPerto = T.vizinho && info.vizinho;
+  return {
+    titulo: T.titulo, noite: !!T.noite,
+    caminho: montarCaminho(casa, -Math.PI / 2, [
+      { parar: 1.4, fala: { texto: f[0] } },
+      { olhar: meio, dur: 0.9 },
+      { andar: meio, vel: 26, fala: { texto: f[1], atraso: 0.6 } },
+      { olhar: chegada, dur: 0.7 },
+      { andar: chegada, vel: 24, fala: { texto: f[2], atraso: 0.6 } },
+      { olhar: { x: (L.r.x0 + L.r.x1) / 2, y: (L.r.y0 + L.r.y1) / 2 }, dur: 1, estado: tela, fala: { texto: f[3] } },
+      { parar: 2.2, estado: tela },
+      { parar: 5, estado: { ferramenta: 'martelo', trabalhando: true }, fala: fim },
+      { olhar: centro(EP.mundo.base), dur: 1.4, fala: { texto: f[5], atraso: 0.3 } },
+      { parar: 3.8 },
+    ]),
+    pessoas: (t) => {
+      const lista = info.colonos.filter((c) => c.codigo !== prota.codigo).map((c, k) => ({
+        x: c.x * CASA + 8, y: c.y * CASA + 18, larg: 12, alt: 12, img: spritePOV(c), nome: c.nome, pessoa: true,
+        voo: Math.floor(t * 2 + k) % 3 === 0 ? 1 : 0, virar: Math.sin(t * 0.7 + k) > 0,
+      }));
+      if (vizinhoPerto) {   // quem fala com o protagonista fica do lado dele no trabalho
+        const v = info.vizinho;
+        lista.push({ x: chegada.x + 26, y: chegada.y - 30, larg: 12, alt: 12, img: spritePOV(v), nome: v.nome, pessoa: true,
+                     voo: Math.floor(t * 3) % 4 === 0 ? 1 : 0, balao: Math.floor(t / 1.5) % 3 === 0 ? '💬' : null });
+      }
+      return lista;
+    },
+  };
+}
+
 const CENAS = { obra: cenaObra, defesa: cenaDefesa, passeio: cenaPasseio, conversa: cenaConversa };
+for (const id of Object.keys(TRABALHOS)) CENAS[id] = (info) => cenaTrabalho(info, id);
 
 // ------------------------------------------------------------------ API para o pov.py
 window.carregarPOV = function (info, nome) {

@@ -322,8 +322,8 @@ def montar(d: dict) -> dict:
         "numero": n,
         "titulo": titulo,
         "missao_obra": obra["slug"],
-        # 1º dia: o título da missão; depois "… · dia 2", "… · dia 3" (os posts não repetem o título)
-        "missao_titulo": missao["titulo"] if dia == 1 else f"{missao['titulo']} · dia {dia}",
+        # "Construindo a Estufa Hidropônica" (a obra leva vários episódios); a partir do 2º dia "… · dia 2"
+        "missao_titulo": titulo_da_missao(obra, dia),
         "proxima": proxima,
         "obra_progresso": [p0, p1],     # % de ontem → % ao fim deste episódio (gravado ao publicar)
         "obra_dia": dia,
@@ -334,6 +334,13 @@ def montar(d: dict) -> dict:
                     if problema else None,
         "cenas": cenas,
     }
+
+
+def titulo_da_missao(obra: dict, dia: int) -> str:
+    """"Construindo a Estufa Hidropônica · dia 2": o artigo vem da primeira palavra (Estufa → a, Extrator → o)."""
+    artigo = "a" if obra["nome"].split()[0].lower().endswith("a") else "o"
+    t = f"Construindo {artigo} {obra['nome']}"
+    return t if dia == 1 else f"{t} · dia {dia}"
 
 
 def legenda_post(d: dict, r: dict) -> str:

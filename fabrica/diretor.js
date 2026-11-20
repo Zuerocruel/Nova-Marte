@@ -27,6 +27,46 @@ const CLIMA = {
   geada: { n: 140, vel: 0.35, cor: '#ffffff', tinta: ['#a9d2f2', 0.24], cai: true, risco: false, grande: true },
 };
 
+// Acentos das MAIÚSCULAS desenhados à mão. A Press Start 2P desenha mal as maiúsculas acentuadas (o Ô
+// vira um "8" e o til do Ã some em tamanho pequeno). Todo fillText/strokeText nessa fonte troca a letra
+// acentuada pela letra simples e desenha o acento em blocos de pixel (grade de 8x8 da fonte).
+(function () {
+  const P = CanvasRenderingContext2D.prototype;
+  const MARCA = {
+    '̃': [[1, -3], [2, -3], [5, -3], [0, -2], [3, -2], [4, -2]],            // til
+    '́': [[4, -3], [5, -3], [3, -2], [4, -2]],                              // agudo
+    '̀': [[1, -3], [2, -3], [2, -2], [3, -2]],                              // grave
+    '̂': [[2, -3], [3, -3], [4, -3], [1, -2], [2, -2], [4, -2], [5, -2]],    // circunflexo
+  };
+  const ACENTUADA = /[ÃÕÂÊÎÔÛÁÉÍÓÚÀ]/;
+  const envolver = (orig, modo) => function (str, x, y) {
+    str = String(str);
+    if (!ACENTUADA.test(str) || !/Press Start 2P/.test(this.font)) return orig.apply(this, arguments);
+    const tam = parseFloat((this.font.match(/([\d.]+)px/) || [0, 16])[1]);
+    const letras = [...str].map((ch) => (ACENTUADA.test(ch) ? { base: ch.normalize('NFD')[0], marca: ch.normalize('NFD')[1] } : { base: ch, marca: null }));
+    const simples = letras.map((l) => l.base).join('');
+    const largura = this.measureText(simples).width, passo = largura / Math.max(1, letras.length);
+    const x0 = this.textAlign === 'center' ? x - largura / 2 : (this.textAlign === 'right' || this.textAlign === 'end') ? x - largura : x;
+    const topo = y - this.measureText('H').actualBoundingBoxAscent;   // topo das maiúsculas
+    const alinhado = this.textAlign;
+    this.textAlign = 'left';
+    orig.call(this, simples, x0, y);
+    this.textAlign = alinhado;
+    const u = tam / 8, borda = modo === 'stroke' ? this.lineWidth / 2 : 0;
+    const antes = this.fillStyle;
+    if (modo === 'stroke') this.fillStyle = this.strokeStyle;
+    letras.forEach((l, i) => {
+      for (const [cx, cy] of MARCA[l.marca] || []) this.fillRect(x0 + i * passo + cx * u - borda, topo + cy * u - borda, u + borda * 2, u + borda * 2);
+    });
+    this.fillStyle = antes;
+  };
+  if (!P.__acentosPT) {
+    P.fillText = envolver(P.fillText, 'fill');
+    P.strokeText = envolver(P.strokeText, 'stroke');
+    P.__acentosPT = true;
+  }
+})();
+
 const cv = document.getElementById('tela');
 let ctx = cv.getContext('2d', { alpha: false });   // 'let': o pov.js desenha prédios numa tela transparente
 window.usarCtx = (c) => { const antes = ctx; ctx = c; return antes; };
