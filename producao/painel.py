@@ -1077,7 +1077,7 @@ def acao_publicar_site(d: dict):
 # ---------------------------------------------------------------- conteúdo extra (imagens e POVs)
 def _item_extra(d: dict) -> str:
     item = str(d.get("item", ""))
-    if not re.fullmatch(r"pov_(obra|defesa|passeio|conversa)", item):
+    if not re.fullmatch(r"pov_(obra|defesa|passeio|conversa|colonia)", item):
         raise ValueError("item inválido")
     return item
 

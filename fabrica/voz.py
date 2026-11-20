@@ -114,11 +114,11 @@ class ElevenLabs:
         return voz
 
     # ---------- síntese ----------
-    def sintetizar(self, voice_id: str, texto: str) -> dict:
+    def sintetizar(self, voice_id: str, texto: str, modelo: str | None = None, ajustes: dict | None = None) -> dict:
         return self._req("POST", f"/v1/text-to-speech/{voice_id}/with-timestamps",
                          params={"output_format": "mp3_44100_128"},
-                         json={"text": texto, "model_id": config.ELEVEN_MODELO,
-                               "language_code": "pt", "voice_settings": config.ELEVEN_AJUSTES},
+                         json={"text": texto, "model_id": modelo or config.ELEVEN_MODELO,
+                               "language_code": "pt", "voice_settings": ajustes or config.ELEVEN_AJUSTES},
                          timeout=180)
 
 
@@ -159,9 +159,23 @@ def duracao_mp3(caminho) -> float:
     return float(out.stdout.strip())
 
 
-def chave_cache(voice_id: str, texto: str) -> str:
-    base = json.dumps([voice_id, config.ELEVEN_MODELO, config.ELEVEN_AJUSTES, texto], ensure_ascii=False, sort_keys=True)
+def chave_cache(voice_id: str, texto: str, modelo: str | None = None, ajustes: dict | None = None) -> str:
+    base = json.dumps([voice_id, modelo or config.ELEVEN_MODELO, ajustes or config.ELEVEN_AJUSTES, texto],
+                      ensure_ascii=False, sort_keys=True)
     return hashlib.sha1(base.encode("utf-8")).hexdigest()[:20]
+
+
+def falar(api: "ElevenLabs", voz: dict, texto: str, modelo: str, ajustes: dict) -> dict:
+    """Uma fala avulsa (POV) com cache: {audio, duracao, gerado}."""
+    config.CACHE_VOZ.mkdir(exist_ok=True)
+    h = chave_cache(voz["voice_id"], texto, modelo, ajustes)
+    mp3, meta = config.CACHE_VOZ / f"{h}.mp3", config.CACHE_VOZ / f"{h}.json"
+    gerado = not (mp3.exists() and meta.exists())
+    if gerado:
+        r = api.sintetizar(voz["voice_id"], texto, modelo, ajustes)
+        mp3.write_bytes(base64.b64decode(r["audio_base64"]))
+        config.gravar_json(meta, {"texto": texto, "voz": voz, "modelo": modelo, "duracao": round(duracao_mp3(mp3), 3)})
+    return {"audio": str(mp3), "duracao": config.ler_json(meta)["duracao"], "gerado": gerado}
 
 
 def gerar_falas(roteiro: dict, sem_voz: bool = False) -> dict:

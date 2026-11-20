@@ -1,0 +1,8 @@
+{
+  "_como_usar": "Gênero da voz de cada personagem nos POVs: \"m\" (masculina) ou \"f\" (feminina). Chave = nick ou código NM do colono. Para fixar uma voz específica use {\"genero\": \"f\", \"voz\": \"Laura\"} (nomes em config.POV_VOZES). Colono que não estiver aqui ganha um gênero sorteado (fixo) e o pov.py avisa.",
+  "fundadores": { "vega": "m", "lia": "f" },
+  "colonos": {
+    "ZueroCruel": "m",
+    "ZéGotinha": "m"
+  }
+}

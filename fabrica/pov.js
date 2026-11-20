@@ -18,6 +18,7 @@ const objs = document.createElement('canvas');   // prédios desenhados de cima,
 const ox = objs.getContext('2d');
 let OBJ = { x0: 0, y0: 0, esc: 2 };
 let POV = null;
+let CONSTRUCOES = [];
 
 // ------------------------------------------------------------------ utilidades
 const ang = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -140,6 +141,193 @@ function besouro(fase) {   // besouro-de-ferrugem: carapaça laranja enferrujada
   return c;
 }
 
+
+// ------------------------------------------------------------------ mundo 2,5D: volumes extrudados
+// Como nos jogos clássicos de primeira pessoa: prédios e casas são plantas baixas "levantadas" em paredes
+// (cada parede em perspectiva, com sombra pelo lado do sol, janelas e detalhes); colonos, pets e criaturas
+// continuam sprites chapados em pé. Domos viram anéis empilhados (degraus de pixel art).
+const SOL = dirDe(-2.2);
+const NEAR = 1.5;
+function camEsp(p) {
+  const P = POV.cam, d = dirDe(P.a), rx = p.x - P.x, ry = p.y - P.y;
+  return { l: rx * -d.y + ry * d.x, z: rx * d.x + ry * d.y, h: p.h };
+}
+function proj(c) { const s = F / c.z; return [PW / 2 + c.l * s, HZ + (OLHO - c.h) * s]; }
+function cortarPerto(poly) {   // recorta o polígono no plano perto da câmera (z = NEAR)
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const ia = a.z >= NEAR, ib = b.z >= NEAR;
+    if (ia) out.push(a);
+    if (ia !== ib) { const k = (NEAR - a.z) / (b.z - a.z); out.push({ l: a.l + (b.l - a.l) * k, z: NEAR, h: a.h + (b.h - a.h) * k }); }
+  }
+  return out;
+}
+function poligono(pts3, cor, alfa = 1) {
+  const c = cortarPerto(pts3.map(camEsp));
+  if (c.length < 3) return false;
+  px.globalAlpha = alfa; px.fillStyle = cor; px.beginPath();
+  c.forEach((p, i) => { const [x, y] = proj(p); if (i) px.lineTo(x, y); else px.moveTo(x, y); });
+  px.closePath(); px.fill(); px.globalAlpha = 1;
+  return true;
+}
+function tom(hex, k) {   // escurece/clareia uma cor #rrggbb
+  const n = parseInt(hex.slice(1), 16);
+  const f = (v) => Math.max(0, Math.min(255, Math.round(v * k)));
+  return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+}
+function anel(cx, cy, r, lados = 8, giro = Math.PI / 8) {
+  const pts = [];
+  for (let i = 0; i < lados; i++) { const a = giro + (i / lados) * Math.PI * 2; pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r }); }
+  return pts;
+}
+function caixa(x0, y0, x1, y1) { return [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }]; }
+
+// Um prisma: planta (pontos), alturas h0..h1, cor, estilo das paredes e enfeites.
+function prisma(planta, h0, h1, cor, estilo = {}) { return { planta, h0, h1, cor, estilo }; }
+
+function desenharPrisma(pr, noite) {
+  const P = POV.cam, n = pr.planta.length;
+  const cx = pr.planta.reduce((s, p) => s + p.x, 0) / n, cy = pr.planta.reduce((s, p) => s + p.y, 0) / n;
+  const paredes = [];
+  for (let i = 0; i < n; i++) {
+    const A = pr.planta[i], B = pr.planta[(i + 1) % n];
+    const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+    let nx = B.y - A.y, ny = -(B.x - A.x);
+    if (nx * (mx - cx) + ny * (my - cy) < 0) { nx = -nx; ny = -ny; }
+    const len = Math.hypot(nx, ny) || 1; nx /= len; ny /= len;
+    if (nx * (P.x - mx) + ny * (P.y - my) <= 0) continue;   // parede de costas para a câmera
+    paredes.push({ A, B, nx, ny, dz: camEsp({ x: mx, y: my, h: 0 }).z });
+  }
+  paredes.sort((a, b) => b.dz - a.dz);
+  const luz = noite ? 0.42 : 1, e = pr.estilo;
+  for (const w of paredes) {
+    const k = (0.6 + 0.4 * Math.max(0, w.nx * SOL.x + w.ny * SOL.y)) * luz;
+    const q = (u0, u1, v0, v1, c, a = 1) => {
+      const ax = w.A.x + (w.B.x - w.A.x) * u0, ay = w.A.y + (w.B.y - w.A.y) * u0;
+      const bx = w.A.x + (w.B.x - w.A.x) * u1, by = w.A.y + (w.B.y - w.A.y) * u1;
+      const h0 = pr.h0 + (pr.h1 - pr.h0) * v0, h1 = pr.h0 + (pr.h1 - pr.h0) * v1;
+      poligono([{ x: ax, y: ay, h: h0 }, { x: bx, y: by, h: h0 }, { x: bx, y: by, h: h1 }, { x: ax, y: ay, h: h1 }], c, a);
+    };
+    q(0, 1, 0, 1, tom(pr.cor, k), e.alfa || 1);
+    const largura = Math.hypot(w.B.x - w.A.x, w.B.y - w.A.y);
+    if (e.faixa) q(0, 1, e.faixa[0], e.faixa[1], tom(e.faixaCor, k));
+    if (e.janelas && largura > 6) {
+      const nj = Math.max(1, Math.floor(largura / (e.janelas.passo || 9)));
+      const acesa = noite ? '#ffd27a' : tom('#9fb6d8', k * 1.05);
+      for (let j = 0; j < nj; j++) { const u = (j + 0.5) / nj, m = 0.18 / nj; q(u - m, u + m, e.janelas.v[0], e.janelas.v[1], acesa); }
+    }
+    if (e.colunas) for (let j = 1; j < e.colunas; j++) q(j / e.colunas - 0.012, j / e.colunas + 0.012, 0, 1, tom(e.colunasCor || CONTORNO, k));
+    if (e.tijolos) for (let r = 1; r < e.tijolos; r++) q(0, 1, r / e.tijolos - 0.03, r / e.tijolos + 0.03, tom(pr.cor, k * 0.78));
+    if (e.cruz && largura > 10) { q(0.44, 0.56, 0.3, 0.8, '#e04f5f'); q(0.32, 0.68, 0.48, 0.62, '#e04f5f'); }
+    if (e.listrado) for (let j = 0; j < 8; j++) q(j / 8, j / 8 + 0.0625, 0, 0.12, j % 2 ? CONTORNO : tom('#ffc83d', k));
+    // porta na parede virada para a frente (+y, para o bairro)
+    if (e.porta && w.ny > 0.7 && largura > 5) q(0.38, 0.62, 0, Math.min(0.85, 6 / Math.max(1, pr.h1 - pr.h0)), tom('#3a2f63', k));
+    q(0, 1, 0, 0.04, CONTORNO);   // rodapé escuro assenta a parede no chão
+  }
+  if (pr.h1 < OLHO - 0.3) {   // teto só aparece se estiver abaixo do olho
+    poligono(pr.planta.map((p) => ({ ...p, h: pr.h1 })), tom(e.teto || pr.cor, noite ? 0.5 : 1.12), e.alfa || 1);
+    if (e.grade) {   // painéis solares: frisos no teto
+      const [a, , c] = pr.planta;
+      for (let j = 1; j < 4; j++) {
+        const x = a.x + (c.x - a.x) * j / 4;
+        poligono([{ x: x - 0.3, y: a.y, h: pr.h1 }, { x: x + 0.3, y: a.y, h: pr.h1 }, { x: x + 0.3, y: c.y, h: pr.h1 }, { x: x - 0.3, y: c.y, h: pr.h1 }], '#8fb3ff');
+      }
+    }
+  }
+}
+
+function domo(cx, cy, r, h, cor, estilo = {}, base = 0) {   // domo em degraus: 4 anéis
+  const deg = [[1, 0, 0.45], [0.84, 0.45, 0.72], [0.62, 0.72, 0.9], [0.34, 0.9, 1]];
+  return deg.map(([kr, a, b], i) => prisma(anel(cx, cy, r * kr), base + h * a, base + h * b, cor, i === 0 ? estilo : { teto: estilo.teto }));
+}
+
+// Volumes de cada construção (planta em px do mundo; altura em px do mundo; o olho fica a 8.5)
+function volumesDaObra(o) {
+  const r = retanguloDe(o), x0 = r.x0 + 2, y0 = r.y0 + 2, x1 = r.x1 - 2, y1 = r.y1 - 2;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, w = x1 - x0, hh = y1 - y0;
+  const st = progressoObra(o, EP.duracao), p = clamp(st.p);
+  const v = [];
+  const cresce = (h) => Math.max(0.6, h * p);
+  switch (o.tipo) {
+    case 'solar':
+      for (let i = 0; i < 4; i++) {
+        const ya = y0 + i * hh / 4 + 2, yb = ya + hh / 4 - 5;
+        if (p > i / 4) v.push(prisma(caixa(x0, ya, x1, yb), 0, 3.2, '#2b3a78', { teto: '#3f5fbf', grade: true }));
+      }
+      break;
+    case 'estufa':
+      v.push(prisma(caixa(x0, y0, x1, y1), 0, cresce(12), '#9fe3dc', { alfa: 0.62, colunas: 6, colunasCor: '#e9e6f2', teto: '#c8f1ec', porta: true }));
+      if (p > 0.7) v.push(prisma(caixa(x0 + w * 0.2, y0 + hh * 0.2, x1 - w * 0.2, y1 - hh * 0.2), 12, 16, '#9fe3dc', { alfa: 0.62, colunas: 4, colunasCor: '#e9e6f2' }));
+      break;
+    case 'antena':
+      v.push(prisma(caixa(cx - 3, cy - 3, cx + 3, cy + 3), 0, cresce(42), '#9aa0b8', { tijolos: 8, colunas: 2 }));
+      v.push(prisma(caixa(x0, y0 + hh * 0.5, x1, y1), 0, 6, '#c9c4da', { porta: true, janelas: { v: [0.45, 0.75] } }));
+      break;
+    case 'gelo':
+      v.push(prisma(caixa(x0, y0, cx, y1), 0, cresce(10), '#c9c4da', { faixa: [0.6, 0.75], faixaCor: '#3fd0c9', porta: true }));
+      v.push(prisma(caixa(cx + 4, cy - 3, cx + 10, cy + 3), 0, cresce(30), '#ffc83d', { listrado: true, tijolos: 6 }));
+      v.push(prisma(anel(x1 - 6, y1 - 6, 6), 0, cresce(12), '#dff3ff', { faixa: [0.8, 0.9], faixaCor: '#3f8efc' }));
+      break;
+    case 'oxigenio':
+      for (const [a, b] of [[x0 + 7, cy], [cx + 2, y0 + 7], [x1 - 7, y1 - 7]])
+        v.push(prisma(anel(a, b, 6.5), 0, cresce(16), '#d8dbe8', { faixa: [0.55, 0.68], faixaCor: '#3fd0c9', tijolos: 3 }));
+      break;
+    case 'oficina':
+      v.push(prisma(caixa(x0, y0, x1, y1), 0, cresce(14), '#8a8fa8', { listrado: true, porta: true, janelas: { v: [0.6, 0.8], passo: 12 } }));
+      break;
+    case 'cantina':
+      v.push(...domo(cx, cy, Math.min(w, hh) / 2, cresce(18), '#f1c7a8', { faixa: [0.3, 0.42], faixaCor: '#ff7f50', janelas: { v: [0.5, 0.75], passo: 8 }, porta: true }));
+      if (p > 0.6) v.push(prisma(caixa(cx + 8, cy - 2, cx + 12, cy + 2), 0, 24, '#7a6a8a'));
+      break;
+    case 'enfermaria':
+      v.push(prisma(caixa(x0, y0, x1, y1), 0, cresce(14), '#f3eefe', { cruz: true, porta: true, faixa: [0.9, 1], faixaCor: '#e04f5f' }));
+      break;
+    case 'abrigo':
+      v.push(prisma(caixa(x0, y0, x1, y1), 0, cresce(9), '#c9a274', { tijolos: 5, porta: true, teto: '#b08a60' }));
+      break;
+    case 'laboratorio':
+      v.push(...domo(cx, cy, Math.min(w, hh) / 2, cresce(20), '#e9e6f2', { faixa: [0.25, 0.35], faixaCor: '#00b8a9', janelas: { v: [0.5, 0.8], passo: 8 }, porta: true }));
+      if (p > 0.8) v.push(prisma(caixa(cx + 6, cy - 2, cx + 9, cy + 1), 18, 26, '#3a2f63'));
+      break;
+    default:
+      v.push(prisma(caixa(x0, y0, x1, y1), 0, cresce(14), '#d8dbe8', { porta: true, janelas: { v: [0.5, 0.8] } }));
+  }
+  if (p < 1 && st.dem) {   // andaime: postes nos cantos até a altura final + tábua no meio
+    const alto = { antena: 42, gelo: 30, solar: 4 }[o.tipo] || 16;
+    for (const [a, b] of [[x0 - 1, y0 - 1], [x1 + 1, y0 - 1], [x1 + 1, y1 + 1], [x0 - 1, y1 + 1]])
+      v.push(prisma(caixa(a - 0.7, b - 0.7, a + 0.7, b + 0.7), 0, alto, '#ffc83d'));
+    if (alto > 6) v.push(prisma(caixa(x0 - 1.5, y1 + 0.5, x1 + 1.5, y1 + 1.6), alto * 0.5, alto * 0.5 + 1, '#b5651d'));
+  }
+  return v;
+}
+function volumesDaBase() {
+  const b = EP.mundo.base, c = centro(b), r = Math.min(b.w, b.h) * CASA / 2 - 3;
+  return [
+    ...domo(c.x, c.y, r, 28, '#dcd6e8', { faixa: [0.32, 0.45], faixaCor: '#e2603b', janelas: { v: [0.55, 0.8], passo: 9 }, porta: true }),
+    prisma(caixa(c.x - 1, c.y - 1, c.x + 1, c.y + 1), 28, 44, '#9aa0b8'),
+  ];
+}
+function volumesDaCasa(c) {   // casa do colono: domo pressurizado pequeno com a faixa na cor dele
+  const cor = ROUPAS[Math.abs(c.seed) % ROUPAS.length];
+  return domo(c.x * CASA + 8, c.y * CASA + 9, 6.5, 11, '#e9e6f2', { faixa: [0.55, 0.75], faixaCor: cor, porta: true });
+}
+// cada construção vira um item do desenho, ordenado junto com os sprites pela distância
+function construcoes() {
+  const itens = [];
+  const add = (vols, x, y) => itens.push({ x, y, vols });
+  const b = centro(EP.mundo.base);
+  add(volumesDaBase(), b.x, b.y);
+  for (const o of EP.mundo.obras) if (o.status !== 'planejada' || o.slug === EP.missao_obra) { const c = centro(o); add(volumesDaObra(o), c.x, c.y); }
+  for (const c of POV.info.colonos) if (c.codigo !== POV.info.prota.codigo) add(volumesDaCasa(c), c.x * CASA + 8, c.y * CASA + 9);
+  for (let i = 0; i < 70; i++) {   // pedras soltas fora do bairro (volumes baixos) para dar profundidade ao chão
+    const ar = hash(i, 31) * Math.PI * 2, dist = 300 + hash(i, 32) * 260;
+    const x = b.x + Math.cos(ar) * dist, y = b.y + Math.sin(ar) * dist, r = 1.5 + hash(i, 33) * 3;
+    itens.push({ x, y, pedra: true, vols: [prisma(anel(x, y, r, 5, hash(i, 34) * 6), 0, r * 0.9, '#8d4a32', { teto: '#a85a3c' })] });
+  }
+  return itens;
+}
+
 function projetar(o) {
   const P = POV.cam, d = dirDe(P.a), dr = { x: -d.y, y: d.x };
   const rx = o.x - P.x, ry = o.y - P.y;
@@ -150,11 +338,34 @@ function projetar(o) {
   return { sx: PW / 2 + lado * s, chaoY: HZ + OLHO * s, s, z };
 }
 
+function sombraDe(pr) {   // sombra no chão, para o lado contrário do sol
+  const k = Math.min(pr.h1, 30) * 0.45;
+  poligono(pr.planta.map((q) => ({ x: q.x - SOL.x * k, y: q.y - SOL.y * k, h: 0 })), 'rgba(40,10,10,0.22)');
+}
 function desenharBillboards(lista, noite) {
   const vis = [];
-  for (const o of lista) { const p = projetar(o); if (p) vis.push({ o, p }); }
+  for (const o of lista) {
+    if (o.vols) {
+      const z = camEsp({ x: o.x, y: o.y, h: 0 }).z;
+      if (z > (o.pedra ? 14 : -80) && z < LONGE + 60) vis.push({ o, p: { z } });
+      continue;
+    }
+    const p = projetar(o); if (p) vis.push({ o, p });
+  }
   vis.sort((a, b) => b.p.z - a.p.z);
   for (const { o, p } of vis) {
+    if (o.vols) {
+      px.globalAlpha = 1;
+      if (!noite) for (const pr of o.vols) if (pr.h0 === 0) sombraDe(pr);
+      const ordem = o.vols.map((pr, i) => {
+        const n = pr.planta.length;
+        return { pr, i, z: camEsp({ x: pr.planta.reduce((s2, q) => s2 + q.x, 0) / n, y: pr.planta.reduce((s2, q) => s2 + q.y, 0) / n, h: 0 }).z };
+      }).sort((a, b) => (Math.abs(a.z - b.z) > 1 ? b.z - a.z : a.pr.h0 - b.pr.h0));
+      for (const { pr } of ordem) desenharPrisma(pr, noite);
+      if (p.z > LONGE * 0.6) { px.globalAlpha = clamp((p.z - LONGE * 0.6) / (LONGE * 0.5)) * 0.8; }
+      px.globalAlpha = 1;
+      continue;
+    }
     const w = o.larg * p.s, h = o.alt * p.s;
     if (p.sx + w / 2 < 0 || p.sx - w / 2 > PW) continue;
     const y = p.chaoY - h - (o.voo || 0) * p.s;
@@ -187,6 +398,35 @@ function balaoPOV(x, y, emoji, s) {
   px.fillText(emoji, Math.round(x), Math.round(y - tam * 0.95));
 }
 
+// ------------------------------------------------------------------ traje de cada colono
+// Tudo sai do próprio colono (seed + cargo), então cada POV tem mãos diferentes e o mesmo colono
+// sempre aparece com o mesmo traje: tecido, luva, faixa na cor do cargo, padrão da manga,
+// remendo com a inicial, iniciais no punho, computador de pulso, poeira e cor do visor.
+const CARGO_COR = {
+  engenharia: '#f08a24', piloto: '#3f8efc', rover: '#c9a227', botanica: '#2bb673', medicina: '#e04f5f',
+  ciencia: '#00b8a9', geologia: '#b0643a', robotica: '#7d8bb0', comunicacao: '#9b59b6', astronomia: '#5b6ee1',
+  guarda: '#ff4d4d', cozinha: '#ffb74d', energia: '#f2d024',
+};
+const TECIDOS = [['#e9e6f2', '#c9c4da'], ['#e8d6b8', '#c4ad8a'], ['#cfd8e6', '#a5b1c6'], ['#b9c4a6', '#94a083'],
+                 ['#f1c7a8', '#cfa080'], ['#6a7090', '#4c5170'], ['#f4f0e0', '#d6cfb5'], ['#d9c3e6', '#b49cc6']];
+const LUVAS = [['#d8dbe8', '#e9ecf5'], ['#3a3a48', '#5a5a6c'], ['#f2c14e', '#f7d77e'], ['#b5562b', '#cf7447'],
+               ['#3f8efc', '#7fb3ff'], ['#2bb673', '#5fd69a'], ['#e9e6f2', '#ffffff']];
+const VISORES = [null, 'rgba(255,190,60,0.07)', 'rgba(80,170,255,0.07)', 'rgba(120,255,170,0.05)', 'rgba(255,110,180,0.05)'];
+let TRAJE = null;
+function trajeDe(c) {
+  let s0 = Math.abs(c.seed || 0) || Math.floor(hash(c.codigo.length, 7) * 1e9);
+  const pega = (n) => { const v = s0 % n; s0 = Math.floor(s0 / n) + 7919; return v; };
+  const tecido = TECIDOS[pega(TECIDOS.length)];
+  return {
+    tecido, luva: LUVAS[pega(LUVAS.length)],
+    faixa: CARGO_COR[c.cargo] || ROUPAS[Math.abs(c.seed || 0) % ROUPAS.length],
+    padrao: pega(5), relogio: pega(3) > 0, remendo: pega(4) > 0, sujeira: pega(3),
+    visor: VISORES[pega(VISORES.length)], dedos: pega(2) ? 'liso' : 'reforco',
+    iniciais: (c.nome || '?').replace(/[^A-Za-zÀ-ú0-9]/g, '').slice(0, 2).toUpperCase(),
+    letra: (c.cargo_nome || c.nome || '?')[0].toUpperCase(),
+  };
+}
+
 // ------------------------------------------------------------------ luvas do traje (primeira pessoa)
 function maos(t) {
   px.save(); px.translate(PW / 2, PH); px.scale(1.6, 1.6); px.translate(-PW / 2, -PH);
@@ -199,18 +439,39 @@ function maosNaTela(t) {
   // braço do traje entrando pelo canto da tela, na diagonal, com a luva (dedos e polegar) na ponta
   const luva = (x, y, flip, giro = 0, segura = null) => {
     px.save(); px.translate(x, y); if (flip) px.scale(-1, 1); px.rotate(-0.42 + giro);
+    const T = TRAJE;
     px.fillStyle = CONTORNO; px.fillRect(-12, -4, 26, 70);
-    px.fillStyle = '#e9e6f2'; px.fillRect(-10, -2, 22, 66);              // manga do traje
-    px.fillStyle = '#c9c4da'; px.fillRect(6, -2, 6, 66);                 // sombra da manga
-    px.fillStyle = '#e2603b'; px.fillRect(-10, 16, 22, 5);               // faixa laranja
+    px.fillStyle = T.tecido[0]; px.fillRect(-10, -2, 22, 66);            // manga do traje
+    px.fillStyle = T.tecido[1]; px.fillRect(6, -2, 6, 66);               // sombra da manga
+    px.fillStyle = T.faixa;                                              // faixa na cor do cargo, em padrões diferentes
+    if (T.padrao === 0) px.fillRect(-10, 16, 22, 5);
+    else if (T.padrao === 1) { px.fillRect(-10, 12, 22, 3); px.fillRect(-10, 19, 22, 3); }
+    else if (T.padrao === 2) for (let i = 0; i < 6; i++) { px.fillRect(-10 + i * 2, 14 + i, 2, 3); px.fillRect(10 - i * 2, 14 + i, 2, 3); }
+    else if (T.padrao === 3) px.fillRect(-3, -2, 5, 66);
+    else { px.fillRect(-10, 14, 22, 2); for (let i = 0; i < 4; i++) px.fillRect(-9 + i * 6, 18, 3, 3); }
+    if (!flip && T.remendo) {                                            // remendo no braço esquerdo, com a inicial do cargo
+      px.fillStyle = CONTORNO; px.fillRect(-8, 30, 15, 13);
+      px.fillStyle = T.faixa; px.fillRect(-7, 31, 13, 11);
+      px.fillStyle = '#fff'; px.font = `7px ${FONTE}`; px.textAlign = 'center'; px.textBaseline = 'middle';
+      px.fillText(T.letra, -0.5, 37);
+    }
+    for (let i = 0; i < T.sujeira * 3; i++) { px.fillStyle = 'rgba(150,70,40,0.55)'; px.fillRect(-9 + hash(i, 41) * 18, 4 + hash(i, 42) * 55, 2, 1 + (i % 2)); }
     px.fillStyle = CONTORNO; px.fillRect(-13, -8, 28, 7);
-    px.fillStyle = '#9aa0b8'; px.fillRect(-11, -7, 24, 5);               // punho
+    px.fillStyle = tom(T.tecido[1], 0.8); px.fillRect(-11, -7, 24, 5);    // punho
+    if (!flip && T.iniciais) { px.fillStyle = CONTORNO; px.font = `4px ${FONTE}`; px.textAlign = 'center'; px.textBaseline = 'middle'; px.fillText(T.iniciais, 1, -4.5); }
+    if (flip && T.relogio) {                                             // computador de pulso no braço direito
+      px.fillStyle = CONTORNO; px.fillRect(-8, -1, 16, 10);
+      px.fillStyle = '#1e1838'; px.fillRect(-7, 0, 14, 8);
+      px.fillStyle = Math.floor(TEMPO_POV * 3) % 2 ? T.faixa : '#3fd0c9'; px.fillRect(-5, 2, 3, 2);
+      px.fillStyle = '#4ed37a'; px.fillRect(0, 2, 5, 1); px.fillRect(0, 5, 3, 1);
+    }
     px.fillStyle = CONTORNO; px.fillRect(-12, -26, 26, 20);
-    px.fillStyle = '#d8dbe8'; px.fillRect(-10, -24, 22, 17);             // palma
+    px.fillStyle = T.luva[0]; px.fillRect(-10, -24, 22, 17);             // palma
     px.fillStyle = CONTORNO; for (let i = 0; i < 4; i++) px.fillRect(-10 + i * 6, -33, 6, 10);
-    px.fillStyle = '#e9ecf5'; for (let i = 0; i < 4; i++) px.fillRect(-9 + i * 6, -32, 4, 8);   // dedos
+    px.fillStyle = T.luva[1]; for (let i = 0; i < 4; i++) px.fillRect(-9 + i * 6, -32, 4, 8);   // dedos
+    if (T.dedos === 'reforco') { px.fillStyle = T.faixa; for (let i = 0; i < 4; i++) px.fillRect(-9 + i * 6, -32, 4, 2); px.fillRect(-10, -16, 22, 2); }
     if (segura) segura();                                                // o que a mão segura (lanterna)
-    px.fillStyle = CONTORNO; px.fillRect(12, -22, 8, 12); px.fillStyle = '#e9ecf5'; px.fillRect(13, -21, 6, 10);   // polegar
+    px.fillStyle = CONTORNO; px.fillRect(12, -22, 8, 12); px.fillStyle = T.luva[1]; px.fillRect(13, -21, 6, 10);   // polegar
     px.restore();
   };
   const fer = a.ferramenta;
@@ -252,6 +513,7 @@ function hudCapacete(t) {
   const g = ctx.createRadialGradient(W2 / 2, H2 * 0.46, H2 * 0.36, W2 / 2, H2 * 0.46, H2 * 0.68);
   g.addColorStop(0, 'rgba(10,8,22,0)'); g.addColorStop(1, 'rgba(10,8,22,0.92)');
   ctx.fillStyle = g; ctx.fillRect(0, 0, W2, H2);
+  if (TRAJE && TRAJE.visor) { ctx.fillStyle = TRAJE.visor; ctx.fillRect(0, 0, W2, H2); }               // tom do visor de cada um
   ctx.fillStyle = 'rgba(255,255,255,0.05)'; for (let y = 0; y < H2; y += 8) ctx.fillRect(0, y, W2, 2);   // linhas do visor
   ctx.globalAlpha = 0.08; ctx.fillStyle = '#ffffff';
   ctx.beginPath(); ctx.ellipse(W2 * 0.28, H2 * 0.2, 140, 360, -0.5, 0, 7); ctx.fill(); ctx.globalAlpha = 1;   // reflexo
@@ -283,7 +545,7 @@ function hudCapacete(t) {
   // diário em primeira pessoa (máquina de escrever)
   const fala = POV.falas.filter((f) => t >= f.t).pop();
   if (fala && t < fala.fim) {
-    const n = Math.floor(clamp((t - fala.t) / Math.max(0.6, fala.texto.length * 0.035)) * fala.texto.length);
+    const n = Math.floor(clamp((t - fala.t) / Math.max(0.6, fala.voz ? fala.voz * 0.9 : fala.texto.length * 0.035)) * fala.texto.length);
     const linhas = quebrarFala(fala.texto, 34, W2 - 180);
     let feito = 0;
     const y0 = H2 - 900;
@@ -322,11 +584,24 @@ function quebrarFala(str, tam, maxW) {
 
 // ------------------------------------------------------------------ roteiro (caminho da câmera + falas)
 // passos: {andar: ponto, vel} · {olhar: ponto, dur} · {parar: dur} · com estado (ferramenta, trabalhando...) e fala opcional
+// Com voz (DURACOES vem do pov.py: "quem|texto" → segundos), um passo com fala só começa depois que a voz
+// anterior terminou (a câmera fica parada esperando) e o encerramento espera a última fala.
+let DURACOES = {};
+function durVoz(f) { return DURACOES[(f.quem || '') + '|' + f.texto] || 0; }
 function montarCaminho(inicio, angInicial, passos) {
   const trechos = [];
-  let t = 0, pos = { ...inicio }, a = angInicial;
+  let t = 0, pos = { ...inicio }, a = angInicial, livre = 0, livreOutro = 0;   // livreOutro: fim da fala de outra pessoa
   const falas = [];
-  for (const p of passos) {
+  passos.forEach((p, idx) => {
+    const lista = p.fala ? [].concat(p.fala) : [];
+    const precisa = lista.length ? livre + 0.3 - (lista[0].atraso || 0.2)
+      : idx === passos.length - 1 && livre ? livre + 0.5
+      : livreOutro ? livreOutro + 0.3 : 0;   // não sai andando enquanto alguém ainda fala com você
+    if (precisa > t + 0.05) {   // pausa: espera a voz anterior acabar
+      const ant = trechos.length ? trechos[trechos.length - 1].st : {};
+      trechos.push({ t0: t, t1: precisa, de: { ...pos }, para: { ...pos }, a0: a, a1: a, st: { ...ant, andando: false }, girar: 0.01 });
+      t = precisa;
+    }
     const st = { ...(p.estado || {}) };
     let dur, de = { ...pos }, para = { ...pos }, a0 = a, a1 = a;
     if (p.andar) {
@@ -336,12 +611,14 @@ function montarCaminho(inicio, angInicial, passos) {
     } else if (p.olhar) { a1 = angPara(pos, p.olhar); dur = p.dur || 1.2; }
     else dur = p.parar || 1;
     trechos.push({ t0: t, t1: t + dur, de, para, a0, a1, st, girar: p.andar ? Math.min(0.7, dur * 0.4) : dur * 0.8 });
-    if (p.fala) for (const f of [].concat(p.fala)) {
-      const ft = t + (f.atraso || 0.2);
-      falas.push({ t: ft, fim: ft + Math.max(2.4, f.texto.length * 0.075), texto: f.texto, quem: f.quem || null });
+    for (const f of lista) {
+      const voz = durVoz(f);
+      const ft = Math.max(t + (f.atraso || 0.2), livre ? livre + 0.3 : 0);
+      falas.push({ t: ft, fim: ft + Math.max(2.4, voz ? voz + 0.6 : f.texto.length * 0.075), texto: f.texto, quem: f.quem || null, voz });
+      if (voz) { livre = ft + voz; if (f.quem) livreOutro = livre; }
     }
     t += dur; pos = para; a = a1;
-  }
+  });
   // cada fala some quando começa a próxima
   falas.sort((x, y) => x.t - y.t);
   for (let i = 0; i + 1 < falas.length; i++) falas[i].fim = Math.min(falas[i].fim, falas[i + 1].t - 0.1);
@@ -463,7 +740,7 @@ function cenaPasseio(info) {
   for (const { v, p } of pontos) {
     passos.push({ andar: p, vel: 24 });
     passos.push({ olhar: { x: v.x * CASA + 8, y: v.y * CASA + 12 }, dur: 0.8, estado: { ferramenta: 'aceno' },
-                  fala: [{ texto: `Olha quem está em casa: ${v.nome}${v.cargo_nome ? `, ${v.cargo_nome.toLowerCase()}` : ''}!` },
+                  fala: [{ texto: chegada(v, prota) },
                          { texto: saudacao(v, prota), quem: v.nome, atraso: 1.6 }] });
     passos.push({ parar: 2.6, estado: { ferramenta: 'aceno' } });
   }
@@ -480,14 +757,26 @@ function cenaPasseio(info) {
     })),
   };
 }
+function escolhe(lista, seed, salto = 0) { return lista[(Math.abs(seed || 0) + EP.numero * 3 + salto) % lista.length]; }
+function chegada(v, prota) {
+  return escolhe([
+    `Ó, ${v.nome} tá em casa. Vou dar um oi.`,
+    `${v.nome}! Bom te ver por aqui.`,
+    `Deixa eu passar na casa de ${v.nome} rapidinho.`,
+    `Olha lá, ${v.nome} na porta.`,
+    `Fala, ${v.nome}! Tudo certo aí?`,
+  ], v.seed, 1);
+}
 function saudacao(v, prota) {
-  const opcoes = [
-    `E aí, ${prota.nome}! Já viu a obra hoje?`,
-    `Bom dia, vizinho! Cuidado com a poeira lá fora.`,
+  return escolhe([
+    `E aí, ${prota.nome}! Dormiu bem com aquele vento?`,
+    `Opa! Cuidado com a poeira lá fora, viu?`,
     `${prota.nome}! Passa aqui mais tarde pra um café de estufa.`,
-    `Opa! Amanhã eu ajudo na obra também.`,
-  ];
-  return opcoes[Math.abs(v.seed || 0) % opcoes.length];
+    `Tudo certo! Amanhã eu colo na obra com vocês.`,
+    `Bom dia! Meu aquecedor fez barulho a noite toda, depois dá uma olhada?`,
+    `Ô, ${prota.nome}! Guardei um pedaço de bolo de batata pra você.`,
+    `Tudo ótimo. Já viu o pôr do sol azul de ontem? Que coisa linda.`,
+  ], v.seed);
 }
 
 function cenaConversa(info) {
@@ -512,18 +801,32 @@ function cenaConversa(info) {
                        voo: Math.floor(t * 3) % 4 === 0 ? 1 : 0, balao: Math.floor(t / 1.5) % 3 === 0 ? '💬' : null }],
   };
 }
+// Papo de amigos que trabalham juntos: começa leve, passa pelo trabalho do dia sem cerimônia e termina
+// com um combinado. Varia por episódio e por dupla; ninguém fica anunciando o cargo do outro.
 function conversa(info, quem) {
-  const p = info.prota.nome, o = info.obra, est = info.estacao;
-  const l = [
-    { quem: quem.nome, texto: `Fala, ${p}! Viu que já somos ${info.populacao} na colônia?` },
-    { quem: p, texto: `Vi! A cada dia chega gente nova. O bairro tá enchendo.` },
-  ];
-  if (o) l.push({ quem: quem.nome, texto: `E a ${o.nome}? Ouvi dizer que já passou de ${o.progresso}%.` },
-                { quem: p, texto: `Com mais mãos ela sai rapidinho. Amanhã eu vou cedo.` });
-  if (info.problema) l.push({ quem: quem.nome, texto: `E aquele susto de hoje... ${info.problema.titulo.toLowerCase()}! Achei que não ia dar.` },
-                            { quem: p, texto: `A ${info.problema.heroi || 'Lia'} resolveu na hora. Essa colônia não para.` });
-  else if (est) l.push({ quem: quem.nome, texto: `${est.temp} graus lá fora. Que ${est.nome.toLowerCase()} é essa?` });
-  l.push({ quem: quem.nome, texto: `Bora chamar mais gente pra morar aqui!` });
+  const p = info.prota.nome, o = info.obra, est = info.estacao, seed = (info.prota.seed || 0) + (quem.nome || '').length;
+  const l = [];
+  const eu = (texto) => l.push({ quem: p, texto });
+  const ele = (texto) => l.push({ quem: quem.nome, texto });
+  ele(escolhe([`${p}! Senta aqui, tá sobrando banco.`, `Olha quem apareceu! Achei que tinha virado poeira.`,
+               `E aí, ${p}? Que cara de sono é essa?`, `Opa, chegou na hora. Acabei de esquentar o café.`], seed));
+  eu(escolhe([`Dormi mal, o vento não parou a noite inteira.`, `Saudade de um banco que não seja de metal, viu.`,
+              `Vim só respirar um pouco. Quer dizer, respirar filtrado.`, `Café? Você é a melhor pessoa dessa colônia.`], seed, 1));
+  if (o) {
+    ele(escolhe([`E a ${o.nome}? Passei lá e já tá bonita.`, `Vi a ${o.nome} de longe. Tá subindo rápido, hein.`,
+                 `Me conta da ${o.nome}. Vai dar pra terminar essa semana?`], seed, 2));
+    eu(escolhe([`Tá indo. Mais um pouco e a gente inaugura. Você vai, né?`, `Se o tempo ajudar, sai logo. A turma tá animada.`,
+                `Falta pouco. Só não pode faltar parafuso de novo.`], seed, 3));
+  }
+  if (info.problema) {
+    ele(`E aquela confusão de hoje? ${info.problema.titulo}. Que susto.`);
+    eu(escolhe([`Nem me fala. Mas resolveram rapidinho, ainda bem.`, `Pois é. Pelo menos todo mundo correu pra ajudar.`], seed, 4));
+  } else if (est) {
+    ele(`${est.temp} graus hoje. Nem o café esquenta direito.`);
+    eu(`Põe mais uma camada no traje que passa.`);
+  }
+  ele(escolhe([`Bom, deixa eu ir que a estufa não se rega sozinha. Até mais tarde!`, `Amanhã cedo eu passo na obra. Guarda um martelo pra mim.`,
+               `Já somos ${info.populacao} aqui, dá pra acreditar? Até amanhã, ${p}.`, `Vai lá. E dorme, hein! Até amanhã.`], seed, 5));
   return l;
 }
 
@@ -532,6 +835,8 @@ const CENAS = { obra: cenaObra, defesa: cenaDefesa, passeio: cenaPasseio, conver
 // ------------------------------------------------------------------ API para o pov.py
 window.carregarPOV = function (info, nome) {
   for (const c of info.colonos) if (!colonoPorCodigo.has(c.codigo)) colonoPorCodigo.set(c.codigo, c);
+  DURACOES = info.duracoes || {};
+  TRAJE = trajeDe(info.prota);
   const cena = CENAS[nome](info);
   POV = {
     info, nome, titulo: cena.titulo, noite: !!cena.noite, pessoas: cena.pessoas,
@@ -539,22 +844,22 @@ window.carregarPOV = function (info, nome) {
     cam: { x: 0, y: 0, a: 0 },
     estado: (t) => camEm(POV.trechos, t).st,
   };
-  prepararObjetos(EP.duracao);
+  CONSTRUCOES = construcoes();
   return { quadros: Math.ceil(POV.duracao * EP.fps), duracao: POV.duracao, titulo: POV.titulo,
            falas: POV.falas.map((f) => ({ t: f.t, texto: f.texto, quem: f.quem })) };
 };
 
+let TEMPO_POV = 0;
 function desenharPOV(t) {
+  TEMPO_POV = t;
   const c = camEm(POV.trechos, t);
   POV.cam = { x: c.x, y: c.y, a: c.a };
   px.setTransform(1, 0, 0, 1, 0, 0);
   ceu(t, POV.noite);
   chao(POV.noite);
-  const casas = POV.info.colonos.filter((x) => x.codigo !== POV.info.prota.codigo)   // a própria casa fica atrás da câmera
-    .map((x) => ({ x: x.x * CASA + 8, y: x.y * CASA + 10, larg: 16, alt: 12, img: casinha(x.seed) }));
   const pet = POV.info.pets.map((p, i) => ({ x: p.x * CASA + 8 + Math.sin(t * 0.9 + i) * 8, y: p.y * CASA + 26, larg: 8, alt: 8,
                                              img: spriteContornado('pet'), virar: Math.cos(t * 0.9 + i) < 0 }));
-  desenharBillboards([...predios(), ...casas, ...pet, ...POV.pessoas(t)], POV.noite);
+  desenharBillboards([...CONSTRUCOES, ...pet, ...POV.pessoas(t)], POV.noite);
   if (c.st.estrobo && Math.floor(t * 10) % 2 === 0) { px.fillStyle = 'rgba(255,250,220,0.55)'; px.fillRect(0, 0, PW, PH); }
   if (POV.noite && c.st.ferramenta === 'lanterna') {   // cone da lanterna
     const g = px.createRadialGradient(PW / 2, HZ + 70, 10, PW / 2, HZ + 70, 160);

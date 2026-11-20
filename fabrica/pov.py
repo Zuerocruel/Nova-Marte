@@ -10,13 +10,20 @@ Cenas (o protagonista é um colono de verdade, cada cena com um diferente):
     passeio   anda pelo bairro, acena e conversa rapidinho com os vizinhos
     conversa  papo na praça com outro colono sobre a colônia (população, obra, problema do dia)
 
-Saída em saida/epNNN/pov/: pov_<cena>.mp4 (1080x1920, música, diário escrito na tela) e pov_<cena>.txt (legenda do post).
-Precisa do episódio já gerado (dados.json + linha_do_tempo.json).
+Sem --cena, gera as 4 e junta tudo em pov_colonia.mp4 (--juntar só junta as que já existem).
+
+Saída em saida/epNNN/pov/: pov_<cena>.mp4 (1080x1920, música, falas dubladas e diário escrito na tela) e
+pov_<cena>.txt (legenda do post). Precisa do episódio já gerado (dados.json + linha_do_tempo.json).
+
+Vozes: cada personagem fala com uma voz própria da ElevenLabs (modelo Flash v2.5, metade do preço),
+masculina ou feminina conforme fabrica/vozes_pov.json. O mesmo colono tem sempre a mesma voz e as
+falas repetidas saem do cache. --sem-voz faz o vídeo só com música (não gasta crédito).
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import shutil
 import time
 from pathlib import Path
@@ -24,7 +31,8 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 import config
-from audio import ffmpeg, gerar_musica
+import voz as elevenlabs
+from audio import ffmpeg, gerar_musica, gerar_narracao, mixar
 from navegador import _gravar, abrir_navegador, montar_ep, nova_aba, servidor
 
 CENAS = ["obra", "defesa", "passeio", "conversa"]
@@ -67,9 +75,114 @@ def legenda(cena: str, info: dict) -> str:
             "📺 Episódio novo todo dia.\n\n#operacaomartezero #pixelart #marte #pov #jogoindie")
 
 
-async def _gerar(numero: int, cena: str, previa: list[float] | None = None, abas: int = 3) -> Path | list[Path]:
+# ---------------------------------------------------------------- vozes
+def _num(texto: str) -> int:
+    return int(hashlib.md5(texto.encode("utf-8")).hexdigest()[:8], 16)
+
+
+def _pessoa(quem: str | None, info: dict, fundadores: list[dict]) -> dict:
+    """Quem fala: None = o protagonista (diário). Devolve {chave, nome, tipo}."""
+    if not quem or quem == info["prota"]["nome"]:
+        c = info["prota"]
+        return {"chave": c["codigo"], "nome": c["nome"], "tipo": "colono"}
+    for c in info["colonos"]:
+        if c["nome"] == quem:
+            return {"chave": c["codigo"], "nome": c["nome"], "tipo": "colono"}
+    for f in fundadores:
+        if quem in (f.get("curto"), f.get("nome"), f["id"]):
+            return {"chave": f["id"], "nome": f.get("curto", f["id"]), "tipo": "fundador"}
+    return {"chave": quem, "nome": quem, "tipo": "outro"}
+
+
+def escolher_vozes(falas: list[dict], info: dict, fundadores: list[dict]) -> tuple[dict, list[str]]:
+    """{quem ('' = protagonista): voz} + avisos de gênero não definido.
+
+    A voz é fixa por pessoa em todos os vídeos: fundadores e depois colonos (ordem do código NM)
+    recebem, dentro do seu gênero, as vozes da lista em sequência. Assim ninguém troca de voz entre
+    cenas e, até 8 homens / 6 mulheres, cada um tem a sua. Quem chega depois não muda os antigos."""
+    cfg = config.ler_json(config.VOZES_POV_JSON) if config.VOZES_POV_JSON.exists() else {}
+    avisos = []
+
+    def preferencia(p):
+        grupo = cfg.get("fundadores" if p["tipo"] == "fundador" else "colonos", {})
+        pref = grupo.get(p["chave"]) or grupo.get(p["nome"])
+        if isinstance(pref, str):
+            pref = {"genero": pref}
+        if not pref or pref.get("genero") not in config.POV_VOZES:
+            return {"genero": "mf"[_num(p["chave"]) % 2], "sorteado": True}
+        return pref
+
+    todos = ([{"chave": f["id"], "nome": f.get("curto", f["id"]), "tipo": "fundador"} for f in fundadores]
+             + [{"chave": c["codigo"], "nome": c["nome"], "tipo": "colono"}
+                for c in sorted(info["colonos"], key=lambda c: c["codigo"])])
+    fixas, contagem = {}, {"m": 0, "f": 0}
+    for p in todos:
+        pref = preferencia(p)
+        lista = config.POV_VOZES[pref["genero"]]
+        i = next((k for k, (n, _) in enumerate(lista) if n.lower() == str(pref.get("voz", "")).lower()), None)
+        if i is None:
+            i = contagem[pref["genero"]] % len(lista)
+            contagem[pref["genero"]] += 1
+        fixas[p["chave"]] = (lista[i], pref)
+
+    vozes = {}
+    for quem in dict.fromkeys(f.get("quem") or "" for f in falas):
+        p = _pessoa(quem, info, fundadores)
+        if p["chave"] not in fixas:
+            pref = preferencia(p)
+            fixas[p["chave"]] = (config.POV_VOZES[pref["genero"]][_num(p["chave"]) % len(config.POV_VOZES[pref["genero"]])], pref)
+        (nome, vid), pref = fixas[p["chave"]]
+        if pref.get("sorteado") and not any(p["nome"] in a for a in avisos):
+            avisos.append(f"{p['nome']}: gênero não definido em vozes_pov.json, voz "
+                          f"{'masculina' if pref['genero'] == 'm' else 'feminina'} sorteada")
+        vozes[quem] = {"voice_id": vid, "nome": nome, "pessoa": p["nome"], "genero": pref["genero"]}
+    return vozes, avisos
+
+
+def texto_falado(texto: str, info: dict) -> str:
+    """Troca o nick pelo jeito de falar (campo 'falado') para a voz pronunciar direito."""
+    for c in info["colonos"]:
+        if c.get("falado") and c["falado"] != c["nome"]:
+            texto = texto.replace(c["nome"], c["falado"])
+    return texto
+
+
+def chave_fala(f: dict) -> str:
+    return f"{f.get('quem') or ''}|{f['texto']}"
+
+
+def gerar_vozes(falas: list[dict], info: dict, fundadores: list[dict]) -> dict:
+    """{"quem|texto": {audio, duracao}} de todas as falas da cena."""
+    vozes, avisos = escolher_vozes(falas, info, fundadores)
+    for a in avisos:
+        print(f"  aviso: {a}")
+    print("  vozes: " + ", ".join(f"{v['pessoa']} = {v['nome']} ({v['genero']})" for v in vozes.values()))
+    api = elevenlabs.ElevenLabs()
+
+    def chave(f):
+        return elevenlabs.chave_cache(vozes[f.get("quem") or ""]["voice_id"], texto_falado(f["texto"], info),
+                                      config.POV_MODELO, config.POV_AJUSTES)
+    pendentes = [f for f in falas if not (config.CACHE_VOZ / f"{chave(f)}.json").exists()]
+    if pendentes:
+        custo = sum(len(texto_falado(f["texto"], info)) for f in pendentes)
+        conta = api.creditos()
+        saldo = f" (conta: {conta[0]}/{conta[1]} usados)" if conta else ""
+        print(f"  {len(pendentes)} falas novas = {custo} caracteres no Flash{saldo}")
+        if conta and conta[0] + custo > conta[1]:
+            raise elevenlabs.ErroVoz("Créditos da ElevenLabs insuficientes para as vozes do POV.")
+    saida = {}
+    for f in falas:
+        v = vozes[f.get("quem") or ""]
+        saida[chave_fala(f)] = elevenlabs.falar(api, v, texto_falado(f["texto"], info), config.POV_MODELO, config.POV_AJUSTES)
+    return saida
+
+
+async def _gerar(numero: int, cena: str, previa: list[float] | None = None, abas: int = 3,
+                 com_voz: bool = True) -> Path | list[Path]:
     pasta = config.pasta_episodio(numero)
     ep, info = montar_ep(pasta), info_pov(pasta, cena)
+    fundadores = config.ler_json(config.COLONIA_JSON).get("fundadores", [])
+    falas_voz: dict = {}
     destino = pasta / "pov"
     destino.mkdir(exist_ok=True)
     quadros = destino / f"quadros_{cena}"
@@ -94,6 +207,12 @@ async def _gerar(numero: int, cena: str, previa: list[float] | None = None, abas
                     saidas.append(destino / f"previa_{cena}_{t:05.1f}s.png")
                 await browser.close()
                 return saidas
+
+            if com_voz:   # 1º as vozes (o tempo de cada fala muda o ritmo da cena), depois a filmagem
+                sonda, meta0 = await aba()
+                await sonda.close()
+                falas_voz = gerar_vozes(meta0["falas"], info, fundadores)
+                info["duracoes"] = {k: v["duracao"] for k, v in falas_voz.items()}
 
             shutil.rmtree(quadros, ignore_errors=True)
             quadros.mkdir()
@@ -120,18 +239,48 @@ async def _gerar(numero: int, cena: str, previa: list[float] | None = None, abas
 
     musica = destino / f"musica_{cena}.wav"
     gerar_musica(musica, meta["duracao"])
+    som = musica
+    if falas_voz:   # cada fala no instante em que aparece na tela; a música abaixa quando alguém fala
+        narracao, som = destino / f"narracao_{cena}.wav", destino / f"mix_{cena}.wav"
+        trilha = [{"audio": falas_voz[chave_fala(f)]["audio"], "fala_inicio": f["t"]}
+                  for f in meta["falas"] if chave_fala(f) in falas_voz]
+        gerar_narracao(narracao, {"cenas": trilha, "duracao": meta["duracao"]})
+        mixar(musica, narracao, som, True)
+        narracao.unlink(missing_ok=True)
     final = destino / f"pov_{cena}.mp4"
-    ffmpeg("-framerate", config.FPS, "-i", f"{quadros.name}/%05d.jpg", "-i", musica.name,
+    ffmpeg("-framerate", config.FPS, "-i", f"{quadros.name}/%05d.jpg", "-i", som.name,
            "-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-r", config.FPS,
            "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", final.name, cwd=destino)
     shutil.rmtree(quadros, ignore_errors=True)
     musica.unlink(missing_ok=True)
+    som.unlink(missing_ok=True)
     (destino / f"pov_{cena}.txt").write_text(legenda(cena, info), encoding="utf-8")
     return final
 
 
-def gerar(numero: int, cena: str, previa: list[float] | None = None):
-    return asyncio.run(_gerar(numero, cena, previa))
+def gerar(numero: int, cena: str, previa: list[float] | None = None, com_voz: bool = True):
+    return asyncio.run(_gerar(numero, cena, previa, com_voz=com_voz and not previa))
+
+
+def juntar(numero: int) -> Path:
+    """pov_colonia.mp4: as cenas prontas em sequência (um dia na colônia pelos olhos dos colonos)."""
+    destino = config.pasta_episodio(numero) / "pov"
+    partes = [destino / f"pov_{c}.mp4" for c in CENAS if (destino / f"pov_{c}.mp4").exists()]
+    if len(partes) < 2:
+        raise SystemExit("Gere pelo menos 2 cenas antes de juntar.")
+    entradas = [x for v in partes for x in ("-i", v.name)]
+    grafo = "".join(f"[{i}:v][{i}:a]" for i in range(len(partes))) + f"concat=n={len(partes)}:v=1:a=1[v][a]"
+    final = destino / "pov_colonia.mp4"
+    ffmpeg(*entradas, "-filter_complex", grafo, "-map", "[v]", "-map", "[a]",
+           "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p", "-r", config.FPS,
+           "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", final.name, cwd=destino)
+    info = [info_pov(config.pasta_episodio(numero), c)["prota"]["nome"] for c in CENAS if (destino / f"pov_{c}.mp4").exists()]
+    (destino / "pov_colonia.txt").write_text(
+        f"POV: um dia inteiro em Marte pelos olhos dos colonos 👀🚀 {', '.join(dict.fromkeys(info))}: "
+        "obra, defesa da base, passeio pelo bairro e papo na praça.\n\n"
+        "Cada seguidor vira personagem na Operação Marte Zero. Link na bio 👆\n📺 Episódio novo todo dia.\n\n"
+        "#operacaomartezero #pixelart #marte #pov #jogoindie", encoding="utf-8")
+    return final
 
 
 if __name__ == "__main__":
@@ -139,8 +288,14 @@ if __name__ == "__main__":
     ap.add_argument("--episodio", type=int, required=True)
     ap.add_argument("--cena", choices=CENAS)
     ap.add_argument("--previa", type=float, nargs="+", metavar="SEGUNDOS")
+    ap.add_argument("--sem-voz", action="store_true", help="só música, sem gastar ElevenLabs")
+    ap.add_argument("--juntar", action="store_true", help="só junta as cenas prontas em pov_colonia.mp4")
     a = ap.parse_args()
+    if a.juntar:
+        raise SystemExit(print(juntar(a.episodio)))
     for c in ([a.cena] if a.cena else CENAS):
-        r = gerar(a.episodio, c, a.previa)
+        r = gerar(a.episodio, c, a.previa, com_voz=not a.sem_voz)
         for p in (r if isinstance(r, list) else [r]):
             print(p)
+    if not a.cena and not a.previa:
+        print(juntar(a.episodio))

@@ -93,12 +93,21 @@ python pov.py --episodio 2          # 4 vídeos em primeira pessoa (ou --cena ob
 - **Imagens** (`saida/epNNN/imagens/`): `thumb_youtube.png` (1280x720), `capa_vertical.png` (1080x1920,
   capa de Reels/TikTok) e o carrossel 4:5 do Instagram (capa, boletim da colônia, bem-vindos com cargo,
   "cada seguidor vira personagem"). Desenho em `extras.js`.
-- **POV / câmera do capacete** (`saida/epNNN/pov/pov_<cena>.mp4` + `.txt` com a legenda do post): o chão de
-  Marte em perspectiva (estilo Mode 7), prédios, casas e colonos em pé, luvas do traje, visor com REC,
+- **POV / câmera do capacete** (`saida/epNNN/pov/pov_<cena>.mp4` + `.txt` com a legenda do post): mundo em
+  **2,5D** como nos jogos clássicos de primeira pessoa: chão em perspectiva (Mode 7), prédios, obras (com
+  andaime) e casas levantados em volumes com paredes sombreadas pelo sol, janelas e domos em degraus;
+  colonos, pets e besouros são sprites chapados em pé. **Traje de cada colono** (tecido, luva, faixa na cor
+  do cargo, padrão da manga, remendo, iniciais, computador de pulso, poeira e tom do visor) sai do seed e
+  do cargo, então cada POV tem mãos diferentes. Conversas são papo de amigos (não citam cargo). Visor com REC,
   oxigênio, temperatura e bússola, e o diário escrito na tela. O protagonista é um colono de verdade
   (cada cena um diferente). Cenas: `obra` (vai à obra e martela com a turma), `defesa` (noite, besouros
   na cerca, luz estroboscópica), `passeio` (acena para os vizinhos), `conversa` (papo na praça sobre o dia).
-  Desenho em `pov.js`; música de fundo, sem narração (não gasta ElevenLabs).
+  Desenho em `pov.js`. **Falas dubladas**: cada personagem com uma voz própria da ElevenLabs (Flash v2.5,
+  metade do preço; vozes padrão, lista em `config.POV_VOZES`), masculina ou feminina conforme
+  `vozes_pov.json` (colono sem gênero lá ganha um sorteado e o `pov.py` avisa). A voz é fixa por pessoa
+  em todos os vídeos e a cena espera cada fala terminar. Sem `--cena`, também junta as 4 em
+  `pov_colonia.mp4` (um dia na colônia pelos olhos dos colonos). `--sem-voz` = só música, grátis.
+  Custo: ~400 caracteres por cena (~1.500 por episódio), falas repetidas saem do cache.
 
 ## Regras embutidas
 
