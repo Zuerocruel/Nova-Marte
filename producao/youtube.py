@@ -3,6 +3,7 @@
     python producao/youtube.py --checar                 # confere FFmpeg e variáveis do .env
     python producao/youtube.py --episodio 1 --ensaio    # compacta e monta o envio, sem mandar nada
     python producao/youtube.py --episodio 1             # compacta, envia e agenda para daqui a 30 min
+    python producao/youtube.py --episodio 2 --extra pov_colonia   # vídeo extra (POV) aprovado no painel
 
 1. FFmpeg gera saida/epNNN/episodio_yt.mp4 abaixo de 15 MB (limite do webhook do n8n),
    em 2 passadas e sem reduzir a resolução, para a pixel art não borrar.
@@ -66,7 +67,7 @@ def duracao(video: Path) -> float:
 
 
 def compactar(origem: Path, log=print) -> Path:
-    destino = origem.with_name("episodio_yt.mp4")
+    destino = origem.with_name("episodio_yt.mp4" if origem.stem.startswith("episodio") else f"{origem.stem}_yt.mp4")
     if destino.exists() and destino.stat().st_mtime >= origem.stat().st_mtime and destino.stat().st_size < LIMITE_BYTES:
         log(f"  cópia compactada já existe e está em dia: {destino.name} ({destino.stat().st_size / 1e6:.1f} MB)")
         return destino
@@ -116,7 +117,22 @@ def limitar_hashtags(texto: str) -> str:
     return re.sub(r"[ \t]{2,}", " ", pub.RE_HASHTAG.sub(troca, texto))
 
 
-def montar(numero: int, copy: dict, video: Path, minutos: int) -> dict:
+def copy_extra(numero: int, item: str, legenda: str) -> dict:
+    """Copy do YouTube para um vídeo extra (POV), a partir da legenda aprovada no painel."""
+    linhas = [l for l in legenda.strip().splitlines()]
+    primeira = linhas[0] if linhas else "POV em Marte"
+    titulo = re.split(r"(?<=[🚀👀🏗️🐞🔦👋💬])\s", primeira, maxsplit=1)[0].strip()
+    if len(titulo) > 80:
+        titulo = titulo[:77].rsplit(" ", 1)[0] + "…"
+    titulo = f"{titulo} | Operação Marte Zero #{numero}"
+    chamada = (f"Procure seu nome no mapa: https://{config.SITE_TELA}/l/yt-ep{numero:03d}-pov 🚀"
+               if pub.YT_LINK_NA_DESCRICAO else "Link no perfil do canal 👆")
+    descricao = legenda.strip().replace("Link na bio 👆", chamada)
+    tags = "operação marte zero, pixel art, marte, pov, colônia espacial, jogo indie"
+    return {"titulo": titulo, "descricao": descricao, "tags": tags}
+
+
+def montar(numero: int, copy: dict, video: Path, minutos: int, item: str = "") -> dict:
     titulo = limpar(copy["titulo"])[:100]
     descricao = limitar_hashtags(limpar(copy["descricao"]))[:5000]
     tags, total = [], 0
@@ -131,7 +147,7 @@ def montar(numero: int, copy: dict, video: Path, minutos: int) -> dict:
         "titulo": titulo, "descricao": descricao, "tags": ", ".join(tags),
         "publicar_em": quando.isoformat(),
         "publicar_em_utc": quando.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "episodio": str(numero), "chave": f"omz-ep{numero:03d}-yt-{chave}",
+        "episodio": str(numero), "chave": f"omz-ep{numero:03d}-{item + '-' if item else ''}yt-{chave}",
     }
 
 
@@ -160,14 +176,24 @@ def checar() -> list[tuple[str, bool, str]]:
     ]
 
 
-def postar(numero: int, ensaio: bool, minutos: int = MINUTOS_AGENDAMENTO, log=print) -> bool:
+def postar(numero: int, ensaio: bool, minutos: int = MINUTOS_AGENDAMENTO, log=print, extra: str | None = None) -> bool:
+    """extra="pov_colonia" envia o vídeo extra do episódio (saida/epNNN/pov/) em vez do episódio."""
     import requests
+
+    chave_pub = pub.chave_extra(numero, extra) if extra else numero
 
     if minutos < MINUTOS_MINIMO:
         raise pub.Recusado(f"o agendamento precisa ser de pelo menos {MINUTOS_MINIMO} minutos (o fluxo recusa menos)")
     with pub.trava_postagem("youtube.py"):
         try:
-            lib = pub.exigir_liberado(numero, "youtube", ensaio=ensaio)
+            if extra:
+                lib = pub.exigir_liberado_extra(numero, extra, "youtube", ensaio=ensaio)
+                lib["copy"] = copy_extra(numero, extra, lib["copy"]["legenda"])
+                problemas = pub.validar_copy("youtube", lib["copy"])
+                if problemas:
+                    raise pub.Recusado("copy do YouTube fora das regras: " + "; ".join(problemas))
+            else:
+                lib = pub.exigir_liberado(numero, "youtube", ensaio=ensaio)
         except pub.Recusado as e:
             log(f"[YouTube] não executado: {e}")
             return False
@@ -181,22 +207,22 @@ def postar(numero: int, ensaio: bool, minutos: int = MINUTOS_AGENDAMENTO, log=pr
             video = compactar(lib["video"], log)
         except Exception as e:  # noqa: BLE001
             if not ensaio:
-                pub.marcar(numero, "youtube", "erro", origem="youtube", detalhe=f"compactação: {e}"[:300])
+                pub.marcar(chave_pub, "youtube", "erro", origem="youtube", detalhe=f"compactação: {e}"[:300])
             log(f"[YouTube] ✖ falhou ao compactar (pode tentar de novo): {e}")
             return False
-        campos = montar(numero, lib["copy"], video, minutos)
+        campos = montar(numero, lib["copy"], video, minutos, extra or "")
         log(f"  título: {campos['titulo']}")
         log(f"  agendado para: {campos['publicar_em']} · {len(campos['tags'].split(','))} tags · "
             f"{pub.contar_hashtags(campos['descricao'])} hashtags na descrição")
         if ensaio:
             log(f"  ENSAIO: nada foi enviado. Iria para o n8n: {video.name} ({video.stat().st_size / 1e6:.2f} MB) + "
                 + ", ".join(k for k in campos))
-            pub.anotar(numero, "youtube", ultimo_ensaio=pub.agora(), ultimo_ensaio_resultado="ensaio ok")
+            pub.anotar(chave_pub, "youtube", ultimo_ensaio=pub.agora(), ultimo_ensaio_resultado="ensaio ok")
             return True
 
         url = os.environ["N8N_WEBHOOK_PUBLICAR"].strip()
         headers = {"X-Painel-Chave": os.environ["N8N_PAINEL_CHAVE"].strip(), "User-Agent": config.USER_AGENT}
-        pub.marcar(numero, "youtube", "enviando", origem="youtube", detalhe="enviando ao n8n",
+        pub.marcar(chave_pub, "youtube", "enviando", origem="youtube", detalhe="enviando ao n8n",
                    publicar_em=campos["publicar_em"], chave=campos["chave"])
         log("  enviando ao n8n…")
         try:
@@ -211,14 +237,14 @@ def postar(numero: int, ensaio: bool, minutos: int = MINUTOS_AGENDAMENTO, log=pr
             nao_conectou = isinstance(e, requests.exceptions.ConnectTimeout) or isinstance(
                 motivo, (urllib3.exceptions.NewConnectionError, urllib3.exceptions.ConnectTimeoutError))
             if nao_conectou:
-                pub.marcar(numero, "youtube", "erro", origem="youtube", detalhe=f"n8n inacessível: {e}"[:300])
+                pub.marcar(chave_pub, "youtube", "erro", origem="youtube", detalhe=f"n8n inacessível: {e}"[:300])
                 log(f"[YouTube] ✖ n8n inacessível, nada foi enviado (pode tentar de novo): {e}")
             else:
-                pub.marcar(numero, "youtube", "conferir", origem="youtube", detalhe=f"conexão caiu durante o envio: {e}"[:300])
+                pub.marcar(chave_pub, "youtube", "conferir", origem="youtube", detalhe=f"conexão caiu durante o envio: {e}"[:300])
                 log(f"[YouTube] ⚠ CONFERIR: a conexão caiu durante o envio. Veja no n8n/YouTube antes de tentar de novo.")
             return False
         except requests.exceptions.Timeout as e:
-            pub.marcar(numero, "youtube", "conferir", origem="youtube", detalhe=f"sem resposta do n8n: {e}"[:300])
+            pub.marcar(chave_pub, "youtube", "conferir", origem="youtube", detalhe=f"sem resposta do n8n: {e}"[:300])
             log("[YouTube] ⚠ CONFERIR: o n8n não respondeu a tempo. Pode ter agendado; veja antes de tentar de novo.")
             return False
 
@@ -230,18 +256,18 @@ def postar(numero: int, ensaio: bool, minutos: int = MINUTOS_AGENDAMENTO, log=pr
         if r.ok and isinstance(j, dict) and j.get("recebido"):
             # fluxo novo: o n8n respondeu antes do upload → acompanha pelo webhook de status
             log(f"  o n8n recebeu (HTTP {r.status_code}); subindo para o YouTube, confirmando a cada {INTERVALO_STATUS} s…")
-            return acompanhar(numero, campos, url, headers, log)
+            return acompanhar(chave_pub, campos, url, headers, log)
         if r.ok and (not isinstance(j, dict) or j.get("ok", True) is not False):
             extra = {k: j.get(k) for k in ("video_id", "url") if isinstance(j, dict) and j.get(k)}
-            pub.marcar(numero, "youtube", "agendado", origem="youtube", detalhe=f"n8n HTTP {r.status_code}",
+            pub.marcar(chave_pub, "youtube", "agendado", origem="youtube", detalhe=f"n8n HTTP {r.status_code}",
                        publicar_em=campos["publicar_em"], chave=campos["chave"], **extra)
             log(f"[YouTube] 🕒 agendado para {campos['publicar_em']}" + (f" · {extra.get('url')}" if extra.get("url") else ""))
             return True
         if 400 <= r.status_code < 500 and r.status_code not in (408, 409):
-            pub.marcar(numero, "youtube", "erro", origem="youtube", detalhe=f"n8n recusou (HTTP {r.status_code}): {corpo}"[:300])
+            pub.marcar(chave_pub, "youtube", "erro", origem="youtube", detalhe=f"n8n recusou (HTTP {r.status_code}): {corpo}"[:300])
             log(f"[YouTube] ✖ o n8n recusou (HTTP {r.status_code}), nada foi agendado: {corpo}")
         else:
-            pub.marcar(numero, "youtube", "conferir", origem="youtube", detalhe=f"n8n HTTP {r.status_code}: {corpo}"[:300])
+            pub.marcar(chave_pub, "youtube", "conferir", origem="youtube", detalhe=f"n8n HTTP {r.status_code}: {corpo}"[:300])
             log(f"[YouTube] ⚠ CONFERIR: resposta incerta do n8n (HTTP {r.status_code}). Veja antes de tentar de novo.")
         return False
 
@@ -308,6 +334,7 @@ def main() -> int:
     ap.add_argument("--checar", action="store_true")
     ap.add_argument("--minutos", type=int, default=MINUTOS_AGENDAMENTO, help="agendar para daqui a N minutos (mín. 20)")
     ap.add_argument("--contrato", action="store_true", help="mostra os campos enviados ao n8n")
+    ap.add_argument("--extra", help="envia um vídeo extra do episódio (ex.: pov_colonia) em vez do episódio")
     a = ap.parse_args()
     if a.contrato:
         print(CONTRATO)
@@ -320,7 +347,7 @@ def main() -> int:
     if not a.episodio:
         ap.error("informe --episodio N (ou use --checar)")
     try:
-        return 0 if postar(a.episodio, a.ensaio, a.minutos) else 1
+        return 0 if postar(a.episodio, a.ensaio, a.minutos, extra=a.extra) else 1
     except pub.Recusado as e:
         print(f"✖ {e}")
         return 1

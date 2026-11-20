@@ -798,6 +798,10 @@ def _registrar(job: Job, n: int) -> None:
                        "episodio_id": ep_id, "descricao": f"Descrição do episódio {n} no {info['rotulo']}"},
                       prefer="resolution=merge-duplicates,return=minimal")
         job.log(f"link rastreável criado: /l/{slug}")
+    db().escrever("POST", "links", {"on_conflict": "slug"},   # vídeos extras (POV) no YouTube
+                  {"slug": f"yt-ep{n:03d}-pov", "destino": "/", "plataforma": "youtube", "campanha": f"ep{n:03d}-pov",
+                   "episodio_id": ep_id, "descricao": f"Descrição do POV do episódio {n} no YouTube"},
+                  prefer="resolution=merge-duplicates,return=minimal")
     dados = config.ler_json(pasta / "dados.json")
 
     def marcar(e):
