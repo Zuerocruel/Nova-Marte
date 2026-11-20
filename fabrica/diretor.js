@@ -91,6 +91,7 @@ const PALETA = {
   K: '#1b1530', W: '#eef0f8', G: '#9aa0b5', g: '#6b6f86', V: '#3fd0c9', O: '#e2603b', o: '#a83d22',
   S: '#e0ac7e', s: '#c68642', H: '#5a3825', T: '#00b8a9', t: '#00796b', P: '#9b59b6', p: '#6c3483',
   Y: '#ffc83d', B: '#3a2f63', N: '#b5651d', R: '#e04f5f', L: '#3f8efc',
+  C: '#f2b46a', c: '#9a5418', w: '#fff0d8',   // pet: caramelo claro, caramelo escuro e creme (destaca do chão vermelho)
 };
 const MAPAS = {
   vega: [
@@ -121,7 +122,7 @@ const MAPAS = {
     '...TT..TT...',
     '...BB..BB...',
   ],
-  pet: ['........', '......N.', '.....NNN', 'N....NKN', '.NNNNNN.', '.NNNNNN.', '.N.N.N.N', '........'],
+  pet: ['......c.c.', '.c....cCc.', '.C...CCKCw', '.C...CCCCK', '..CCCVVCw.', '..CwwwwCC.', '..C.C.C.C.', '..c.c.c.c.'],
   rover: ['........', '..GG....', '..GV....', '.WWWWWW.', 'WWWWWWWW', 'WOOWWOOW', '.KK..KK.', '........'],
   foguete: ['...WW...', '..WWWW..', '..WVVW..', '..WWWW..', '..WOOW..', '.OWWWWO.', '.O.YY.O.', '...YY...'],
   bandeira: ['KTTTTT..', 'KTTTTT..', 'KTYYTT..', 'KTTTTT..', 'K.......', 'K.......', 'K.......', 'KK......'],
@@ -170,6 +171,41 @@ function spriteContornado(nome) {
   }
   return spriteCache.get(k);
 }
+// Monumento dourado: estátua do próprio colono (o boneco do seed dele, todo em ouro) sobre um pedestal.
+const OURO_ESTATUA = ['#fff3c0', '#ffd85a', '#e0a920', '#b07d10', '#7e5206'];
+function luminancia(hex) { const n = parseInt(hex.slice(1), 16); return 0.3 * (n >> 16) + 0.59 * ((n >> 8) & 255) + 0.11 * (n & 255); }
+function spriteEstatua(seed) {
+  const k = 'estatua:' + seed;
+  if (!CACHE_ESTATUA.has(k)) {
+    const m = gerarSprite(seed);
+    const s = document.createElement('canvas'); s.width = 12; s.height = 15;
+    const x = s.getContext('2d');
+    m[7][9] = null; m[8][9] = null;                      // o braço direito sobe com a bandeira
+    m.forEach((linha, j) => linha.forEach((v, i) => {
+      if (!v) return;
+      const claro = (l => (l > 170 ? 0 : 1))(luminancia(v));
+      // cabeça clara, corpo médio, pernas escuras; borda direita na sombra; olhos e contorno no tom mais escuro
+      let n = v === CONTORNO ? 4 : (j <= 5 ? 0 : j <= 8 ? 1 : 2) + claro;
+      if (i >= 8 && n < 4) n += 1;
+      x.fillStyle = OURO_ESTATUA[n]; x.fillRect(i, j, 1, 1);
+    }));
+    x.fillStyle = OURO_ESTATUA[1]; x.fillRect(9, 4, 1, 3); x.fillRect(10, 2, 1, 3);
+    x.fillStyle = OURO_ESTATUA[0]; x.fillRect(10, 0, 1, 2); x.fillStyle = OURO_ESTATUA[1]; x.fillRect(11, 0, 1, 2);
+    x.fillStyle = '#b4a6c4'; x.fillRect(2, 12, 8, 1);   // pedestal em degraus
+    x.fillStyle = '#9a8aab'; x.fillRect(1, 13, 10, 1);
+    x.fillStyle = '#7a6a8a'; x.fillRect(0, 14, 12, 1);
+    x.fillStyle = '#ffd85a'; x.fillRect(5, 13, 2, 1);   // plaquinha
+    const c = document.createElement('canvas'); c.width = 14; c.height = 17;
+    const y = c.getContext('2d');
+    for (const [dx, dy] of [[0, 1], [2, 1], [1, 0], [1, 2]]) y.drawImage(s, dx, dy);
+    y.globalCompositeOperation = 'source-in'; y.fillStyle = CONTORNO; y.fillRect(0, 0, 14, 17);
+    y.globalCompositeOperation = 'source-over'; y.drawImage(s, 1, 1);
+    CACHE_ESTATUA.set(k, c);
+  }
+  return CACHE_ESTATUA.get(k);
+}
+const CACHE_ESTATUA = new Map();
+
 function iconeDoProduto(slug) {
   const s = (slug || '').toLowerCase();
   for (const k of ['pet', 'rover', 'foguete', 'monumento', 'capsula', 'outdoor', 'traje']) if (s.includes(k)) return k;
@@ -478,7 +514,7 @@ function desenharPet(c, t) {   // o pet passeia pelo quintal do dono (corre, par
   ret(px - 3, py - 0.5, 6, 1, 'rgba(0,0,0,0.25)');
   ctx.save(); ctx.translate(Math.round(px), Math.round(py - (correndo && Math.floor(t * 10) % 2 ? 1 : 0)));
   if (dir < 0) ctx.scale(-1, 1);
-  ctx.drawImage(spriteContornado('pet'), -4, -8, 8, 8); ctx.restore();
+  ctx.drawImage(spriteContornado('pet'), -5, -9, 10, 8.4); ctx.restore();
 }
 
 // ------------------------------------------------------------------ posições
@@ -872,7 +908,10 @@ function desenharCompras(t) {
     const k = clamp((t - t0) / 0.45);
     const esc = k < 1 ? saida(k) * 1.3 - Math.max(0, k - 0.7) : 1;
     const x = c.x * CASA + 4, y = c.y * CASA + 14, s = 10 * esc;   // logo abaixo da casa do comprador
-    ctx.drawImage(spriteContornado(iconeDoProduto(c.produto_slug)), x + 4 - s / 2, y + 10 - s, s * 1.25, s * 1.25);
+    if (iconeDoProduto(c.produto_slug) === 'monumento') {   // estátua do próprio colono
+      const seed = (colonoPorCodigo.get(c.codigo) || c).seed || 1, w = s * 1.1, h = w * 17 / 14;
+      ctx.drawImage(spriteEstatua(seed), x + 4 - w / 2, y + 12 - h, w, h);
+    } else ctx.drawImage(spriteContornado(iconeDoProduto(c.produto_slug)), x + 4 - s / 2, y + 10 - s, s * 1.25, s * 1.25);
     const kb = clamp((t - t0) / 1.0);
     if (kb < 1) for (let i = 0; i < 6; i++) {
       const a = i / 6 * Math.PI * 2;

@@ -12,7 +12,7 @@ export type Obra = { slug: string; nome: string; tipo: string; x: number; y: num
 export type Fundador = { id: string; curto: string; casa: [number, number]; sprite: string };
 export type Estacao = { id: string; nome: string; dia: number; temp: number | null; efeito: string };
 export type ProblemaDoDia = { titulo: string; rotulo: string; categoria: string; heroi: string | null; heroi_codigo: string | null };
-export type CompraNoMapa = { pos_x: number; pos_y: number; produto_slug: string };
+export type CompraNoMapa = { pos_x: number; pos_y: number; produto_slug: string; seed: number };
 /** Pet do Colono: vive no quintal do dono (lib/pet.ts) em vez de ficar parado como ícone. */
 export type PetNoMapa = { codigo: string; pos_x: number; pos_y: number };
 export type EstadoColonia = {
@@ -46,7 +46,7 @@ export async function estadoColonia(): Promise<EstadoColonia> {
       .not('publicado_em', 'is', null).order('numero', { ascending: false }).limit(1).maybeSingle()
       .then((r) => (r.error ? db().from('episodios').select('numero, titulo, publicado_em')   // sem a coluna resumo (falta a 006)
         .not('publicado_em', 'is', null).order('numero', { ascending: false }).limit(1).maybeSingle() : r)),
-    db().from('pedidos').select('produtos(slug), personagens!inner(codigo, pos_x, pos_y, oculto)')
+    db().from('pedidos').select('produtos(slug), personagens!inner(codigo, pos_x, pos_y, seed, oculto)')
       .eq('status', 'aprovado').eq('personagens.oculto', false).order('id', { ascending: false }).limit(400),
   ]);
 
@@ -72,7 +72,7 @@ export async function estadoColonia(): Promise<EstadoColonia> {
         heroi: resumo.problema.heroi ?? null, heroi_codigo: resumo.problema.heroi_codigo ?? null }
     : null;
 
-  type LinhaCompra = { produtos: { slug: string } | null; personagens: { codigo: string; pos_x: number; pos_y: number } | null };
+  type LinhaCompra = { produtos: { slug: string } | null; personagens: { codigo: string; pos_x: number; pos_y: number; seed: number } | null };
   const compras: CompraNoMapa[] = [];
   const pets: PetNoMapa[] = [];
   const vistos = new Set<string>();
@@ -85,7 +85,7 @@ export async function estadoColonia(): Promise<EstadoColonia> {
     const k = `${c.personagens.pos_x},${c.personagens.pos_y}`;
     if (vistos.has(k)) continue;      // um item por casa (o mais recente)
     vistos.add(k);
-    compras.push({ pos_x: c.personagens.pos_x, pos_y: c.personagens.pos_y, produto_slug: c.produtos.slug });
+    compras.push({ pos_x: c.personagens.pos_x, pos_y: c.personagens.pos_y, produto_slug: c.produtos.slug, seed: c.personagens.seed });
   }
 
   return {

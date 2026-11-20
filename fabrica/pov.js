@@ -857,7 +857,7 @@ function desenharPOV(t) {
   px.setTransform(1, 0, 0, 1, 0, 0);
   ceu(t, POV.noite);
   chao(POV.noite);
-  const pet = POV.info.pets.map((p, i) => ({ x: p.x * CASA + 8 + Math.sin(t * 0.9 + i) * 8, y: p.y * CASA + 26, larg: 8, alt: 8,
+  const pet = POV.info.pets.map((p, i) => ({ x: p.x * CASA + 8 + Math.sin(t * 0.9 + i) * 8, y: p.y * CASA + 26, larg: 10, alt: 8,
                                              img: spriteContornado('pet'), virar: Math.cos(t * 0.9 + i) < 0 }));
   desenharBillboards([...CONSTRUCOES, ...pet, ...POV.pessoas(t)], POV.noite);
   if (c.st.estrobo && Math.floor(t * 10) % 2 === 0) { px.fillStyle = 'rgba(255,250,220,0.55)'; px.fillRect(0, 0, PW, PH); }

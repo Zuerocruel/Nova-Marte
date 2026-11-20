@@ -7,7 +7,7 @@ import {
 } from '@/lib/mundo';
 import {
   BLOCO, CASA, COR, blocoDeTerreno, desenharBase, desenharClima, desenharObra, desenharPraca, desenharTrilha,
-  disco, iconeDoProduto, spriteContornado, spriteMapa,
+  disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
 } from '@/lib/colonia-arte';
 import { situacao, type Situacao } from '@/lib/vida';
 import { descricaoPet, situacaoPet } from '@/lib/pet';
@@ -293,7 +293,8 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       }
       if (e) for (const cp of e.compras) {
         if (cp.pos_x < vx0 - 1 || cp.pos_x > vx1 + 1 || cp.pos_y < vy0 - 1 || cp.pos_y > vy1 + 1) continue;
-        ctx.drawImage(spriteContornado(iconeDoProduto(cp.produto_slug)), cp.pos_x * CASA - 4, cp.pos_y * CASA + 7, 9, 9);
+        if (iconeDoProduto(cp.produto_slug) === 'monumento') ctx.drawImage(spriteEstatua(cp.seed || 1), cp.pos_x * CASA - 4, cp.pos_y * CASA + 4, 10, 12);   // estátua do colono
+        else ctx.drawImage(spriteContornado(iconeDoProduto(cp.produto_slug)), cp.pos_x * CASA - 4, cp.pos_y * CASA + 7, 9, 9);
       }
 
       // Vega e Lia: vão da casa até a obra, trabalham e voltam
@@ -348,7 +349,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
             if (sp.dir < 0) ctx.scale(-1, 1);
             if (sp.acao === 'fazendo xixi') ctx.rotate(-0.25);     // levanta a pata
             if (dormindo) ctx.scale(1.1, 0.6); else if (agachado) ctx.scale(1, 0.8);
-            ctx.drawImage(spriteMapa('pet'), -3.5, -7, 7, 7); ctx.restore();
+            ctx.drawImage(spriteContornado('pet'), -4.8, -8, 9.6, 8); ctx.restore();   // com contorno: não some no chão
           },
         });
         if (sp.emote) emotesPet.push({ x: sp.x, y: sp.y - 6, emote: sp.emote });
