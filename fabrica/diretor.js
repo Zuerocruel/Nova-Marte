@@ -356,6 +356,7 @@ window.carregarEpisodio = async function (ep) {
   prepararTerreno();
   prepararVinheta();
   prepararTempos();
+  prepararNoite();
   planejarVida();
   prepararCamera();
   await document.fonts.load(`40px ${FONTE}`);
@@ -374,6 +375,16 @@ let VIDA = { reacao: null, alerta: null };
 function pontoNaObra(r, i) {
   const cols = Math.max(2, Math.floor((r.x1 - r.x0) / 11));
   return { x: r.x0 + 6 + (i % cols) * ((r.x1 - r.x0 - 12) / Math.max(1, cols - 1)), y: r.y1 + 7 + Math.floor(i / cols) * 9 };
+}
+// onde o herói trabalha: ao lado do módulo (que é desenhado por cima dos colonos) ou na frente da obra
+function pontoDoConserto(alvo) {
+  const p = posAlvo(alvo, 0);
+  if (alvo === 'base') return { x: p.x + 33, y: p.y + 13 };
+  for (const o of EP.mundo.obras) {
+    const r = retanguloDe(o);
+    if (p.x >= r.x0 - 1 && p.x <= r.x1 + 1 && p.y >= r.y0 - 1 && p.y <= r.y1 + 1) return { x: (r.x0 + r.x1) / 2 + 6, y: r.y1 + 10 };
+  }
+  return { x: p.x + 14, y: p.y + 16 };
 }
 function planejarVida() {
   const sol = EP.cenas.find((c) => c.tipo === 'solucao');
@@ -423,8 +434,9 @@ function planejarVida() {
         const chega = ir(tEntra + h * 0.8, casa, 0.24);
         c.dentro = [chega, tSai + h * 0.7];
       } else if (sol.heroi_codigo === c.codigo) {
-        const p = posAlvo(sol.alvo || 'base', sol.inicio);
-        ir(sol.inicio + 0.3, { x: p.x + 12, y: p.y + 18 });
+        // sai ainda no fim da cena anterior para já estar no lugar quando o nome é dito
+        const chega = ir(Math.max(0, sol.inicio - 2.2), pontoDoConserto(sol.alvo || 'base'), 0.22);
+        c.conserto = [chega, sol.fim - 0.15];
       }
     }
     c.trechos = tr;
@@ -881,6 +893,7 @@ function desenharColonos(view, t) {
     let pulo = p.andando && Math.floor(t * 8 + h * 4) % 2 ? -1 : 0;
     if (chamado >= 0) pulo = -Math.abs(Math.sin(chamado * 7)) * 4;                      // pula de alegria
     else if (p.trabalhando) pulo = Math.floor(t * 4 + h * 4) % 2 ? -1 : 0;              // martelando
+    else if (c.conserto && t >= c.conserto[0] && t < c.conserto[1] && !p.andando) pulo = Math.floor(t * 6) % 2 ? -1 : 0;   // consertando
     else if (alerta) pulo = t - VIDA.alerta[0] < 0.5 ? -2 : 0;                           // susto com o alarme
     else if (!p.andando && Math.floor(t * 1.4 + h * 7) % 4 === 0) pulo = -0.5;           // respirando
     ret(p.x - 4, p.y - 1, 8, 1.5, 'rgba(0,0,0,0.22)');
@@ -891,7 +904,92 @@ function desenharColonos(view, t) {
     if (c.status === 'estreou') ret(p.x + 4.5, p.y - 13.5 + pulo, 2.5, 2.5, '#ffd84a');
     if (chamado >= 0 && Math.floor(chamado * 6) % 2) ret(p.x + 6, p.y - 12 + pulo, 2, 3, '#f2c9a0');   // mãozinha acenando
     if (p.trabalhando && Math.floor(t * 4 + h * 4) % 3 === 0) ret(p.x + 6, p.y - 8, 2, 2, COR.ouro);   // faísca
+    const kc = c.conserto && !p.andando && t >= c.conserto[0] && t < c.conserto[1] ? (t - c.conserto[0]) / (c.conserto[1] - c.conserto[0]) : -1;
+    if (kc >= 0) desenharConserto(p, t, kc);
     if (alerta && !p.andando) { ret(p.x - 0.5, p.y - 19, 1.5, 3.5, COR.alerta); ret(p.x - 0.5, p.y - 14.5, 1.5, 1.5, COR.alerta); }
+  }
+}
+
+// o herói do problema do dia trabalhando: caixa de ferramentas, chave batendo, faíscas e barra de progresso
+function desenharConserto(p, t, k) {
+  ret(p.x - 14, p.y - 5, 7, 5, '#e04f5f'); ret(p.x - 14, p.y - 5, 7, 1, '#ff8a8a'); ret(p.x - 12, p.y - 7, 3, 2, '#9aa0b5');
+  const a = Math.round(Math.sin(t * 14) * 1.5);
+  ret(p.x + 5, p.y - 8 + a, 4, 1.5, '#d8dbe8'); ret(p.x + 8, p.y - 10 + a, 1.5, 4, '#d8dbe8');
+  const f = Math.floor(t * 10);
+  for (let i = 0; i < 4; i++) if ((f + i) % 3 === 0) ret(p.x + 9 + hash(i, f) * 7, p.y - 6 - hash(i, f, 2) * 8, 1.5, 1.5, i % 2 ? COR.ouro : COR.agua);
+}
+// barra de progresso e ✓ ao lado do herói (desenhados depois da noite, para não escurecer, e fora da etiqueta do nome)
+function desenharHudConserto(t) {
+  for (const c of EP.mundo.colonos) {
+    if (!c.conserto || t < c.conserto[0] || t >= c.conserto[1]) continue;
+    const p = posColono(c, t);
+    if (p.andando || !p.visivel) continue;
+    const k = (t - c.conserto[0]) / (c.conserto[1] - c.conserto[0]);
+    ret(p.x + 11, p.y - 16, 18, 5, CONTORNO); ret(p.x + 12, p.y - 15, 16, 3, '#3a2f63');
+    ret(p.x + 12, p.y - 15, 16 * Math.min(1, k * 1.15), 3, COR.ok);
+    if (k > 0.86) {   // pronto!
+      ret(p.x + 15, p.y - 29, 11, 10, CONTORNO); ret(p.x + 16, p.y - 28, 9, 8, '#f3eefe');
+      ctx.fillStyle = COR.ok; for (const [x, y] of [[17, -24], [18, -23], [19, -22], [20, -23], [21, -24], [22, -25], [23, -26]]) ctx.fillRect(p.x + x, p.y + y, 1.3, 1.3);
+    }
+  }
+}
+
+// ------------------------------------------------------------------ noite
+// Quando a narração diz que o sol se põe, o mapa escurece (tom azulado) e acendem as luzes: janelas e
+// farol do módulo, brilho das construções, lâmpadas da obra e a luz do capacete de cada colono.
+let tNoite = Infinity;
+function prepararNoite() {
+  const c = EP.cenas.find((x) => /sol se p[õo]e|anoitec|cai a noite|a noite chega/i.test(x.fala || ''));
+  const w = c && (c.palavras || []).find((x) => /p[õo]e|anoitec|noite/i.test(x.p));
+  tNoite = c ? (w ? w.i : c.fala_inicio + 0.6) : Infinity;
+}
+const escuridao = (t) => clamp((t - tNoite) / 2.4);
+function brilhoEm(x, y, r, cor, a) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, cor); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalAlpha = a; ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.globalAlpha = 1;
+}
+function desenharNoite(cam, t, view, tx, ty, energia) {
+  const k = escuridao(t);
+  if (k <= 0) return;
+  // escurece tudo (multiplica por um azul de noite)
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = 'multiply';
+  const m = (a, b2) => Math.round(a + (b2 - a) * k);
+  ctx.fillStyle = `rgb(${m(255, 52)},${m(255, 58)},${m(255, 120)})`;
+  ctx.fillRect(0, 0, W, H);
+  // luzes somam por cima (no espaço do mundo)
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.setTransform(cam.z, 0, 0, cam.z, tx, ty);
+  const b = EP.mundo.base, { x: cx, y: cy } = centro(b);
+  if (energia) {
+    brilhoEm(cx, cy, 70, '#ffb45a', 0.32 * k);
+    for (const dx of [-11, -3, 5]) brilhoEm(cx + dx + 3, cy - 5, 12, '#ffe08a', 0.8 * k);
+    brilhoEm(cx, cy + 24, 26, '#ffd27a', 0.45 * k);                                  // rampa
+  }
+  if (Math.floor(t * 1.5) % 2 === 0) brilhoEm(cx, cy - 29, 14, '#ff4d4d', 0.9 * k);   // farol
+  for (const o of EP.mundo.obras) {
+    if (o.status === 'planejada' && o.slug !== EP.missao_obra) continue;
+    const r = retanguloDe(o), oc = centro(o), pr = progressoObra(o, t).p;
+    const cor = o.tipo === 'estufa' ? '#7dff9a' : o.tipo === 'solar' ? '#7fb3ff' : o.tipo === 'antena' ? '#ff6a6a' : '#ffd27a';
+    brilhoEm(oc.x, oc.y, Math.max(r.x1 - r.x0, r.y1 - r.y0) * 0.75, cor, (0.12 + 0.3 * pr) * k);
+    if (pr < 1) for (const [x, y] of [[r.x0, r.y1], [r.x1, r.y1], [r.x0, r.y0], [r.x1, r.y0]]) brilhoEm(x, y, 16, '#fff0b0', 0.55 * k);   // lâmpadas da obra
+  }
+  const helmo = (x, y, forte) => (forte ? brilhoEm(x + 11, y - 6, 26, '#bff8ff', 0.42 * k)   // luz de trabalho no ponto do conserto
+                                       : brilhoEm(x, y - 9, 11, '#eaf2ff', 0.45 * k));
+  for (const c of EP.mundo.colonos) {
+    const p = posColono(c, t);
+    if (!p.visivel || p.x / CASA < view.x0 - 2 || p.x / CASA > view.x1 + 2 || p.y / CASA < view.y0 - 2 || p.y / CASA > view.y1 + 2) continue;
+    helmo(p.x, p.y, !!(c.conserto && t >= c.conserto[0] && t < c.conserto[1]));
+  }
+  for (const f of EP.mundo.fundadores) { const p = posFundador(f, t); if (p.visivel) helmo(p.x, p.y, false); }
+  ctx.globalCompositeOperation = 'source-over';
+  // pontinhos acesos nítidos por cima do brilho (janelas, lâmpadas)
+  if (energia) for (const dx of [-11, -3, 5]) { ctx.globalAlpha = k; ret(cx + dx, cy - 8, 6, 6, '#ffe58a'); ctx.globalAlpha = 1; }
+  for (const o of EP.mundo.obras) {
+    if (o.status === 'planejada' && o.slug !== EP.missao_obra) continue;
+    const r = retanguloDe(o);
+    if (progressoObra(o, t).p < 1) for (const [x, y] of [[r.x0, r.y1], [r.x1, r.y1], [r.x0, r.y0], [r.x1, r.y0]]) { ctx.globalAlpha = k; ret(x - 1, y - 1, 2, 2, '#fff6d0'); ctx.globalAlpha = 1; }
   }
 }
 
@@ -1178,6 +1276,9 @@ function desenhar(t) {
   desenharBase(t, energia);
   desenharPortaAbrigo(t);
   desenharFundadores(t);
+  desenharNoite(cam, t, view, tx, ty, energia);
+  ctx.setTransform(cam.z, 0, 0, cam.z, tx, ty);
+  desenharHudConserto(t);
 
   // tela
   ctx.setTransform(1, 0, 0, 1, 0, 0);
