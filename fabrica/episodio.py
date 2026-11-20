@@ -87,10 +87,12 @@ def primeiro_nome(nome: str) -> str:
 
 
 def colono_publico(p: dict) -> dict:
+    # no vídeo e no post vai o NICK (o nome real fica só no cadastro); quem não tem nick usa o primeiro nome
+    nick = (p.get("apelido") or "").strip()
     return {
         "codigo": p["codigo"],
-        "nome": nome_exibicao(p["nome"]),
-        "falado": primeiro_nome(p["nome"]),
+        "nome": nick or nome_exibicao(p["nome"]),
+        "falado": nick or primeiro_nome(p["nome"]),
         "x": p["pos_x"], "y": p["pos_y"],
         "seed": p["seed"],
         "status": p["status"],
@@ -134,12 +136,18 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
     col = config.colonia()
     ultimo = ultimo_episodio(db, numero)
     desde = ultimo["publicado_em"] if ultimo else None
+    # o episódio anterior só mostrou os fundadores (ex.: ep. 1)? Então ninguém foi apresentado ainda:
+    # todos os colonos contam como novos e ganham as boas-vindas neste episódio
+    if ultimo:
+        anterior = config.SAIDA / f"ep{ultimo['numero']:03d}" / "dados.json"
+        if anterior.exists() and config.ler_json(anterior).get("so_fundadores"):
+            desde = None
 
     campos = "codigo,nome,pos_x,pos_y,seed,status,sprite_url"
     visiveis = {"oculto": "eq.false"}
-    try:                                   # cargo (migração 008); sem a coluna, segue sem cargos
-        db.get("personagens", {"select": "cargo", "limit": 1})
-        campos += ",cargo"
+    try:                                   # cargo e nick (migração 008); sem as colunas, segue sem eles
+        db.get("personagens", {"select": "cargo,apelido", "limit": 1})
+        campos += ",cargo,apelido"
     except requests.HTTPError:
         print("aviso: coluna personagens.cargo ainda não existe (rode supabase/migrations/008_cargos_nick.sql)")
 
@@ -159,7 +167,7 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
         filtro_compras["atualizado_em"] = f"gt.{desde}"
     compras_linhas = db.get("pedidos", {
         "select": "id,status,atualizado_em,produto:produtos(slug,nome),"
-                  "personagem:personagens(codigo,nome,pos_x,pos_y,seed,status,sprite_url,oculto)",
+                  f"personagem:personagens({campos},oculto)",
         **filtro_compras,
         "order": "atualizado_em.asc",
     })

@@ -1214,7 +1214,10 @@ class Handler(BaseHTTPRequestHandler):
                 bloco = f.read(min(256 * 1024, falta))
                 if not bloco:
                     break
-                self.wfile.write(bloco)
+                try:
+                    self.wfile.write(bloco)
+                except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+                    return   # o navegador cancelou (pulou o vídeo ou fechou a aba): normal, sem erro no console
                 falta -= len(bloco)
 
 
