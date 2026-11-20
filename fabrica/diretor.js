@@ -319,6 +319,7 @@ window.carregarEpisodio = async function (ep) {
   prepararTerreno();
   prepararVinheta();
   prepararTempos();
+  planejarVida();
   prepararCamera();
   await document.fonts.load(`40px ${FONTE}`);
   await document.fonts.ready;
@@ -326,6 +327,123 @@ window.carregarEpisodio = async function (ep) {
   await Promise.all(urls.map(carregarImagem));
   return { quadros: Math.ceil(ep.duracao * ep.fps), fonte: document.fonts.check(`40px ${FONTE}`) };
 };
+
+
+// ------------------------------------------------------------------ vida dos colonos (e reação ao problema do dia)
+// Cada colono tem trechos de caminhada como os fundadores: ajuda na obra durante a missão e, na solução do
+// problema, reage: 'abrigar' (todos entram no módulo e saem quando o perigo passa), 'recolher' (cada um
+// corre para a própria casa) ou 'heroi' (só quem resolve vai até o lugar do problema).
+let VIDA = { reacao: null, alerta: null };
+function pontoNaObra(r, i) {
+  const cols = Math.max(2, Math.floor((r.x1 - r.x0) / 11));
+  return { x: r.x0 + 6 + (i % cols) * ((r.x1 - r.x0 - 12) / Math.max(1, cols - 1)), y: r.y1 + 7 + Math.floor(i / cols) * 9 };
+}
+function planejarVida() {
+  const sol = EP.cenas.find((c) => c.tipo === 'solucao');
+  const prob = EP.cenas.find((c) => c.tipo === 'problema');
+  const miss = EP.cenas.filter((c) => c.tipo === 'missao');
+  const base = EP.mundo.base;
+  const porta = { x: (base.x + base.w / 2) * CASA, y: (base.y + base.h) * CASA + 2 };
+  let tEntra = Infinity, tSai = Infinity;
+  if (sol) {
+    const w = (sol.palavras || []).find((x) => x.i > sol.fala_inicio + 1.5 && /depois|passa|passou|acalma|perigo|salv/i.test(x.p));
+    tEntra = sol.inicio + 0.3;
+    tSai = w ? w.i : sol.fala_inicio + 0.65 * (sol.fim - sol.fala_inicio);
+  }
+  VIDA = { reacao: sol ? (sol.reacao || 'heroi') : null, porta, tEntra, tSai,
+           alerta: prob ? [prob.inicio, prob.fim] : null, sol };
+  const obra = obraDaMissao();
+  const r = obra ? retanguloDe(obra) : null;
+  const perto = (c) => Math.hypot(c.x * CASA - (r ? (r.x0 + r.x1) / 2 : 0), c.y * CASA - (r ? r.y1 : 0));
+  const ajudantes = r && miss.length ? EP.mundo.colonos.slice().sort((a, b) => perto(a) - perto(b)).slice(0, 10) : [];
+  EP.mundo.colonos.forEach((c, k) => {
+    const casa = { x: c.x * CASA + 8, y: c.y * CASA + 14 };
+    let pos = casa;
+    const tr = [];
+    const ir = (t0, para, vel = 0.3) => {
+      const dur = clamp(Math.hypot(para.x - pos.x, para.y - pos.y) / CASA * vel, 0.6, 4.5);
+      tr.push({ t0, t1: t0 + dur, de: pos, para }); pos = para; return t0 + dur;
+    };
+    c.casaPe = casa; c.dentro = null; c.trabalho = null;
+    const i = ajudantes.indexOf(c);
+    if (i >= 0) {   // mutirão: cada colono é mais uma mão na obra
+      const chega = ir(miss[0].inicio + 0.4 + i * 0.35, pontoNaObra(r, i));
+      c.trabalho = [chega, miss[miss.length - 1].fim];
+    }
+    if (sol) {
+      const h = hash(c.x, c.y, 3);
+      if (VIDA.reacao === 'abrigar') {
+        const chega = ir(tEntra + Math.min(k, 14) * 0.15, { x: porta.x + (h - 0.5) * 8, y: porta.y }, 0.24);
+        c.dentro = [chega, tSai + Math.min(k, 14) * 0.18];
+        pos = { x: porta.x, y: porta.y };
+        const fora = { x: porta.x + (hash(c.x, c.y, 5) - 0.5) * 110, y: porta.y + 10 + hash(c.x, c.y, 6) * 34 };
+        tr.push({ t0: c.dentro[1], t1: c.dentro[1] + 1.3, de: pos, para: fora }); pos = fora;
+      } else if (VIDA.reacao === 'recolher') {
+        const chega = ir(tEntra + h * 0.8, casa, 0.24);
+        c.dentro = [chega, tSai + h * 0.7];
+      } else if (sol.heroi_codigo === c.codigo) {
+        const p = posAlvo(sol.alvo || 'base', sol.inicio);
+        ir(sol.inicio + 0.3, { x: p.x + 12, y: p.y + 18 });
+      }
+    }
+    c.trechos = tr;
+  });
+  // fundadores também entram no abrigo (a Dra. Lia na frente, guiando todo mundo)
+  if (sol && VIDA.reacao === 'abrigar') EP.mundo.fundadores.forEach((f, i) => {
+    const ult = f.trechos.length ? f.trechos[f.trechos.length - 1].para : f.casa;
+    const p = [porta.x / CASA + (i ? 0.3 : -0.3), porta.y / CASA];
+    const dur = clamp(Math.hypot(p[0] - ult[0], p[1] - ult[1]) * 0.3, 0.6, 3);
+    const t0 = tEntra + (i ? 0.5 : 0);
+    f.trechos.push({ t0, t1: t0 + dur, de: ult.slice(), para: p });
+    f.dentro = [t0 + dur + (i ? 0 : 1.2), tSai + 0.2];
+    const fora = [porta.x / CASA + (i ? 1.4 : -1.4), porta.y / CASA + 1.2];
+    f.trechos.push({ t0: f.dentro[1], t1: f.dentro[1] + 1.1, de: p, para: fora });
+  });
+}
+
+function posColono(c, t) {
+  let pos = c.casaPe || { x: c.x * CASA + 8, y: c.y * CASA + 14 }, andando = false, dir = 1;
+  for (const tr of c.trechos || []) {
+    if (t < tr.t0) break;
+    const k = clamp((t - tr.t0) / (tr.t1 - tr.t0));
+    pos = { x: lerp(tr.de.x, tr.para.x, suave(k)), y: lerp(tr.de.y, tr.para.y, suave(k)) };
+    andando = k > 0 && k < 1;
+    dir = tr.para.x >= tr.de.x ? 1 : -1;
+  }
+  const h = hash(c.x, c.y, 9);
+  const emCasa = !c.trechos || !c.trechos.length || t < c.trechos[0].t0;
+  if (!andando && emCasa) {   // em casa: dá uns passinhos no quintal e olha para os lados
+    const fase = t * 0.55 + h * 20;
+    pos = { x: pos.x + Math.sin(fase) * 3, y: pos.y };
+    andando = Math.abs(Math.cos(fase)) > 0.75;
+    dir = Math.cos(fase) >= 0 ? 1 : -1;
+  }
+  const visivel = !(c.dentro && t >= c.dentro[0] && t < c.dentro[1]);
+  const trabalhando = !!c.trabalho && !andando && t >= c.trabalho[0] && t < c.trabalho[1];
+  return { x: pos.x, y: pos.y, andando, dir, visivel, trabalhando };
+}
+
+function chamadoEm(c, t) {   // quando o nome do colono é dito (boas-vindas / compras): pula e acena
+  for (const cena of EP.cenas) for (const f of cena.focos) {
+    const [tipo, id] = f.alvo.split(':');
+    if ((tipo === 'colono' || tipo === 'compra') && id === c.codigo && t >= f.t && t < f.t + 1.6) return t - f.t;
+  }
+  return -1;
+}
+
+function desenharPet(c, t) {   // o pet passeia pelo quintal do dono (corre, para, vira)
+  const t0 = aparicaoCompra(c);
+  if (t0 >= 0 && t < t0) return;
+  const h = hash(c.x, c.y, 11);
+  const fase = t * 0.8 + h * 30;
+  const px = c.x * CASA + 8 + Math.sin(fase) * 7, py = c.y * CASA + 17 + Math.sin(fase * 0.5) * 1.5;
+  const dir = Math.cos(fase) >= 0 ? 1 : -1;
+  const correndo = Math.abs(Math.cos(fase)) > 0.4;
+  ret(px - 3, py - 0.5, 6, 1, 'rgba(0,0,0,0.25)');
+  ctx.save(); ctx.translate(Math.round(px), Math.round(py - (correndo && Math.floor(t * 10) % 2 ? 1 : 0)));
+  if (dir < 0) ctx.scale(-1, 1);
+  ctx.drawImage(spriteContornado('pet'), -4, -8, 8, 8); ctx.restore();
+}
 
 // ------------------------------------------------------------------ posições
 function centro(o) { return { x: (o.x + o.w / 2) * CASA, y: (o.y + o.h / 2) * CASA }; }
@@ -340,7 +458,8 @@ function posFundador(f, t) {
     andando = k > 0 && k < 1;
     dir = tr.para[0] >= tr.de[0] ? 1 : -1;
   }
-  return { x: pos[0] * CASA, y: pos[1] * CASA, andando, dir };
+  const visivel = !(f.dentro && t >= f.dentro[0] && t < f.dentro[1]);
+  return { x: pos[0] * CASA, y: pos[1] * CASA, andando, dir, visivel };
 }
 
 function caixaColonia() {
@@ -372,6 +491,7 @@ function posAlvo(alvo, t) {
   }
   if (tipo === 'colono' || tipo === 'compra') {
     const c = colonoPorCodigo.get(id);
+    if (c && c.casaPe) { const p = posColono(c, t); return { x: p.x, y: p.y - 6 }; }
     if (c) return { x: c.x * CASA + 8, y: c.y * CASA + 8 };
   }
   return centro(EP.mundo.base);
@@ -679,13 +799,27 @@ function desenharObras(t) {
 }
 
 function desenharColonos(view, t) {
+  const alerta = VIDA.alerta && t >= VIDA.alerta[0] && t < VIDA.alerta[1];
   for (const c of EP.mundo.colonos) {
-    if (c.x < view.x0 - 1 || c.x > view.x1 + 1 || c.y < view.y0 - 1 || c.y > view.y1 + 1) continue;
-    const x = c.x * CASA, y = c.y * CASA;
-    ret(x + 4, y + 14, 8, 1.5, 'rgba(0,0,0,0.2)');
+    const p = posColono(c, t);
+    if (p.x / CASA < view.x0 - 2 || p.x / CASA > view.x1 + 2 || p.y / CASA < view.y0 - 2 || p.y / CASA > view.y1 + 2) continue;
+    if (!p.visivel) continue;
+    const h = hash(c.x, c.y, 9);
+    const chamado = chamadoEm(c, t);
+    let pulo = p.andando && Math.floor(t * 8 + h * 4) % 2 ? -1 : 0;
+    if (chamado >= 0) pulo = -Math.abs(Math.sin(chamado * 7)) * 4;                      // pula de alegria
+    else if (p.trabalhando) pulo = Math.floor(t * 4 + h * 4) % 2 ? -1 : 0;              // martelando
+    else if (alerta) pulo = t - VIDA.alerta[0] < 0.5 ? -2 : 0;                           // susto com o alarme
+    else if (!p.andando && Math.floor(t * 1.4 + h * 7) % 4 === 0) pulo = -0.5;           // respirando
+    ret(p.x - 4, p.y - 1, 8, 1.5, 'rgba(0,0,0,0.22)');
     const img = c.sprite_url && imagens.get(c.sprite_url);
-    ctx.drawImage(img || spriteColono(c.seed), x + 2, y + 2, 12, 12);
-    if (c.status === 'estreou') ret(x + 12.5, y + 0.5, 2.5, 2.5, '#ffd84a');
+    ctx.save(); ctx.translate(Math.round(p.x), Math.round(p.y + pulo));
+    if (p.dir < 0) ctx.scale(-1, 1);
+    ctx.drawImage(img || spriteColono(c.seed), -6, -12, 12, 12); ctx.restore();
+    if (c.status === 'estreou') ret(p.x + 4.5, p.y - 13.5 + pulo, 2.5, 2.5, '#ffd84a');
+    if (chamado >= 0 && Math.floor(chamado * 6) % 2) ret(p.x + 6, p.y - 12 + pulo, 2, 3, '#f2c9a0');   // mãozinha acenando
+    if (p.trabalhando && Math.floor(t * 4 + h * 4) % 3 === 0) ret(p.x + 6, p.y - 8, 2, 2, COR.ouro);   // faísca
+    if (alerta && !p.andando) { ret(p.x - 0.5, p.y - 19, 1.5, 3.5, COR.alerta); ret(p.x - 0.5, p.y - 14.5, 1.5, 1.5, COR.alerta); }
   }
 }
 
@@ -696,6 +830,7 @@ function aparicaoCompra(c) {
 
 function desenharCompras(t) {
   for (const c of EP.mundo.compras) {
+    if (/pet/.test(c.produto_slug)) { desenharPet(c, t); continue; }
     const t0 = aparicaoCompra(c);
     if (t < t0) continue;
     const k = clamp((t - t0) / 0.45);
@@ -716,6 +851,7 @@ function desenharFundadores(t) {
   const cena = cenaEm(t);
   for (const f of EP.mundo.fundadores) {
     const p = posFundador(f, t);
+    if (!p.visivel) continue;
     const pulo = p.andando && Math.floor(t * 8) % 2 ? -1 : 0;
     ret(p.x - 4, p.y - 1, 8, 2, 'rgba(0,0,0,0.25)');
     const spr = spriteMapa(f.sprite);
@@ -794,6 +930,7 @@ function desenharFocos(cam, t, cena) {
   for (const f of EP.mundo.fundadores) {
     if (cam.z < 4.5) continue;
     const p = posFundador(f, t);
+    if (!p.visivel) continue;
     const focado = cena.focos.some((x) => x.alvo === `fundador:${f.id}` && t >= x.t);
     etiqueta(cam, p.x, p.y - 13, f.curto, focado ? COR.ouro : COR.borda, t, focado ? cena.focos.find((x) => x.alvo === `fundador:${f.id}`).t : 0);
   }
@@ -804,8 +941,9 @@ function desenharFocos(cam, t, cena) {
     const c = colonoPorCodigo.get(id);
     if (!c) continue;
     if (i !== ativos.length - 1) continue;   // só o foco atual (vizinhos colados se sobrepõem)
-    anel(cam, c.x * CASA + 8, c.y * CASA + 8, t);
-    etiqueta(cam, c.x * CASA + 8, c.y * CASA, c.nome, COR.ouro, t, f.t);
+    const pc = c.casaPe ? posColono(c, t) : { x: c.x * CASA + 8, y: c.y * CASA + 14 };
+    anel(cam, pc.x, pc.y - 6, t);
+    etiqueta(cam, pc.x, pc.y - 14, c.nome, COR.ouro, t, f.t);
   }
 }
 
@@ -897,7 +1035,11 @@ function cartao(cena, t, cam) {
       if (slug) { const compra = EP.mundo.compras.find((x) => x.codigo === id && x.produto_slug === slug); if (compra) rot += ` · ${compra.produto_curto}`; }
       const k = clamp((t - f.t) / 0.3);
       ctx.globalAlpha = a * k;
-      texto(rot, W / 2, 380 + i * 64 - sobe, 30, COR.texto, { maxW: W - 160 });
+      // boas-vindas com profissão: nome + cargo embaixo (linhas mais espaçadas)
+      const comCargo = cena.tipo === 'boas_vindas' && cena.focos.some((x) => (colonoPorCodigo.get(x.alvo.split(':')[1]) || {}).cargo_nome);
+      const passo = comCargo ? 92 : 64;
+      texto(rot, W / 2, 380 + i * passo - sobe, 30, COR.texto, { maxW: W - 160 });
+      if (comCargo && c.cargo_nome) texto(c.cargo_nome.toUpperCase(), W / 2, 380 + i * passo + 36 - sobe, 18, COR.agua, { contorno: false, maxW: W - 160 });
     });
   } else if (cena.tipo === 'missao') {
     caixa(70, 236 - sobe, W - 140, 286);

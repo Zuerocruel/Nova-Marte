@@ -1,5 +1,5 @@
 {
-  "_leia": "Clima de Marte e Problemas do Dia (usados por fabrica/eventos.py). Cada episódio é um dia na colônia. As estações seguem a ordem da Terra, mas comprimidas e muito mais extremas: o episódio 1 foi o pouso, no começo da primavera. 'episodios' é quantos episódios a estação dura (em Marte de verdade: primavera 194 sóis, verão 178, outono 142, inverno 154; aqui é proporcional, comprimido). Os problemas NÃO mexem no tempo das obras: são resolvidos no mesmo episódio, em paralelo. Marcadores nas falas: {heroi} (colono ou fundador que resolve, a câmera vai até ele), {temp} (temperatura falada), {estacao} (nome da estação). 'requer' = obra que precisa estar concluída. 'peso' = chance por estação (padrão 1; 0 = nunca). 'obras_da_categoria': quando a obra da categoria está pronta, os problemas dela ficam mais raros (peso × 'fator_protecao') e a câmera vai até a obra. 'alvo_com': obra que, pronta, vira o lugar do problema.",
+  "_leia": "Clima de Marte e Problemas do Dia (usados por fabrica/eventos.py). Cada episódio é um dia na colônia. As estações seguem a ordem da Terra, mas comprimidas e muito mais extremas: o episódio 1 foi o pouso, no começo da primavera. 'episodios' é quantos episódios a estação dura (em Marte de verdade: primavera 194 sóis, verão 178, outono 142, inverno 154; aqui é proporcional, comprimido). Os problemas NÃO mexem no tempo das obras: são resolvidos no mesmo episódio, em paralelo. Marcadores nas falas: {heroi} (colono ou fundador que resolve, a câmera vai até ele), {temp} (temperatura falada), {estacao} (nome da estação). 'requer' = obra que precisa estar concluída. 'peso' = chance por estação (padrão 1; 0 = nunca). 'obras_da_categoria': quando a obra da categoria está pronta, os problemas dela ficam mais raros (peso × 'fator_protecao') e a câmera vai até a obra. 'alvo_com': obra que, pronta, vira o lugar do problema. 'reacao' (opcional): como a colônia reage no vídeo durante a solução — 'abrigar' (todos entram no módulo e saem quando o perigo passa), 'recolher' (cada um corre para casa) ou 'heroi' (só quem resolve vai até o lugar). Sem 'reacao': clima/ataque na colônia = recolher; o resto = heroi.",
   "inicio": {
     "estacao": "primavera",
     "dia": 1
@@ -457,7 +457,8 @@
       ],
       "alvo_com": {
         "abrigo": "obra:abrigo"
-      }
+      },
+      "reacao": "abrigar"
     },
     {
       "id": "ventania",
@@ -537,7 +538,8 @@
       "solucao": [
         "{heroi} junta todo mundo no módulo central e desliga as áreas vazias. Menos espaço, mais calor.",
         "{heroi} revisa o aquecedor antes do anoitecer e troca uma correia gasta. A base atravessa a noite."
-      ]
+      ],
+      "reacao": "abrigar"
     },
     {
       "id": "broca-extrator",

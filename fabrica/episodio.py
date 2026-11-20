@@ -98,6 +98,9 @@ def colono_publico(p: dict) -> dict:
         "status": p["status"],
         "sprite_url": p.get("sprite_url"),
         "cargo": p.get("cargo"),
+        # profissão: o vídeo mostra o nome do cargo e a narração apresenta a equipe ("da equipe de Engenharia")
+        "cargo_nome": (config.cargos().get(p.get("cargo") or "") or {}).get("nome"),
+        "equipe": (config.cargos().get(p.get("cargo") or "") or {}).get("equipe"),
     }
 
 

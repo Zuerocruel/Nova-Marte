@@ -91,6 +91,11 @@ class Fala:
         return self
 
 
+def com_equipe(c: dict) -> str:
+    """Nome falado + profissão, para as boas-vindas: "ZéGotinha, da equipe de Engenharia,"."""
+    return f"{c['falado']}, {c['equipe']}," if c.get("equipe") else c["falado"]
+
+
 def fala_com_heroi(molde: str, heroi: dict, **campos) -> Fala:
     """Monta a fala trocando {heroi} pelo nome com foco (a câmera vai até ele quando o nome é dito)."""
     f = Fala()
@@ -243,10 +248,10 @@ def montar(d: dict) -> dict:
         if len(mostrados) == 1 and resto == 0:
             molde = rnd.choice(BOAS_VINDAS_1)
             antes_nome, depois_nome = molde.split("{nome}")
-            f.add(antes_nome).add(mostrados[0]["falado"], f"colono:{mostrados[0]['codigo']}").add(depois_nome)
+            f.add(antes_nome).add(com_equipe(mostrados[0]), f"colono:{mostrados[0]['codigo']}").add(depois_nome)
         else:
             f.add(rnd.choice(BOAS_VINDAS_N))
-            f.lista([(c["falado"], f"colono:{c['codigo']}") for c in mostrados])
+            f.lista([(com_equipe(c), f"colono:{c['codigo']}") for c in mostrados])
             if resto > 0:
                 f.add(f", e mais {plural(resto, 'colono', 'colonos')}")
             f.add("! Procurem suas casas no mapa.")
@@ -298,7 +303,11 @@ def montar(d: dict) -> dict:
         f = fala_com_heroi("E o problema do dia? " + problema["solucao"], problema["heroi"], **campos)
         cenas.append(cena("solucao", "solucao", f, camera=camera_do_problema(problema["alvo"]),
                           problema={k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")},
-                          heroi=problema["heroi"]["nome"]))
+                          heroi=problema["heroi"]["nome"],
+                          # como a colônia reage no vídeo: abrigar (todos entram no módulo), recolher (cada um
+                          # corre para casa) ou heroi (só quem resolve vai até o lugar do problema)
+                          reacao=problema.get("reacao", "heroi"), alvo=problema["alvo"],
+                          heroi_codigo=problema["heroi"].get("colono")))
 
     # 6. gancho final
     if n == 1:

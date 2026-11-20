@@ -130,7 +130,8 @@ def escolher(n: int, d: dict, hist: list[dict] | None = None) -> dict | None:
     obra_cat = marte().get("obras_da_categoria", {}).get(p["categoria"])
     if alvo in ("base", "colonia") and obra_cat in concluidas:
         alvo = f"obra:{obra_cat}"
-    return {"id": p["id"], "categoria": p["categoria"], "titulo": p["titulo"],
+    reacao = p.get("reacao") or ("recolher" if p["categoria"] in ("clima", "ataque") and alvo == "colonia" else "heroi")
+    return {"id": p["id"], "categoria": p["categoria"], "titulo": p["titulo"], "reacao": reacao,
             "rotulo": marte()["categorias"][p["categoria"]], "alvo": alvo,
             "alerta": rnd.choice(p["alerta"]), "solucao": rnd.choice(p["solucao"]), "heroi": heroi}
 
