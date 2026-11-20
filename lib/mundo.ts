@@ -20,6 +20,7 @@ export type PersonagemPublico = {
   pos_y: number;
   seed: number;
   sprite_url: string | null;
+  cargo?: string | null;          // id em fabrica/cargos.json (migração 008)
 };
 
 /** Lote → casa: entra uma rua a cada 3 lotes. */

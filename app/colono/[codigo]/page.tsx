@@ -2,6 +2,9 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import AvatarGrande from '@/components/AvatarGrande';
 import IconeItem from '@/components/IconeItem';
+import EscolherCargoPerfil from '@/components/EscolherCargoPerfil';
+import EscolherApelidoPerfil from '@/components/EscolherApelidoPerfil';
+import { cargoDe } from '@/lib/cargos';
 import { perfilDe } from '@/lib/perfil';
 import { codigoDaSessao } from '@/lib/sessao';
 
@@ -24,6 +27,7 @@ export default async function PerfilColono({ params }: Props) {
   if (!p) notFound();
   const meu = eu === p.codigo;
   const tem = p.conquistas.filter((c) => c.tem).length;
+  const cargo = cargoDe(p.cargo);
 
   return (
     <main className="wrap">
@@ -31,7 +35,8 @@ export default async function PerfilColono({ params }: Props) {
         <AvatarGrande seed={p.seed} url={p.sprite_url} />
         <div>
           <h1 style={{ marginBottom: 6 }}>{p.nome}</h1>
-          <p className="mudo" style={{ margin: 0 }}>@{p.handle} · {REDE[p.plataforma] ?? p.plataforma} · {p.codigo}</p>
+          <p className="mudo" style={{ margin: 0 }}>{p.apelido && <>Nick: <strong>{p.apelido}</strong> · </>}@{p.handle} · {REDE[p.plataforma] ?? p.plataforma} · {p.codigo}</p>
+          {cargo && <p style={{ margin: '10px 0 0' }}><span className="selo-cargo" title={cargo.descricao}>{cargo.emoji} {cargo.nome}</span></p>}
           <p style={{ margin: '10px 0 0' }}>
             {p.status === 'estreou' ? '★ Já apareceu na série' : p.status === 'desenhado' ? 'Arte pronta, esperando o episódio' : 'Na fila para ser desenhado'}
           </p>
@@ -39,6 +44,8 @@ export default async function PerfilColono({ params }: Props) {
             <a className="btn sec" href={`/mundo?c=${p.codigo}`}>Ver casa no mapa</a>
             {meu && <span className="selo-meu">Este é você</span>}
           </p>
+          {meu && !p.apelido && <EscolherApelidoPerfil />}
+          {meu && !p.cargo && <EscolherCargoPerfil />}
         </div>
       </section>
 

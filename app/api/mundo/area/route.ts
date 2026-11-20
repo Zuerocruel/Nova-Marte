@@ -12,12 +12,15 @@ export async function GET(req: NextRequest) {
   const cx = lim(req.nextUrl.searchParams.get('cx'));
   const cy = lim(req.nextUrl.searchParams.get('cy'));   // pode ser negativo: o bairro cerca a base
 
-  const { data, error } = await db()
+  const consulta = (campos: string) => db()
     .from('v_mundo_publico')
-    .select('codigo, nome, handle, plataforma, status, pos_x, pos_y, seed, sprite_url')
+    .select(campos)
     .gte('pos_x', cx * CHUNK).lt('pos_x', (cx + 1) * CHUNK)
     .gte('pos_y', cy * CHUNK).lt('pos_y', (cy + 1) * CHUNK)
     .limit(CHUNK * CHUNK);
+  const CAMPOS = 'codigo, nome, handle, plataforma, status, pos_x, pos_y, seed, sprite_url';
+  let { data, error } = await consulta(`${CAMPOS}, cargo`);
+  if (error?.code === '42703') ({ data, error } = await consulta(CAMPOS));   // sem a migração 008 (cargo)
 
   if (error) return NextResponse.json({ erro: error.message }, { status: 500 });
   return NextResponse.json(data, {

@@ -85,6 +85,10 @@ create table if not exists personagens (
   seed               int not null default floor(random() * 2147483647)::int,  -- gera o sprite provisório
   sprite_url         text,                              -- arte final, quando desenhada
   episodio_estreia_id bigint references episodios(id),
+  apelido            text,                              -- nick (login = nick + WhatsApp)
+  apelido_chave      text unique check (apelido_chave is null or apelido_chave ~ '^[a-z0-9_.]{3,20}$'),  -- minúsculo, sem acento
+  cargo              text check (cargo is null or cargo ~ '^[a-z]{2,20}$'),  -- id em fabrica/cargos.json (migração 008)
+  cargo_em           timestamptz,                       -- quando escolheu (uma vez só)
 
   -- ORIGEM — primeiro toque (de onde a pessoa veio da 1ª vez)
   visitante_id       uuid,
@@ -237,9 +241,23 @@ language sql immutable as $$
          || coalesce(nullif(' ' || left(split_part(trim(n), ' ', 2), 1) || '.', ' .'), '')
 $$;
 
+-- cargo escolhido não muda mais (nem por engano, nem por outra rota do site)
+create or replace function travar_cargo() returns trigger
+language plpgsql as $$
+begin
+  if old.cargo is not null and new.cargo is distinct from old.cargo then
+    raise exception 'o cargo do colono já foi escolhido e não pode ser trocado';
+  end if;
+  return new;
+end
+$$;
+drop trigger if exists personagens_travar_cargo on personagens;
+create trigger personagens_travar_cargo before update of cargo on personagens
+  for each row execute function travar_cargo();
+
 create or replace view v_mundo_publico as
   select codigo, nome_exibicao(nome) as nome, handle, handle_plataforma as plataforma,
-         status, pos_x, pos_y, seed, sprite_url
+         status, pos_x, pos_y, seed, sprite_url, cargo
   from personagens
   where not oculto;
 

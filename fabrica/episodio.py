@@ -95,6 +95,7 @@ def colono_publico(p: dict) -> dict:
         "seed": p["seed"],
         "status": p["status"],
         "sprite_url": p.get("sprite_url"),
+        "cargo": p.get("cargo"),
     }
 
 
@@ -136,6 +137,11 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
 
     campos = "codigo,nome,pos_x,pos_y,seed,status,sprite_url"
     visiveis = {"oculto": "eq.false"}
+    try:                                   # cargo (migração 008); sem a coluna, segue sem cargos
+        db.get("personagens", {"select": "cargo", "limit": 1})
+        campos += ",cargo"
+    except requests.HTTPError:
+        print("aviso: coluna personagens.cargo ainda não existe (rode supabase/migrations/008_cargos_nick.sql)")
 
     total_colonos = db.contar("personagens", visiveis)
     novos_total = db.contar("personagens", {**visiveis, **({"created_at": f"gt.{desde}"} if desde else {})})

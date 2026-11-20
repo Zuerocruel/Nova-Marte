@@ -2,9 +2,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { gerarSprite } from '@/lib/sprite';
 import type { MensagemChat } from '@/app/api/chat/route';
+import { CHAT_DURA_MS } from '@/lib/chat';
 import Entrar from './Entrar';
 
-/** Chat da colônia: todos leem, só colonos logados escrevem. Atualiza a cada 4 s. */
+/** Chat da colônia: todos leem, só colonos logados escrevem. Atualiza a cada 4 s; cada mensagem some 10 min depois. */
 type Eu = { codigo: string; nome: string } | null;
 const INTERVALO = 4_000;
 
@@ -54,7 +55,12 @@ export default function Chat({ aoMudar }: { aoMudar?: (m: MensagemChat[]) => voi
   useEffect(() => {
     fetch('/api/sessao').then((r) => r.json()).then((j) => setEu(j.colono)).catch(() => setEu(null));
     carregar();
-    const t = setInterval(() => { if (document.visibilityState === 'visible') carregar(); }, INTERVALO);
+    const t = setInterval(() => {
+      // tira da tela o que já passou de 10 minutos
+      const limite = Date.now() - CHAT_DURA_MS;
+      setMensagens((ant) => (ant.some((m) => Date.parse(m.em) < limite) ? ant.filter((m) => Date.parse(m.em) >= limite) : ant));
+      if (document.visibilityState === 'visible') carregar();
+    }, INTERVALO);
     return () => clearInterval(t);
   }, []);
 
@@ -88,11 +94,12 @@ export default function Chat({ aoMudar }: { aoMudar?: (m: MensagemChat[]) => voi
 
   return (
     <section className="chat caixa" aria-label="Chat da colônia">
-      <h2 style={{ margin: '0 0 8px' }}>Rádio da colônia</h2>
+      <h2 style={{ margin: '0 0 2px' }}>Rádio da colônia</h2>
+      <p className="mudo" style={{ margin: '0 0 8px', fontSize: 12 }}>As mensagens somem depois de 10 minutos.</p>
       <ol className="chat-lista" ref={lista} aria-live="polite"
           onScroll={(e) => { const el = e.currentTarget; colado.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; }}>
         {indisponivel && <li className="mudo">O chat ainda está sendo instalado. Volte daqui a pouco!</li>}
-        {!indisponivel && !mensagens.length && <li className="mudo">Ninguém falou nada ainda. Seja o primeiro!</li>}
+        {!indisponivel && !mensagens.length && <li className="mudo">Ninguém falou nos últimos 10 minutos. Puxe assunto!</li>}
         {mensagens.map((m) => (
           <li key={m.id} className={eu && m.codigo === eu.codigo ? 'minha' : undefined}>
             <Avatar seed={m.seed} url={m.sprite_url} />

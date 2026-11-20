@@ -89,3 +89,8 @@ def gravar_json(caminho: Path, dados) -> None:
 
 def colonia() -> dict:
     return ler_json(COLONIA_JSON)
+
+
+def cargos() -> dict:
+    """Cargos da colônia (fabrica/cargos.json), por id."""
+    return {c["id"]: c for c in ler_json(FABRICA / "cargos.json")["cargos"]}

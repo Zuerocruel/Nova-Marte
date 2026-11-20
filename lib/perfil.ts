@@ -9,6 +9,7 @@ export type Conquista = { id: string; icone: string; titulo: string; descricao: 
 export type Perfil = {
   codigo: string; nome: string; handle: string; plataforma: string; status: string;
   seed: number; sprite_url: string | null; pos_x: number; pos_y: number; desde: string;
+  cargo: string | null; cargo_em: string | null; apelido: string | null;
   dias: number; episodios_vividos: number; estreia: number | null;
   compras: { nome: string; slug: string; imagem_url: string | null; em: string }[];
   feitos: { tipo: string; titulo: string; episodio: number | null; em: string }[];
@@ -27,9 +28,15 @@ function nomeExibicao(nome: string): string {
 export async function perfilDe(codigoBruto: string): Promise<Perfil | null> {
   const codigo = codigoBruto.toUpperCase();
   if (!/^NM\d{6,}$/.test(codigo)) return null;
-  const { data: p } = await db().from('personagens')
-    .select('id, codigo, nome, handle, handle_plataforma, status, seed, sprite_url, pos_x, pos_y, created_at, oculto, episodio_estreia_id')
-    .eq('codigo', codigo).maybeSingle();
+  const CAMPOS = 'id, codigo, nome, handle, handle_plataforma, status, seed, sprite_url, pos_x, pos_y, created_at, oculto, episodio_estreia_id';
+  const buscar = (campos: string) => db().from('personagens').select(campos).eq('codigo', codigo).maybeSingle();
+  let r = await buscar(`${CAMPOS}, cargo, cargo_em, apelido`);
+  if (r.error?.code === '42703') r = await buscar(CAMPOS);   // sem a migração 008 (cargo)
+  const p = r.data as unknown as {
+    id: number; codigo: string; nome: string; handle: string; handle_plataforma: string; status: string; seed: number;
+    sprite_url: string | null; pos_x: number; pos_y: number; created_at: string; oculto: boolean;
+    episodio_estreia_id: number | null; cargo?: string | null; cargo_em?: string | null; apelido?: string | null;
+  } | null;
   if (!p || p.oculto) return null;
 
   const [pedidos, feitos, chat, eps, estreia] = await Promise.all([
@@ -68,7 +75,7 @@ export async function perfilDe(codigoBruto: string): Promise<Perfil | null> {
   return {
     codigo: p.codigo, nome: nomeExibicao(p.nome), handle: p.handle, plataforma: p.handle_plataforma,
     status: p.status, seed: p.seed, sprite_url: p.sprite_url, pos_x: p.pos_x, pos_y: p.pos_y,
-    desde: p.created_at, dias, episodios_vividos: eps.count ?? 0, estreia: numEstreia,
+    desde: p.created_at, cargo: p.cargo ?? null, cargo_em: p.cargo_em ?? null, apelido: p.apelido ?? null, dias, episodios_vividos: eps.count ?? 0, estreia: numEstreia,
     compras, feitos: listaFeitos, mensagens, conquistas,
   };
 }

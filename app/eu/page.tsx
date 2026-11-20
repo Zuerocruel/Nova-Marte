@@ -5,7 +5,7 @@ import { codigoDaSessao } from '@/lib/sessao';
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Meu perfil — Operação Marte Zero' };
 
-/** "Meu perfil": logado vai direto para /colono/NM…; senão, entra com código + WhatsApp. */
+/** "Meu perfil": logado vai direto para /colono/NM…; senão, entra com nick + WhatsApp. */
 export default async function Eu() {
   const codigo = await codigoDaSessao();
   if (codigo) redirect(`/colono/${codigo}`);

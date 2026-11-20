@@ -13,6 +13,8 @@ export type Fundador = { id: string; curto: string; casa: [number, number]; spri
 export type Estacao = { id: string; nome: string; dia: number; temp: number | null; efeito: string };
 export type ProblemaDoDia = { titulo: string; rotulo: string; categoria: string; heroi: string | null; heroi_codigo: string | null };
 export type CompraNoMapa = { pos_x: number; pos_y: number; produto_slug: string };
+/** Pet do Colono: vive no quintal do dono (lib/pet.ts) em vez de ficar parado como ícone. */
+export type PetNoMapa = { codigo: string; pos_x: number; pos_y: number };
 export type EstadoColonia = {
   base: { nome: string; x: number; y: number; w: number; h: number };
   praca: { nome: string; x: number; y: number; w: number; h: number } | null;
@@ -23,6 +25,7 @@ export type EstadoColonia = {
   problema: ProblemaDoDia | null;
   obra_atual: { nome: string; progresso: number } | null;
   compras: CompraNoMapa[];
+  pets: PetNoMapa[];
 };
 
 type ObraCat = (typeof colonia.obras)[number];
@@ -43,7 +46,7 @@ export async function estadoColonia(): Promise<EstadoColonia> {
       .not('publicado_em', 'is', null).order('numero', { ascending: false }).limit(1).maybeSingle()
       .then((r) => (r.error ? db().from('episodios').select('numero, titulo, publicado_em')   // sem a coluna resumo (falta a 006)
         .not('publicado_em', 'is', null).order('numero', { ascending: false }).limit(1).maybeSingle() : r)),
-    db().from('pedidos').select('produtos(slug), personagens!inner(pos_x, pos_y, oculto)')
+    db().from('pedidos').select('produtos(slug), personagens!inner(codigo, pos_x, pos_y, oculto)')
       .eq('status', 'aprovado').eq('personagens.oculto', false).order('id', { ascending: false }).limit(400),
   ]);
 
@@ -69,11 +72,16 @@ export async function estadoColonia(): Promise<EstadoColonia> {
         heroi: resumo.problema.heroi ?? null, heroi_codigo: resumo.problema.heroi_codigo ?? null }
     : null;
 
-  type LinhaCompra = { produtos: { slug: string } | null; personagens: { pos_x: number; pos_y: number } | null };
+  type LinhaCompra = { produtos: { slug: string } | null; personagens: { codigo: string; pos_x: number; pos_y: number } | null };
   const compras: CompraNoMapa[] = [];
+  const pets: PetNoMapa[] = [];
   const vistos = new Set<string>();
   for (const c of (comprasDb.data ?? []) as unknown as LinhaCompra[]) {
     if (!c.produtos || !c.personagens) continue;
+    if (/pet/i.test(c.produtos.slug)) {        // um pet por dono
+      if (!pets.some((p) => p.codigo === c.personagens!.codigo)) pets.push({ codigo: c.personagens.codigo, pos_x: c.personagens.pos_x, pos_y: c.personagens.pos_y });
+      continue;
+    }
     const k = `${c.personagens.pos_x},${c.personagens.pos_y}`;
     if (vistos.has(k)) continue;      // um item por casa (o mais recente)
     vistos.add(k);
@@ -90,5 +98,6 @@ export async function estadoColonia(): Promise<EstadoColonia> {
     problema,
     obra_atual: atual ? { nome: atual.nome, progresso: atual.progresso } : null,
     compras,
+    pets,
   };
 }

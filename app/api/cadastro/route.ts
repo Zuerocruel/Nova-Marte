@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/lib/supabase';
 import { COOKIE_FT, COOKIE_LT, COOKIE_VID, lerToque } from '@/lib/origem';
-import { normalizarBusca, normalizarHandle, normalizarWhatsapp } from '@/lib/texto';
+import { chaveApelido, erroApelido, limparApelido, normalizarBusca, normalizarHandle, normalizarWhatsapp } from '@/lib/texto';
 import { ipDe, permitido } from '@/lib/limite';
 import { gravarSessao } from '@/lib/sessao';
+import { cargoDe } from '@/lib/cargos';
 
 const PLATAFORMAS = ['instagram', 'tiktok', 'youtube'];
 
@@ -22,22 +23,31 @@ export async function POST(req: NextRequest) {
   const handle = normalizarHandle(String(b.handle ?? '')).slice(0, 40);
   const plataforma = String(b.plataforma ?? '');
   const whatsapp = normalizarWhatsapp(String(b.whatsapp ?? ''));
+  const cargo = cargoDe(String(b.cargo ?? ''))?.id ?? null;
+  const apelido = limparApelido(String(b.apelido ?? ''));
 
   const erros: string[] = [];
   if (nome.length < 2) erros.push('Digite seu nome.');
+  const erroNick = erroApelido(apelido);
+  if (erroNick) erros.push(erroNick);
   if (handle.length < 2) erros.push('Digite seu @.');
   if (!PLATAFORMAS.includes(plataforma)) erros.push('Escolha a rede do seu @.');
+  if (!cargo) erros.push('Escolha o seu cargo na colônia.');
   if (!whatsapp) erros.push('WhatsApp inválido. Use DDD + número.');
   if (b.consentimento !== true) erros.push('É preciso aceitar a política de privacidade.');
   if (erros.length) return NextResponse.json({ erro: erros.join(' ') }, { status: 400 });
+
+  // nick já usado por OUTRA pessoa? (o mesmo WhatsApp cai no "já existe" lá embaixo)
+  const nick = await db().from('personagens').select('whatsapp').eq('apelido_chave', chaveApelido(apelido)).maybeSingle();
+  if (nick.data && nick.data.whatsapp !== whatsapp) {
+    return NextResponse.json({ erro: 'Esse nick já está em uso. Escolha outro.', campo: 'apelido' }, { status: 409 });
+  }
 
   const ft = lerToque(req.cookies.get(COOKIE_FT)?.value);
   const lt = lerToque(req.cookies.get(COOKIE_LT)?.value);
   const vid = req.cookies.get(COOKIE_VID)?.value;
 
-  const { data, error } = await db()
-    .from('personagens')
-    .insert({
+  const linha = {
       nome,
       nome_busca: normalizarBusca(nome),
       handle,
@@ -57,11 +67,16 @@ export async function POST(req: NextRequest) {
       ultimo_source: lt?.s ?? null,
       ultimo_campaign: lt?.c ?? null,
       ultimo_link_slug: lt?.l ?? null,
-    })
-    .select('codigo')
-    .single();
+  };
+  const inserir = (l: Record<string, unknown>) => db().from('personagens').insert(l).select('codigo').single();
+  let { data, error } = await inserir({ ...linha, cargo, cargo_em: new Date().toISOString(), apelido, apelido_chave: chaveApelido(apelido) });
+  // sem a migração 008 (colunas cargo/apelido): cadastra mesmo assim, sem cargo e sem nick
+  if (error && (error.code === 'PGRST204' || error.code === '42703')) ({ data, error } = await inserir(linha));
 
   if (error) {
+    if (error.code === '23505' && /apelido/.test(`${error.message} ${error.details}`)) {
+      return NextResponse.json({ erro: 'Esse nick já está em uso. Escolha outro.', campo: 'apelido' }, { status: 409 });
+    }
     if (error.code === '23505') {
       // já existe: mesmo WhatsApp ou mesmo @ — devolve o personagem existente
       const { data: existente } = await db()
@@ -79,7 +94,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ erro: 'Não foi possível cadastrar agora.' }, { status: 500 });
   }
 
-  const res = NextResponse.json({ codigo: data.codigo });
-  gravarSessao(res, data.codigo);   // já sai do cadastro logado (chat e "Meu perfil")
+  const res = NextResponse.json({ codigo: data!.codigo });
+  gravarSessao(res, data!.codigo);   // já sai do cadastro logado (chat e "Meu perfil")
   return res;
 }

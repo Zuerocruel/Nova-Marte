@@ -37,3 +37,25 @@ export function chaveTelefone(raw: string | null | undefined): string | null {
 export function reais(centavos: number): string {
   return (centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
+
+/**
+ * Nick do colono (login = nick + WhatsApp). 3 a 20 letras, números, "_" ou ".".
+ * A chave (minúscula, sem acento) é única no banco: "Ána" e "ana" são o mesmo nick.
+ */
+const APELIDOS_RESERVADOS = new Set(['admin', 'adm', 'moderador', 'moderacao', 'suporte', 'sistema', 'colonia', 'vega', 'lia',
+  'comandante', 'doutora', 'operacaomartezero', 'martezero', 'radio']);
+export function chaveApelido(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9_.]/g, '');
+}
+export function limparApelido(s: string): string {
+  return s.trim().replace(/^@+/, '').replace(/\s+/g, '');
+}
+/** null se o nick é válido; senão a mensagem de erro. */
+export function erroApelido(apelido: string): string | null {
+  if (!/^[\p{L}\p{N}_.]{3,20}$/u.test(apelido)) return 'O nick precisa ter de 3 a 20 letras ou números (pode usar _ e .), sem espaço.';
+  const k = chaveApelido(apelido);
+  if (k.length < 3) return 'O nick precisa ter pelo menos 3 letras ou números.';
+  if (/^nm\d+$/.test(k)) return 'O nick não pode parecer um código de colono.';
+  if (APELIDOS_RESERVADOS.has(k.replace(/[_.]/g, ''))) return 'Esse nick é reservado. Escolha outro.';
+  return null;
+}

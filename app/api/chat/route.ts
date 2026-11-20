@@ -2,10 +2,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/lib/supabase';
 import { ipDe, permitido } from '@/lib/limite';
 import { codigoDaSessao } from '@/lib/sessao';
+import { CHAT_DURA_MS } from '@/lib/chat';
 
 /**
  * Chat da colônia.
- *   GET  ?depois=<id>  → mensagens novas (ou as últimas 50), só de colonos visíveis
+ *   GET  ?depois=<id>  → mensagens novas (ou as últimas 50), só de colonos visíveis e só dos últimos 10 minutos
+ *                        (o rádio não guarda histórico para o público; a moderação ainda vê tudo no painel)
  *   POST { texto }     → só colono logado (cookie de sessão). Sem links, até 280 caracteres.
  */
 const LIMITE = 50;
@@ -31,6 +33,7 @@ export async function GET(req: NextRequest) {
   let q = db().from('chat_mensagens')
     .select('id, texto, created_at, personagens!inner(codigo, nome, seed, sprite_url, pos_x, pos_y, oculto)')
     .eq('oculto', false).eq('personagens.oculto', false)
+    .gte('created_at', new Date(Date.now() - CHAT_DURA_MS).toISOString())
     .order('id', { ascending: false }).limit(LIMITE);
   if (depois > 0) q = q.gt('id', depois);
   const { data, error } = await q;

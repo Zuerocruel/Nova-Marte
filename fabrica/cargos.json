@@ -1,0 +1,31 @@
+{
+  "_leia": "Cargos que o colono escolhe ao entrar na colônia (site: cadastro e perfil; fábrica: quem resolve o Problema do Dia). 'equipe' é como a narração apresenta a pessoa ('Ana, da equipe de Geologia, ...'). 'categorias': problemas do dia em que esse cargo é chamado primeiro. Para trocar o nome de um cargo, mude só 'nome'/'equipe': o 'id' fica gravado no banco.",
+  "cargos": [
+    {"id": "engenharia", "emoji": "🏗️", "nome": "Engenheiro(a) de Construção", "equipe": "da equipe de Engenharia",
+     "descricao": "Levanta as obras da colônia, do andaime ao último parafuso.", "categorias": ["manutencao", "clima"]},
+    {"id": "piloto", "emoji": "🚀", "nome": "Piloto(a) de Nave", "equipe": "piloto da colônia",
+     "descricao": "Pilota as naves de carga entre a órbita e o Módulo de Pouso.", "categorias": ["clima", "descoberta"]},
+    {"id": "rover", "emoji": "🚙", "nome": "Piloto(a) de Rover", "equipe": "piloto de rover",
+     "descricao": "Atravessa crateras e dunas para buscar gelo, peças e colonos perdidos.", "categorias": ["agua", "ataque", "manutencao"]},
+    {"id": "botanica", "emoji": "🌱", "nome": "Botânico(a) da Estufa", "equipe": "da equipe da Estufa",
+     "descricao": "Faz nascer comida no solo vermelho de Marte.", "categorias": ["oxigenio", "agua"]},
+    {"id": "medicina", "emoji": "🩺", "nome": "Médico(a) da Colônia", "equipe": "da equipe médica",
+     "descricao": "Cuida da saúde de todo mundo, da tosse da poeira à saudade da Terra.", "categorias": ["saude", "oxigenio"]},
+    {"id": "ciencia", "emoji": "🔬", "nome": "Cientista", "equipe": "da equipe de Ciência",
+     "descricao": "Estuda a fauna marciana, as rochas e os mistérios do planeta.", "categorias": ["descoberta", "ataque"]},
+    {"id": "geologia", "emoji": "⛏️", "nome": "Geólogo(a)", "equipe": "da equipe de Geologia",
+     "descricao": "Lê o chão de Marte: onde tem gelo, metal e perigo.", "categorias": ["agua", "descoberta", "clima"]},
+    {"id": "robotica", "emoji": "🤖", "nome": "Técnico(a) de Robôs", "equipe": "da equipe de Robótica",
+     "descricao": "Programa e conserta os robôs que trabalham dia e noite.", "categorias": ["manutencao"]},
+    {"id": "comunicacao", "emoji": "📡", "nome": "Operador(a) de Rádio", "equipe": "do rádio da colônia",
+     "descricao": "Mantém a colônia falando com a Terra e com todo mundo.", "categorias": ["clima", "saude"]},
+    {"id": "astronomia", "emoji": "🔭", "nome": "Astrônomo(a)", "equipe": "da equipe de Astronomia",
+     "descricao": "Vigia o céu: tempestades solares, meteoros e as luas Fobos e Deimos.", "categorias": ["clima", "descoberta"]},
+    {"id": "guarda", "emoji": "🛡️", "nome": "Guarda da Colônia", "equipe": "da guarda da colônia",
+     "descricao": "Protege a colônia das criaturas do deserto (sem machucar ninguém).", "categorias": ["ataque"]},
+    {"id": "cozinha", "emoji": "🍲", "nome": "Chef Espacial", "equipe": "da cozinha da colônia",
+     "descricao": "Transforma batata de estufa em banquete marciano.", "categorias": ["saude", "agua"]},
+    {"id": "energia", "emoji": "⚡", "nome": "Técnico(a) de Energia", "equipe": "da equipe de Energia",
+     "descricao": "Cuida dos painéis solares e das baterias que mantêm tudo ligado.", "categorias": ["manutencao", "oxigenio", "clima"]}
+  ]
+}

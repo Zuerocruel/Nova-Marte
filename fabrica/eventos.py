@@ -107,11 +107,18 @@ def escolher(n: int, d: dict, hist: list[dict] | None = None) -> dict | None:
     rnd = random.Random(f"problema:{n}")
     p = rnd.choices([o for o, _ in opcoes], weights=[w for _, w in opcoes])[0]
 
-    # quem resolve: um colono de verdade quando houver (a câmera vai até a casa dele); senão um fundador
+    # quem resolve: um colono de verdade quando houver (a câmera vai até a casa dele); senão um fundador.
+    # Quem tem o cargo certo para o problema é chamado primeiro (ex.: falta de água → Geologia, Rover, Estufa)
     colonos = [c for c in d.get("mundo", []) if c.get("falado")]
+    cargos = config.cargos()
+    do_cargo = [c for c in colonos if p["categoria"] in cargos.get(c.get("cargo") or "", {}).get("categorias", [])]
     if colonos and rnd.random() < 0.75:
-        c = rnd.choice(colonos)
-        heroi = {"falado": c["falado"], "nome": c["nome"], "foco": f"colono:{c['codigo']}", "colono": c["codigo"]}
+        c = rnd.choice(do_cargo) if do_cargo and rnd.random() < 0.7 else rnd.choice(colonos)
+        cg = cargos.get(c.get("cargo") or "")
+        # a narração só apresenta o cargo quando ele tem a ver com o problema ("Ana, da equipe de Geologia, ...")
+        falado = f"{c['falado']}, {cg['equipe']}," if c in do_cargo else c["falado"]
+        heroi = {"falado": falado, "nome": c["nome"], "foco": f"colono:{c['codigo']}", "colono": c["codigo"],
+                 **({"cargo": cg["id"]} if cg else {})}
     else:
         f = rnd.choice(d["fundadores"])
         heroi = {"falado": f.get("falado", f["nome"]), "nome": f["curto"], "foco": f"fundador:{f['id']}"}
@@ -138,10 +145,11 @@ if __name__ == "__main__":
     col = config.colonia()
     obras = [{"slug": o["slug"], "status": "concluida"} for o in col["obras"]]
     d = {"fundadores": col["fundadores"], "obras": obras, "mundo": [
-        {"falado": "Ana", "nome": "Ana S.", "codigo": "A1"}, {"falado": "Rui", "nome": "Rui M.", "codigo": "R2"}]}
+        {"falado": "Ana", "nome": "Ana S.", "codigo": "A1", "cargo": "geologia"},
+        {"falado": "Rui", "nome": "Rui M.", "codigo": "R2", "cargo": "medicina"}]}
     hist: list[dict] = []
     for n in range(a.de, a.ate + 1):
         est, dia = estacao(n)
         p = escolher(n, d, hist[:SEM_REPETIR])
         hist.insert(0, p)
-        print(f"ep{n:>3} {est['nome']:<9} dia {dia:>2} {temperatura(n, est):>5}°C  {p['rotulo']:<18} {p['titulo']}")
+        print(f"ep{n:>3} {est['nome']:<9} dia {dia:>2} {temperatura(n, est):>5}°C  {p['rotulo']:<18} {p['titulo']:<34} {p['heroi']['falado']}")

@@ -10,6 +10,8 @@ import {
   disco, iconeDoProduto, spriteContornado, spriteMapa,
 } from '@/lib/colonia-arte';
 import { situacao, type Situacao } from '@/lib/vida';
+import { descricaoPet, situacaoPet } from '@/lib/pet';
+import { cargoDe } from '@/lib/cargos';
 import type { EstadoColonia } from '@/lib/colonia';
 import type { MensagemChat } from '@/app/api/chat/route';
 
@@ -21,7 +23,29 @@ import type { MensagemChat } from '@/app/api/chat/route';
  */
 const RECARREGA_MS = 30_000;
 const ZOOM_MIN = 0.75, ZOOM_MAX = 8;
-const BALAO_MS = 12_000;
+const BALAO_MS = 7_000;   // quanto tempo a fala do rádio fica no balão em cima do colono
+
+/** Quebra o texto em até `max` linhas de no máximo `largura` px (a última ganha "…" se sobrar texto). */
+function quebrarLinhas(ctx: CanvasRenderingContext2D, texto: string, largura: number, max: number): string[] {
+  const linhas: string[] = [];
+  let atual = '';
+  for (const palavra of texto.split(' ')) {
+    const tenta = atual ? `${atual} ${palavra}` : palavra;
+    if (ctx.measureText(tenta).width <= largura || !atual) { atual = tenta; continue; }
+    linhas.push(atual); atual = palavra;
+  }
+  if (atual) linhas.push(atual);
+  const saida = linhas.slice(0, max).map((l) => {
+    while (l.length > 1 && ctx.measureText(l).width > largura) l = l.slice(0, -1);
+    return l;
+  });
+  if (linhas.length > max || saida.some((l, i) => l !== linhas[i])) {
+    let u = saida[saida.length - 1];
+    while (u.length > 1 && ctx.measureText(u + '…').width > largura) u = u.slice(0, -1);
+    saida[saida.length - 1] = u.trimEnd() + '…';
+  }
+  return saida;
+}
 
 type Chunk = { dados: PersonagemPublico[]; em: number } | 'carregando';
 type Pessoa = { p: PersonagemPublico; id: number; s: Situacao };
@@ -80,7 +104,12 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
 
   useEffect(() => {
     const agora = performance.now();
-    for (const m of mensagens) if (!chegada.current.has(m.id)) chegada.current.set(m.id, mensagensRef.current.length ? agora : -1e9);
+    // mensagem recém-escrita (menos de 30 s, já contando a espera da atualização do chat) ganha o balão
+    // inteiro de 7 s a partir de quando chega na tela; as antigas do histórico não aparecem
+    for (const m of mensagens) if (!chegada.current.has(m.id)) {
+      const idade = Date.now() - Date.parse(m.em);
+      chegada.current.set(m.id, idade < 30_000 ? agora : -1e9);
+    }
     mensagensRef.current = mensagens;
   }, [mensagens]);
 
@@ -156,7 +185,13 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       const obra = e?.obras.find((o) => o.status !== 'concluida') ?? null;
       const cantina = e?.obras.find((o) => o.slug === 'cantina' && o.status === 'concluida') ?? null;
       const s = situacao(idDoCodigo(selecionado.codigo), Math.max(totalRef.current, 1), Date.now() / 1000, e?.praca ?? null, obra, cantina);
-      setFazendo(s.descricao((id) => nomes.current.get(id) ?? null));
+      const temPet = e?.pets?.some((p) => p.codigo === selecionado.codigo);
+      const id = idDoCodigo(selecionado.codigo);
+      const pet = temPet ? situacaoPet(id, Date.now() / 1000, (tt) => {
+        const so = situacao(id, Math.max(totalRef.current, 1), tt, e?.praca ?? null, obra, cantina);
+        return { x: so.x, y: so.y, dir: so.dir, passeando: so.rodada === 'passeio' && (so.andando || so.tipo === 'passeio') };
+      }) : null;
+      setFazendo(s.descricao((id) => nomes.current.get(id) ?? null) + (pet ? ` · Pet: ${descricaoPet(pet)}` : ''));
     };
     atualizar();
     const t = setInterval(atualizar, 1000);
@@ -287,6 +322,38 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
         });
       });
 
+      // Pets: vivem no quintal do dono (comem, fazem xixi e cocô, brincam, cochilam) e vão junto no passeio
+      const emotesPet: { x: number; y: number; emote: string }[] = [];
+      if (e) for (const pt of e.pets) {
+        if (pt.pos_x < vx0 - 3 || pt.pos_x > vx1 + 3 || pt.pos_y < vy0 - 3 || pt.pos_y > vy1 + 3) continue;
+        const idDono = idDoCodigo(pt.codigo);
+        const sp = situacaoPet(idDono, agoraS, (tt) => {
+          const so = situacao(idDono, Math.max(n, 1), tt, e.praca ?? null, obraAtual, cantina);
+          return { x: so.x, y: so.y, dir: so.dir, passeando: so.rodada === 'passeio' && (so.andando || so.tipo === 'passeio') };
+        });
+        // chão: tigela, poça de xixi secando, cocô esperando o dono limpar
+        const tg = sp.tigela;
+        ctx.fillStyle = '#5b6b8c'; ctx.fillRect(tg.x - 2, tg.y - 1, 4, 2);
+        if (tg.racao > 0) { ctx.fillStyle = '#a0613f'; ctx.fillRect(tg.x - 2 + (1 - tg.racao) * 2, tg.y - 2, Math.max(1, 4 * tg.racao), 1); }
+        if (sp.poca) { ctx.globalAlpha = 0.75 * (1 - sp.poca.seca); ctx.fillStyle = '#f2d14b'; ctx.fillRect(sp.poca.x - 2, sp.poca.y - 1, 4, 2); ctx.fillRect(sp.poca.x - 1, sp.poca.y, 3, 1); ctx.globalAlpha = 1; }
+        if (sp.coco) { ctx.fillStyle = '#5a3a22'; ctx.fillRect(sp.coco.x - 1, sp.coco.y - 1, 3, 2); ctx.fillRect(sp.coco.x, sp.coco.y - 2, 1, 1); }
+        const passo = sp.andando && Math.floor(t * 10 + idDono) % 2 ? -0.7 : 0;
+        const dormindo = sp.acao === 'dormindo' && !sp.andando;
+        const agachado = sp.acao === 'fazendo cocô';
+        atores.push({
+          x: sp.x, y: sp.y,
+          desenha: () => {
+            ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(sp.x - 3, sp.y - 0.5, 6, 1);
+            ctx.save(); ctx.translate(Math.round(sp.x * 2) / 2, Math.round((sp.y - sp.pulo + passo) * 2) / 2);
+            if (sp.dir < 0) ctx.scale(-1, 1);
+            if (sp.acao === 'fazendo xixi') ctx.rotate(-0.25);     // levanta a pata
+            if (dormindo) ctx.scale(1.1, 0.6); else if (agachado) ctx.scale(1, 0.8);
+            ctx.drawImage(spriteMapa('pet'), -3.5, -7, 7, 7); ctx.restore();
+          },
+        });
+        if (sp.emote) emotesPet.push({ x: sp.x, y: sp.y - 6, emote: sp.emote });
+      }
+
       // Oficina pronta: dois robôs de carga levam material da oficina até a obra do dia (ou até a base)
       if (oficina && e) for (let i = 0; i < 2; i++) {
         const de = { x: (oficina.x + oficina.w / 2) * CASA, y: (oficina.y + oficina.h) * CASA + 4 };
@@ -344,7 +411,8 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
         for (const pe of pessoas) {
           if (sel && sel.codigo === pe.p.codigo) continue;
           const s = tela(pe.s.x, pe.s.y + 6);
-          if (s.x > -50 && s.x < w + 50 && s.y > -20 && s.y < h + 20) ctx.fillText(pe.p.nome, s.x, s.y, CASA * zoom * 1.4);
+          const cg = cargoDe(pe.p.cargo);
+          if (s.x > -50 && s.x < w + 50 && s.y > -20 && s.y < h + 20) ctx.fillText(cg ? `${cg.emoji} ${pe.p.nome}` : pe.p.nome, s.x, s.y, CASA * zoom * 1.6);
         }
       }
       if (zoom >= 2) {
@@ -375,6 +443,16 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
         }
       }
 
+      if (zoom >= 2.5) {
+        const tam = Math.round(Math.min(12, 3 + zoom * 1.6));
+        ctx.font = `${tam}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`; ctx.textAlign = 'center';
+        for (const em of emotesPet) {
+          const s = tela(em.x, em.y);
+          if (s.x < -30 || s.x > w + 30 || s.y < -30 || s.y > h + 30) continue;
+          ctx.fillText(em.emote, s.x, s.y - 2);
+        }
+      }
+
       if (sel) {
         const pe = pessoas.find((x) => x.p.codigo === sel.codigo);
         const casa = tela(sel.pos_x * CASA, sel.pos_y * CASA);
@@ -396,10 +474,12 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
         if (s.x < -200 || s.x > w + 200 || s.y < -60 || s.y > h + 60) continue;
         const idade = (agora - (chegada.current.get(m.id) ?? 0)) / BALAO_MS;
         ctx.globalAlpha = idade > 0.85 ? (1 - idade) / 0.15 : 1;
-        const txt = m.texto.length > 42 ? m.texto.slice(0, 40) + '…' : m.texto;
-        const lw = Math.min(260, ctx.measureText(txt).width + 14), bx = Math.round(s.x - lw / 2), by = Math.round(s.y - 30);
-        ctx.fillStyle = '#f3eefe'; ctx.fillRect(bx, by, lw, 22); ctx.fillRect(Math.round(s.x) - 3, by + 22, 6, 5);
-        ctx.fillStyle = '#140f26'; ctx.fillText(txt, bx + 7, by + 15, lw - 12);
+        const linhas = quebrarLinhas(ctx, m.texto, 190, 3);
+        const lw = Math.max(...linhas.map((l) => ctx.measureText(l).width)) + 14, lh = linhas.length * 15 + 7;
+        const bx = Math.round(s.x - lw / 2), by = Math.round(s.y - 8 - lh);
+        ctx.fillStyle = '#f3eefe'; ctx.fillRect(bx, by, lw, lh); ctx.fillRect(Math.round(s.x) - 3, by + lh, 6, 5);
+        ctx.fillStyle = '#140f26';
+        linhas.forEach((l, i) => ctx.fillText(l, bx + 7, by + 15 + i * 15));
         ctx.globalAlpha = 1;
       }
 
@@ -542,6 +622,8 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
         {selecionado && (
           <div className="ficha">
             <strong>{selecionado.nome}</strong> · @{selecionado.handle} ({selecionado.plataforma})<br />
+            {cargoDe(selecionado.cargo) && <span className="selo-cargo" style={{ margin: '4px 0' }}>{cargoDe(selecionado.cargo)!.emoji} {cargoDe(selecionado.cargo)!.nome}</span>}
+            {cargoDe(selecionado.cargo) && <br />}
             {fazendo && <span style={{ color: 'var(--areia)' }}>Agora: {fazendo}<br /></span>}
             <span className="mudo">
               {selecionado.codigo} · {selecionado.status === 'estreou' ? '★ já apareceu num episódio'

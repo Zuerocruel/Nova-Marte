@@ -20,6 +20,7 @@ export type Situacao = {
   x: number; y: number;          // pés do colono, em pixels do mundo
   andando: boolean; dir: 1 | -1;
   tipo: Tipo; parceiro: number | null;
+  rodada: Tipo;                  // o plano da rodada (mesmo na volta para casa, quando tipo já é 'casa')
   emote: string | null;          // balão do momento (ou nada)
   descricao: (nome: (id: number) => string | null) => string;
 };
@@ -191,5 +192,5 @@ export function situacao(id: number, total: number, agoraS: number,
     return 'em casa';
   };
 
-  return { x, y, andando, dir, tipo: ativo ? tipo : 'casa', parceiro, emote, descricao };
+  return { x, y, andando, dir, tipo: ativo ? tipo : 'casa', parceiro, rodada: tipo, emote, descricao };
 }
