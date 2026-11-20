@@ -162,6 +162,38 @@ def exigir_liberado(numero: int, rede: str, ensaio: bool = False) -> dict:
     return {"video": video, "copy": copy}
 
 
+def chave_extra(numero: int, item: str) -> str:
+    """Chave do conteúdo extra em publicacoes.json (ex.: "2-pov_obra"), separada da do episódio."""
+    return f"{numero}-{item}"
+
+
+def exigir_liberado_extra(numero: int, item: str, rede: str, ensaio: bool = False) -> dict:
+    """Mesmas travas do episódio para um vídeo extra (POV): aprovado no painel, vídeo não mudou depois
+    da aprovação, legenda dentro das regras e nada reenviado sozinho."""
+    import config
+
+    if not re.fullmatch(r"pov_[a-z]+", item or ""):
+        raise Recusado("conteúdo extra inválido")
+    est = estado_painel().get("extras", {}).get(str(numero), {}).get(item, {})
+    if not est.get("aprovado_em"):
+        raise Recusado(f"{item} do episódio {numero} não está aprovado no painel")
+    pasta = config.pasta_episodio(numero) / "pov"
+    video, txt = pasta / f"{item}.mp4", pasta / f"{item}.txt"
+    if not video.exists() or not txt.exists():
+        raise Recusado(f"{item}.mp4 ou {item}.txt não existe: gere os extras de novo")
+    if video.stat().st_mtime > datetime.fromisoformat(est["aprovado_em"]).timestamp() + 5:
+        raise Recusado("o vídeo foi gerado de novo depois da aprovação: aprove de novo no painel")
+    legenda = txt.read_text(encoding="utf-8")
+    problemas = validar_copy(rede, {"legenda": legenda})
+    if problemas:
+        raise Recusado("legenda fora das regras: " + "; ".join(problemas))
+    s = status(chave_extra(numero, item), rede)
+    if s.get("status") in TRAVADOS and not ensaio:
+        raise Recusado(f"{ROTULOS[rede]} está '{s['status']}' — nada é reenviado sozinho. "
+                       "Confira no app e use 'Liberar' no painel se precisar postar de novo.")
+    return {"video": video, "copy": {"legenda": legenda}}
+
+
 # ---------------------------------------------------------------- regras de texto
 RE_URL = re.compile(r"(https?://\S+|www\.\S+|\b[\w-]+(\.[\w-]+)*\.(app|com|br|net|org|io|link|me|ly|gg)(/\S*)?)", re.I)
 RE_HASHTAG = re.compile(r"(?<![\w#])#[\wÀ-ÿ]+", re.U)

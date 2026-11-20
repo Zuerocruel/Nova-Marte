@@ -81,6 +81,25 @@ python episodio.py --registrar-publicacao 2
 
 Isso grava `publicado_em` em `episodios` (vira o corte de "novos desde o último episódio") e grava até onde a obra da missão chegou (`obra_progresso` do roteiro). Ela só fica concluída ao chegar a 100%. O botão 🚀 Publicar do painel faz o mesmo.
 
+## Conteúdo extra (entre os episódios)
+
+Tudo sai do mesmo mundo do episódio (sem IA, sem custo por peça). Rode depois de gerar o episódio:
+
+```
+python imagens.py --episodio 2      # thumbnail do YouTube, capa vertical e carrossel do Instagram
+python pov.py --episodio 2          # 4 vídeos em primeira pessoa (ou --cena obra|defesa|passeio|conversa)
+```
+
+- **Imagens** (`saida/epNNN/imagens/`): `thumb_youtube.png` (1280x720), `capa_vertical.png` (1080x1920,
+  capa de Reels/TikTok) e o carrossel 4:5 do Instagram (capa, boletim da colônia, bem-vindos com cargo,
+  "cada seguidor vira personagem"). Desenho em `extras.js`.
+- **POV / câmera do capacete** (`saida/epNNN/pov/pov_<cena>.mp4` + `.txt` com a legenda do post): o chão de
+  Marte em perspectiva (estilo Mode 7), prédios, casas e colonos em pé, luvas do traje, visor com REC,
+  oxigênio, temperatura e bússola, e o diário escrito na tela. O protagonista é um colono de verdade
+  (cada cena um diferente). Cenas: `obra` (vai à obra e martela com a turma), `defesa` (noite, besouros
+  na cerca, luz estroboscópica), `passeio` (acena para os vizinhos), `conversa` (papo na praça sobre o dia).
+  Desenho em `pov.js`; música de fundo, sem narração (não gasta ElevenLabs).
+
 ## Regras embutidas
 
 - **Compras:** só entram vendas pagas (`status` = `aprovado`, que é como o webhook da Cakto grava a venda paga, ou `pago`). Pendentes, recusadas e reembolsadas nunca entram.

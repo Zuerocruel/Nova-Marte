@@ -651,8 +651,11 @@ def checar(serial: str | None = None) -> list[tuple[str, bool, str]]:
     return itens
 
 
-def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = None, log=print) -> bool:
-    """Devolve True se todas as redes pedidas terminaram bem (publicado / ensaio ok)."""
+def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = None, log=print,
+           extra: str | None = None) -> bool:
+    """Devolve True se todas as redes pedidas terminaram bem (publicado / ensaio ok).
+    extra="pov_obra" posta o vídeo extra do episódio (saida/epNNN/pov/) em vez do episódio."""
+    chave = pub.chave_extra(numero, extra) if extra else numero
     tudo_ok = True
     with pub.trava_postagem("celular.py"):
         cel = Celular(serial, log=log)
@@ -661,7 +664,8 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
         for rede in redes:
             rot = pub.ROTULOS[rede]
             try:
-                lib = pub.exigir_liberado(numero, rede, ensaio=ensaio)
+                lib = (pub.exigir_liberado_extra(numero, extra, rede, ensaio=ensaio) if extra
+                       else pub.exigir_liberado(numero, rede, ensaio=ensaio))
             except pub.Recusado as e:
                 log(f"[{rot}] não executado: {e}")
                 tudo_ok = False
@@ -671,22 +675,22 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
             try:
                 resultado = p.rodar(lib["video"])
                 if ensaio:
-                    pub.anotar(numero, rede, ultimo_ensaio=pub.agora(), ultimo_ensaio_resultado=resultado)
+                    pub.anotar(chave, rede, ultimo_ensaio=pub.agora(), ultimo_ensaio_resultado=resultado)
                     log(f"[{rot}] {resultado}")
                 else:
-                    pub.marcar(numero, rede, "publicado", origem="celular", detalhe="confirmado no app")
+                    pub.marcar(chave, rede, "publicado", origem="celular", detalhe="confirmado no app")
                     log(f"[{rot}] ✅ publicado")
             except Exception as e:  # noqa: BLE001
                 tudo_ok = False
                 if p.tocou_final or (p.na_publicacao and not ensaio):
                     # chegou na tela de publicação e falhou: não dá para garantir que não publicou → nunca "pode tentar"
-                    pub.marcar(numero, rede, "conferir", origem="celular", detalhe=str(e)[:300])
+                    pub.marcar(chave, rede, "conferir", origem="celular", detalhe=str(e)[:300])
                     log(f"[{rot}] ⚠ CONFERIR no app: {e}. Não vou tentar de novo sozinho.")
                 else:
                     if ensaio:
-                        pub.anotar(numero, rede, ultimo_ensaio=pub.agora(), ultimo_ensaio_resultado=f"falhou: {e}"[:300])
+                        pub.anotar(chave, rede, ultimo_ensaio=pub.agora(), ultimo_ensaio_resultado=f"falhou: {e}"[:300])
                     else:
-                        pub.marcar(numero, rede, "erro", origem="celular", detalhe=str(e)[:300])
+                        pub.marcar(chave, rede, "erro", origem="celular", detalhe=str(e)[:300])
                     log(f"[{rot}] ✖ falhou antes de publicar (pode tentar de novo): {e}")
                     try:
                         p.evidencia("erro")
@@ -703,6 +707,7 @@ def main() -> int:
     ap.add_argument("--ensaio", action="store_true", help="faz tudo menos o toque final de publicar")
     ap.add_argument("--checar", action="store_true", help="só confere ADB, celular e apps")
     ap.add_argument("--serial", help="serial do aparelho (se tiver mais de um)")
+    ap.add_argument("--extra", help="posta um vídeo extra do episódio (ex.: pov_obra) em vez do episódio")
     a = ap.parse_args()
 
     if a.checar:
@@ -714,7 +719,7 @@ def main() -> int:
         ap.error("informe --episodio N (ou use --checar)")
     redes = [a.so] if a.so else ["instagram", "tiktok"]
     try:
-        ok = postar(a.episodio, redes, a.ensaio, a.serial)
+        ok = postar(a.episodio, redes, a.ensaio, a.serial, extra=a.extra)
     except (Falha, pub.Recusado) as e:
         print(f"✖ {e}")
         return 1

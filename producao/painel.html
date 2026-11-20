@@ -337,11 +337,52 @@ async function rEpisodios() {
         ${e.publicado_em ? `<p class="mudo">Registrado como publicado em ${quando(e.publicado_em)}</p>` : ''}
         ${!e.aprovado_em || e.sem_voz ? '<p class="mudo">Publicar só libera depois de Aprovar (e com voz).</p>' : ''}
         ${e.video ? blocoRedes(e) : ''}
-      </div></div></div>`);
+      </div></div>${blocoExtras(e)}</div>`);
   }).join('');
   if (!document.getElementById('epNum')) remendar(bloco('form', form) + cards + bloco('fila', `<h2>Fila de produção</h2><div class="card" id="logsFila">${htmlFila()}</div>`));
   else remendar($('#conteudo').children[0].outerHTML + cards + bloco('fila', `<h2>Fila de produção</h2><div class="card" id="logsFila">${htmlFila()}</div>`));
 }
+// ---- conteúdo extra: thumbnail, capa, carrossel e vídeos em primeira pessoa (POV)
+const CENAS_POV = { obra: '🏗️ Dia de obra', defesa: '🐞 Defendendo a base', passeio: '👋 Passeio pelo bairro', conversa: '💬 Papo na praça' };
+function blocoExtras(e) {
+  const x = e.extras || { imagens: [], povs: [] };
+  if (!e.video && !x.imagens.length) return '';
+  const gerar = botao(x.imagens.length ? '↻ Regerar extras' : '🎨 Gerar imagens e POVs', 'gerar_extras', { numero: e.numero }, 'publicar',
+    (x.gerando ? 'disabled ' : '') + (x.povs.length ? `data-confirma="Gerar de novo as imagens e os 4 POVs do episódio ${e.numero}? As aprovações dos POVs são desfeitas."` : ''));
+  const imgs = x.imagens.map((i) => `<a href="${i.url}" target="_blank" download="${esc(i.nome)}" title="${esc(i.nome)} (clique para abrir/baixar)" style="display:inline-block;margin:4px">
+      <img src="${i.url}" alt="${esc(i.nome)}" style="height:${i.nome.startsWith('thumb') ? 90 : 160}px;border:1px solid var(--borda);border-radius:6px"></a>`).join('');
+  const povs = x.povs.map((p) => {
+    const travado = (r) => TRAVADOS.includes(p.redes[r].status);
+    const pode = p.aprovado_em && !x.postando && !x.gerando;
+    const id = `${e.numero}-${p.item}`;
+    return `<div class="card" style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:10px">
+      <video controls preload="metadata" src="${p.url}" style="width:200px;border-radius:8px"></video>
+      <div><h4 style="margin:0 0 6px">${CENAS_POV[p.cena] || esc(p.cena)}</h4>
+        <div class="linha">${p.aprovado_em ? '<span class="st aprovado">aprovado</span>' : '<span class="st aguardando">aguardando aprovação</span>'}
+          ${['instagram', 'tiktok'].map((r) => chipRede(r, p.redes[r]) + (travado(r) ? botao('Liberar', 'liberar_extra', { numero: e.numero, item: p.item, plataforma: r }, 'peq perigo', 'data-confirma="Você conferiu no app? Liberar deixa postar de novo."') : '')
+            + (p.redes[r].status === 'conferir' ? botao('✅ Está no ar', 'marcar_extra_publicado', { numero: e.numero, item: p.item, plataforma: r }, 'peq') : '')).join(' ')}</div>
+        <textarea id="leg-${id}" style="width:100%;min-height:90px;margin-top:8px">${esc(p.legenda)}</textarea>
+        <div class="linha" style="margin-top:6px">
+          ${p.aprovado_em ? botao('Desaprovar', 'desaprovar_extra', { numero: e.numero, item: p.item })
+            : `<button class="btn aprovar" onclick="aprovarExtra(${e.numero},'${p.item}')">✅ Aprovar vídeo e legenda</button>`}
+          ${['instagram', 'tiktok'].map((r) => `<label class="chk"><input type="checkbox" id="rx-${id}-${r}" ${!travado(r) ? 'checked' : ''} ${p.aprovado_em ? '' : 'disabled'}> ${ROT_REDE[r]}</label>`).join('')}
+          <button class="btn publicar" onclick="postarExtra(${e.numero},'${p.item}',false)" ${pode ? '' : 'disabled'}>📤 Publicar</button>
+          <button class="btn" onclick="postarExtra(${e.numero},'${p.item}',true)" ${pode ? '' : 'disabled'} title="Faz tudo menos o toque final">🧪 Ensaio</button>
+        </div></div></div>`;
+  }).join('');
+  return `<div style="margin-top:14px;border-top:1px solid var(--borda);padding-top:12px">
+    <div class="linha"><b>Conteúdo extra</b>${gerar}${x.gerando ? '<span class="st pendente">gerando…</span>' : ''}${x.postando ? '<span class="st pendente">postando…</span>' : ''}</div>
+    <p class="mudo">Sem IA e sem custo: thumbnail do YouTube, capa dos Reels/TikTok, carrossel do Instagram (clique para baixar) e 4 vídeos em primeira pessoa com um colono de verdade.
+      Para postar um POV: confira o vídeo, ajuste a legenda e aprove. Instagram e TikTok vão pelo celular.</p>
+    ${imgs ? `<div>${imgs}</div>` : ''}${povs}</div>`;
+}
+window.aprovarExtra = (n, item) => acao('aprovar_extra', { numero: n, item, legenda: $(`#leg-${n}-${item}`).value }, 'Vídeo aprovado');
+window.postarExtra = (n, item, ensaio) => {
+  const redes = ['instagram', 'tiktok'].filter((r) => $(`#rx-${n}-${item}-${r}`)?.checked);
+  if (!ensaio && !confirm(`Publicar ${item.replace('pov_', 'POV ')} em ${redes.join(' e ')}?`)) return;
+  acao('postar_extra', { numero: n, item, redes, ensaio }, ensaio ? 'Ensaio na fila' : 'Postagem na fila');
+};
+
 window.gerarEp = () => acao('gerar_episodio', {
   numero: Number($('#epNum').value), so_fundadores: $('#epFund').checked, sem_voz: $('#epSemVoz').checked,
 }, 'Episódio na fila de produção');

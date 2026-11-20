@@ -139,6 +139,7 @@ SINAL = Sinal()
 PADRAO_ESTADO = {
     "episodios": {},     # "1": {aprovado_em, publicado_em}
     "copies": {},        # "1": {"youtube": {aprovado_em, postado_url}}
+    "extras": {},        # "2": {"pov_obra": {aprovado_em}} (vídeos em primeira pessoa)
     "checklist": {},     # "NM000001": {"revisado": true, ...}
     "testes": {"personagens": [], "pedidos": []},
     "cargos": {
@@ -350,9 +351,34 @@ def dados_episodios() -> dict:
             "redes": redes_de(n),
             "postando": FILA.ocupada(f"Postar episódio {n} "),
             "copies_aprovadas": {p: bool(est["copies"].get(str(n), {}).get(p, {}).get("aprovado_em")) for p in pub.REDES},
+            "extras": dados_extras(n, pasta, est),
         })
     publicados = [n for n, e in no_banco.items() if e.get("publicado_em")]
     return {"episodios": lista[::-1], "proximo": (max(publicados) + 1) if publicados else 1}
+
+
+def dados_extras(n: int, pasta: Path, est: dict) -> dict:
+    """Imagens (thumbnail, capa, carrossel) e vídeos em primeira pessoa do episódio, com aprovação e redes."""
+    img = pasta / "imagens"
+    imagens = [{"nome": p.name, "url": f"/midia/{pasta.name}/imagens/{p.name}?v={int(p.stat().st_mtime)}"}
+               for p in sorted(img.glob("*.png"))] if img.exists() else []
+    aprov = est.get("extras", {}).get(str(n), {})
+    todas = pub.ler()
+    povs = []
+    for v in sorted((pasta / "pov").glob("pov_*.mp4")) if (pasta / "pov").exists() else []:
+        item = v.stem
+        txt = v.with_suffix(".txt")
+        st = todas.get(pub.chave_extra(n, item), {})
+        povs.append({
+            "item": item, "cena": item[4:],
+            "url": f"/midia/{pasta.name}/pov/{v.name}?v={int(v.stat().st_mtime)}",
+            "legenda": txt.read_text(encoding="utf-8") if txt.exists() else "",
+            "aprovado_em": aprov.get(item, {}).get("aprovado_em"),
+            "redes": {r: {k: st.get(r, {}).get(k) for k in CAMPOS_REDE} | {"status": st.get(r, {}).get("status", "pendente")}
+                      for r in ("instagram", "tiktok")},
+        })
+    return {"imagens": imagens, "povs": povs, "gerando": FILA.ocupada(f"Gerar extras {n} "),
+            "postando": FILA.ocupada(f"Postar extra {n}-")}
 
 
 def dados_copies(numero: int) -> dict:
@@ -1048,6 +1074,101 @@ def acao_publicar_site(d: dict):
     return {"job": j.id}
 
 
+# ---------------------------------------------------------------- conteúdo extra (imagens e POVs)
+def _item_extra(d: dict) -> str:
+    item = str(d.get("item", ""))
+    if not re.fullmatch(r"pov_(obra|defesa|passeio|conversa)", item):
+        raise ValueError("item inválido")
+    return item
+
+
+def acao_gerar_extras(d: dict):
+    """🎨 Thumbnail, capa, carrossel e os vídeos em primeira pessoa (imagens.py + pov.py), sem IA."""
+    n = _ep(d)
+    if not (config.pasta_episodio(n) / "dados.json").exists():
+        raise ValueError("gere o episódio antes")
+    if FILA.ocupada(f"Gerar extras {n} "):
+        raise ValueError("os extras deste episódio já estão na fila")
+    so_imagens = bool(d.get("so_imagens"))
+
+    def fn(job):
+        ESTADO.mudar(lambda e: e["extras"].pop(str(n), None))   # vídeo novo precisa de aprovação nova
+        rodar(job, [sys.executable, "imagens.py", "--episodio", str(n)], FABRICA)
+        if not so_imagens:
+            rodar(job, [sys.executable, "pov.py", "--episodio", str(n)], FABRICA)
+        job.log("Pronto: confira as imagens e aprove cada vídeo em primeira pessoa no card do episódio.")
+    j = FILA.adicionar(f"Gerar extras {n} " + ("(só imagens)" if so_imagens else "(imagens + POVs)"), fn)
+    return {"job": j.id}
+
+
+def acao_aprovar_extra(d: dict):
+    n, item = _ep(d), _item_extra(d)
+    pasta = config.pasta_episodio(n) / "pov"
+    if not (pasta / f"{item}.mp4").exists():
+        raise ValueError("vídeo não encontrado")
+    if isinstance(d.get("legenda"), str):
+        (pasta / f"{item}.txt").write_text(d["legenda"].strip() + "\n", encoding="utf-8")
+    leg = (pasta / f"{item}.txt").read_text(encoding="utf-8")
+    problemas = sorted({p for r in ("instagram", "tiktok") for p in pub.validar_copy(r, {"legenda": leg})})
+    if problemas:
+        raise ValueError("não aprovei: " + "; ".join(problemas))
+    ESTADO.mudar(lambda e: e["extras"].setdefault(str(n), {}).setdefault(item, {}).update(aprovado_em=agora()))
+
+
+def acao_desaprovar_extra(d: dict):
+    n, item = _ep(d), _item_extra(d)
+    ESTADO.mudar(lambda e: e["extras"].get(str(n), {}).pop(item, None))
+
+
+def acao_postar_extra(d: dict):
+    """📤 Posta um vídeo em primeira pessoa no Instagram/TikTok pelo celular (mesmas travas do episódio)."""
+    n, item = _ep(d), _item_extra(d)
+    ensaio = bool(d.get("ensaio"))
+    redes = [r for r in d.get("redes", []) if r in ("instagram", "tiktok")]
+    if not redes:
+        raise ValueError("marque pelo menos uma rede")
+    if FILA.ocupada("Postar episódio ") or FILA.ocupada("Postar extra "):
+        raise ValueError("já tem uma postagem na fila: espere terminar")
+    if not ESTADO.ler()["extras"].get(str(n), {}).get(item, {}).get("aprovado_em"):
+        raise ValueError("aprove o vídeo antes de publicar")
+    chave = pub.chave_extra(n, item)
+    for r in redes:
+        s = pub.status(chave, r)["status"]
+        if s in pub.TRAVADOS and not ensaio:
+            raise ValueError(f"{pub.ROTULOS[r]} está '{s}': nada é reenviado sozinho. Confira no app e use Liberar.")
+    cmd = [sys.executable, "celular.py", "--episodio", str(n), "--extra", item] \
+        + (["--so", redes[0]] if len(redes) == 1 else []) + (["--ensaio"] if ensaio else [])
+
+    def fn(job):
+        try:
+            rodar(job, cmd, PRODUCAO)
+        finally:
+            SINAL.mudou()
+        job.log(("ENSAIO terminado. " if ensaio else "") + " · ".join(f"{pub.ROTULOS[r]}: {pub.status(chave, r)['status']}" for r in redes))
+    j = FILA.adicionar(f"Postar extra {chave} " + ("(ensaio) " if ensaio else "") + "· " + ", ".join(pub.ROTULOS[r] for r in redes), fn)
+    return {"job": j.id, "msg": "Postagem na fila" + (" (ensaio)" if ensaio else "")}
+
+
+def acao_liberar_extra(d: dict):
+    """Volta a rede de um vídeo extra para 'pendente' depois que VOCÊ conferiu no app."""
+    n, item, r = _ep(d), _item_extra(d), d.get("plataforma")
+    if r not in ("instagram", "tiktok"):
+        raise ValueError("rede inválida")
+    if FILA.ocupada(f"Postar extra {pub.chave_extra(n, item)} "):
+        raise ValueError("espere a postagem em andamento terminar")
+    pub.liberar(pub.chave_extra(n, item), r, "liberado no painel depois de conferir")
+    SINAL.mudou()
+
+
+def acao_marcar_extra_publicado(d: dict):
+    """Depois de conferir no app (status 'conferir'), marca como publicado."""
+    n, item, r = _ep(d), _item_extra(d), d.get("plataforma")
+    if r not in ("instagram", "tiktok"):
+        raise ValueError("rede inválida")
+    pub.marcar(pub.chave_extra(n, item), r, "publicado", origem="painel", detalhe="conferido no app pelo dono")
+    SINAL.mudou()
+
+
 def acao_testar_conexoes(d: dict):
     dados_conexoes(forcar=True)
     SINAL.mudou()
@@ -1184,9 +1305,10 @@ class Handler(BaseHTTPRequestHandler):
     def _midia(self, rel: str):
         """Serve vídeo/prévias de saida/epNNN com suporte a Range (para o player avançar)."""
         partes = rel.split("/")
-        if len(partes) != 2 or not re.fullmatch(r"ep\d{3}", partes[0]) or not re.fullmatch(r"[\w.\-]+\.(mp4|png|txt)", partes[1]):
+        sub_ok = len(partes) == 2 or (len(partes) == 3 and partes[1] in ("imagens", "pov"))
+        if not sub_ok or not re.fullmatch(r"ep\d{3}", partes[0]) or not re.fullmatch(r"[\w.\-]+\.(mp4|png|txt)", partes[-1]):
             return self.send_error(404)
-        p = config.SAIDA / partes[0] / partes[1]
+        p = config.SAIDA.joinpath(*partes)
         if not p.is_file():
             return self.send_error(404)
         tam = p.stat().st_size

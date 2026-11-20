@@ -28,7 +28,8 @@ const CLIMA = {
 };
 
 const cv = document.getElementById('tela');
-const ctx = cv.getContext('2d', { alpha: false });
+let ctx = cv.getContext('2d', { alpha: false });   // 'let': o pov.js desenha prédios numa tela transparente
+window.usarCtx = (c) => { const antes = ctx; ctx = c; return antes; };
 
 let EP = null;
 let terreno = null, TER = { x0: 0, y0: 0 };

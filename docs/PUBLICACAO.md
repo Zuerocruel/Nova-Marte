@@ -61,6 +61,18 @@ python producao/celular.py --episodio 3                 # Instagram + TikTok
 python producao/celular.py --episodio 3 --so tiktok
 ```
 
+### Conteúdo extra (vídeos em primeira pessoa)
+
+No painel, card do episódio → **Conteúdo extra** → 🎨 Gerar imagens e POVs. Cada vídeo em primeira pessoa
+tem a legenda editável e o próprio ✅ Aprovar; o 📤 Publicar usa o mesmo celular e as mesmas travas do
+episódio (aprovado, vídeo não mudou depois da aprovação, legenda sem link, nada reenviado sozinho, "conferir"
+quando não dá para garantir). O status fica em `publicacoes.json` com a chave `N-pov_<cena>` (ex.: `2-pov_obra`).
+
+    python celular.py --episodio 2 --extra pov_obra --ensaio
+
+Thumbnail, capa e carrossel ficam em `fabrica/saida/epNNN/imagens/` (o painel mostra e deixa baixar);
+por enquanto são postados à mão.
+
 ## YouTube (n8n)
 
 1. No `.env.local`, preencha:
