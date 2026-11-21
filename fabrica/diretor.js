@@ -365,18 +365,61 @@ function prepararTempos() {
     const p = lig.palavras.find((w) => /energia|ligad|sinal|verde/i.test(w.p));
     tempoEnergia = p ? p.i : lig.fala_inicio + 0.55 * (lig.fim - lig.fala_inicio);
   }
-  // fundadores: caminho por cena (posições em casas; o ponto é o pé do boneco)
-  for (const f of EP.mundo.fundadores) {
+  // fundadores: caminho por cena (posições em casas; o ponto é o pé do boneco). Onde o roteiro marca a
+  // posição (atores), vale o roteiro; nas outras cenas eles seguem a agenda de quem comanda (agendaFundador).
+  EP.mundo.fundadores.forEach((f, i) => {
     let pos = f.casa.slice();
     f.trechos = [];
     for (const c of EP.cenas) {
-      const alvo = c.atores && c.atores[f.id];
-      if (!alvo) continue;
-      const dist = Math.hypot(alvo[0] - pos[0], alvo[1] - pos[1]);
-      const dur = clamp(dist * 0.42, 0.8, (c.fim - c.inicio) * 0.8);
-      f.trechos.push({ t0: c.inicio + 0.2, t1: c.inicio + 0.2 + dur, de: pos, para: alvo.slice() });
-      pos = alvo.slice();
+      const marcado = c.atores && c.atores[f.id];
+      const pontos = marcado ? [[marcado, 0]] : agendaFundador(f, i, c);
+      for (const [alvo, quando] of pontos) {
+        const t0 = c.inicio + 0.2 + (c.fim - c.inicio) * quando;
+        const dist = Math.hypot(alvo[0] - pos[0], alvo[1] - pos[1]);
+        if (dist < 0.15) continue;
+        const dur = clamp(dist * 0.42, 0.8, Math.max(0.8, (c.fim - t0) * 0.8));
+        f.trechos.push({ t0, t1: t0 + dur, de: pos, para: alvo.slice() });
+        pos = alvo.slice();
+      }
     }
+  });
+}
+
+// Agenda dos fundadores nas cenas sem posição marcada: a Comandante Vega comanda (vai até onde está a ação,
+// aponta e dá ordens) e a Dra. Lia organiza (recebe quem chega, junta o pessoal, confere tudo no tablet).
+// Retorna [[ponto em casas, fração da cena em que sai], ...].
+function agendaFundador(f, i, c) {
+  const b = EP.mundo.base, praca = EP.mundo.praca, o = obraDaMissao();
+  const porta = [b.x + b.w / 2, b.y + b.h + 0.6];
+  const vega = i === 0;
+  const casaDe = (cod, lado) => { const x = colonoPorCodigo.get(cod); return x ? [x.x + 0.5 + lado * 0.9, x.y + 1.7] : null; };
+  const colonos = EP.mundo.colonos;
+  const bairro = colonos.length ? [colonos.reduce((a, x) => a + x.x, 0) / colonos.length + 0.5, colonos.reduce((a, x) => a + x.y, 0) / colonos.length + 1.8] : [porta[0], porta[1] + 3];
+  const obraP = (k) => (o ? [o.x + o.w * k, o.y + o.h + 1.1] : [porta[0] + (k - 0.5) * 3, porta[1] + 1]);
+  const conserto = () => { const sol = EP.cenas.find((x) => x.tipo === 'solucao'); if (!sol) return null; const q = pontoDoConserto(sol.alvo || 'base'); return [q.x / CASA - 1.3, q.y / CASA + 0.3]; };
+  switch (c.tipo) {
+    case 'abertura':   // saem do módulo e olham o dia
+      return vega ? [[[porta[0] - 1.2, porta[1] + 1.4], 0.25], [[bairro[0] - 1, bairro[1] - 0.6], 0.65]]
+                  : [[[porta[0] + 1.3, porta[1] + 0.9], 0.35]];
+    case 'populacao':   // a comandante passa pelo bairro; a doutora vai para a praça contar todo mundo
+      return vega ? [[[bairro[0] + 1.5, bairro[1]], 0.05], [[bairro[0] - 1.5, bairro[1] + 0.4], 0.55]]
+                  : [[praca ? [praca.x + praca.w / 2 + 1, praca.y - 0.4] : [porta[0] + 2, porta[1] + 3], 0.1]];
+    case 'boas_vindas': {   // cada uma recebe um dos novos na porta de casa
+      const cods = c.focos.filter((x) => x.alvo.startsWith('colono:')).map((x) => x.alvo.split(':')[1]);
+      const alvo = casaDe(cods[vega ? 1 : 0] || cods[0], vega ? 1 : -1);
+      return alvo ? [[alvo, 0]] : [];
+    }
+    case 'problema': {   // alarme: a comandante corre até o problema, a doutora junta o pessoal na porta
+      const q = conserto();
+      return vega ? [[q || [porta[0] - 2, porta[1]], 0]] : [[[porta[0] + 1.1, porta[1] + 0.5], 0]];
+    }
+    case 'missao':   // obra: a comandante percorre o canteiro dando ordens, a doutora confere no tablet
+      return vega ? [[obraP(0.0), 0], [obraP(0.45), 0.5]] : [[obraP(1.0), 0.1], [obraP(0.75), 0.6]];
+    case 'solucao': {   // a comandante acompanha o herói; a doutora fica na porta, pronta para receber
+      const q = conserto();
+      return vega ? [[q || porta, 0]] : [[[porta[0] + 1.1, porta[1] + 0.5], 0]];
+    }
+    default: return [];
   }
 }
 
@@ -561,8 +604,9 @@ function planejarNoite() {
     livre = c.noite + 0.05;
   }
   // fundadores entram por último (a comandante fecha a porta)
+  const fimConserto = Math.max(0, ...EP.mundo.colonos.filter((c) => c.conserto).map((c) => c.conserto[1]));
   EP.mundo.fundadores.forEach((f, i) => {
-    let t0 = tNoite + 1.2 + i * 0.4;
+    let t0 = Math.max(tNoite + 1.2 + i * 0.4, fimConserto ? fimConserto + 0.3 + i * 0.3 : 0);
     if (f.dentro && f.dentro[0] <= t0 && f.dentro[1] > t0) { f.dentro[1] = Infinity; return; }
     f.trechos = f.trechos.filter((tr) => tr.t0 < t0);
     const ult = f.trechos[f.trechos.length - 1];
@@ -1177,6 +1221,43 @@ function desenharCompras(t) {
   }
 }
 
+// Parada, a Vega aponta para onde está a ação e de vez em quando dá uma ordem (balão com "!"); a Lia confere
+// tudo num tablet holográfico e marca um "✓" quando termina.
+function alvoDoGesto(cena, t) {
+  if (cena.tipo === 'missao' && obraDaMissao()) return centro(obraDaMissao());
+  if (cena.tipo === 'solucao' || cena.tipo === 'problema') {
+    const h = EP.mundo.colonos.find((c) => c.conserto);
+    if (h && cena.tipo === 'solucao') { const q = posColono(h, t); return { x: q.x, y: q.y - 6 }; }
+    return centro(EP.mundo.base);
+  }
+  const f = cena.focos.find((x) => x.alvo.startsWith('colono:'));
+  return f ? posAlvo(f.alvo, t) : null;
+}
+function gestoDeComando(f, p, t, cena) {
+  const fase = (t + (f.id === 'lia' ? 1.1 : 0)) % 2.6;
+  if (f.id !== 'lia') {
+    const a = alvoDoGesto(cena, t);
+    if (a) {   // braço apontando
+      const d = Math.hypot(a.x - p.x, a.y - (p.y - 7)) || 1, ux = (a.x - p.x) / d, uy = (a.y - (p.y - 7)) / d;
+      for (let k = 2; k <= 7; k++) ret(p.x + ux * k - 0.75, p.y - 7 + uy * k - 0.75, 1.5, 1.5, k > 5 ? '#f2c9a0' : '#e4e6f0');
+    }
+    if (fase < 0.9) {   // ordem!
+      ret(p.x - 4, p.y - 23, 8, 8, CONTORNO); ret(p.x - 3, p.y - 22, 6, 6, '#f3eefe'); ret(p.x - 1, p.y - 18.5, 2, 1.5, '#1b1530');
+      ret(p.x - 0.5, p.y - 21, 1.5, 3, COR.alerta); ret(p.x - 0.5, p.y - 17.4, 1.5, 1.2, COR.alerta);
+    }
+  } else {
+    ctx.globalAlpha = 0.5 + 0.2 * Math.sin(t * 9);
+    ret(p.x + 4, p.y - 17, 8, 5, COR.agua);
+    ctx.fillStyle = '#eef0f8';
+    for (let k = 0; k < 2; k++) ctx.fillRect(p.x + 5, p.y - 16 + k * 2, 1 + ((Math.floor(t * 5) + k) % 5), 1);
+    ctx.globalAlpha = 1;
+    if (fase > 1.9) {   // conferido
+      ret(p.x - 4, p.y - 23, 8, 8, CONTORNO); ret(p.x - 3, p.y - 22, 6, 6, '#f3eefe');
+      ctx.fillStyle = COR.ok; for (const [x, y] of [[-2, -18], [-1, -17], [0, -18], [1, -19], [2, -20]]) ctx.fillRect(p.x + x, p.y + y, 1.2, 1.2);
+    }
+  }
+}
+
 function desenharFundadores(t) {
   const cena = cenaEm(t);
   for (const f of EP.mundo.fundadores) {
@@ -1190,6 +1271,7 @@ function desenharFundadores(t) {
     if (p.dir < 0) ctx.scale(-1, 1);
     ctx.drawImage(spr, -6, -12, 12, 12);
     ctx.restore();
+    if (!p.andando && cena.tipo !== 'abertura' && cena.tipo !== 'gancho') gestoDeComando(f, p, t, cena);
     // holograma da Dra. Lia quando ela confere os cálculos
     if (cena.tipo === 'missao' && cena.camera.alvo === `ator:${f.id}` && cena.acao === 'construir' && !p.andando) {
       ctx.globalAlpha = 0.55 + 0.25 * Math.sin(t * 9);
