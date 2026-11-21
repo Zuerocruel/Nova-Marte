@@ -107,21 +107,25 @@ def escolher(n: int, d: dict, hist: list[dict] | None = None) -> dict | None:
     rnd = random.Random(f"problema:{n}")
     p = rnd.choices([o for o, _ in opcoes], weights=[w for _, w in opcoes])[0]
 
-    # quem resolve: um colono de verdade quando houver (a câmera vai até a casa dele); senão um fundador.
-    # Quem tem o cargo certo para o problema é chamado primeiro (ex.: falta de água → Geologia, Rover, Estufa)
+    # quem resolve: SEMPRE alguém com o cargo certo para o problema (ex.: falta de água → Geologia, Rover,
+    # Estufa). Entre os colonos do cargo, sorteia um; se nenhum colono tem o cargo, chama o fundador da
+    # área (colonia.json → fundadores[].cargos) e, em último caso, a Comandante Vega.
     colonos = [c for c in d.get("mundo", []) if c.get("falado")]
     cargos = config.cargos()
-    do_cargo = [c for c in colonos if p["categoria"] in cargos.get(c.get("cargo") or "", {}).get("categorias", [])]
-    if colonos and rnd.random() < 0.75:
-        c = rnd.choice(do_cargo) if do_cargo and rnd.random() < 0.7 else rnd.choice(colonos)
-        cg = cargos.get(c.get("cargo") or "")
-        # a narração só apresenta o cargo quando ele tem a ver com o problema ("Ana, da equipe de Geologia, ...")
-        falado = f"{c['falado']}, {cg['equipe']}," if c in do_cargo else c["falado"]
-        heroi = {"falado": falado, "nome": c["nome"], "foco": f"colono:{c['codigo']}", "colono": c["codigo"],
-                 **({"cargo": cg["id"]} if cg else {})}
+    serve = lambda cargo: p["categoria"] in cargos.get(cargo or "", {}).get("categorias", [])
+    do_cargo = [c for c in colonos if serve(c.get("cargo"))]
+    if do_cargo:
+        c = rnd.choice(do_cargo)
+        cg = cargos[c["cargo"]]
+        # a narração apresenta o cargo ("Ana, da equipe de Geologia, ...")
+        heroi = {"falado": f"{c['falado']}, {cg['equipe']},", "nome": c["nome"], "foco": f"colono:{c['codigo']}",
+                 "colono": c["codigo"], "cargo": cg["id"]}
     else:
-        f = rnd.choice(d["fundadores"])
-        heroi = {"falado": f.get("falado", f["nome"]), "nome": f["curto"], "foco": f"fundador:{f['id']}"}
+        funds = d["fundadores"]
+        f = next((x for x in funds if any(serve(cg) for cg in x.get("cargos", []))), funds[0])
+        cg = next((cargos[x] for x in f.get("cargos", []) if serve(x)), None)
+        heroi = {"falado": f.get("falado", f["nome"]), "nome": f["curto"], "foco": f"fundador:{f['id']}",
+                 **({"cargo": cg["id"]} if cg else {})}
     # lugar do problema: a obra ligada a ele, se já estiver pronta (ex.: radiação → Abrigo; água → Extrator)
     alvo = p.get("alvo", "base")
     for obra, lugar in p.get("alvo_com", {}).items():

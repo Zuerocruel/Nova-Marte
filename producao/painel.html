@@ -440,6 +440,10 @@ window.marcarPostado = (p) => acao('marcar_postado', { numero: epDivulgacao, pla
 async function rColonos() {
   const d = await get('/api/colonos');
   const cat = Object.fromEntries(d.catalogo.map((c) => [c.id, c]));
+  const site = Object.fromEntries(d.cargos_site.map((c) => [c.id, c]));
+  const cargoSite = (c) => c.cargo
+    ? (site[c.cargo] ? `<span class="chip" title="${esc(site[c.cargo].descricao)}">${esc(site[c.cargo].emoji)} ${esc(site[c.cargo].nome)}</span>` : `<span class="chip">${esc(c.cargo)}</span>`)
+    : `<select title="Ainda não escolheu no site. O cargo escolhido não pode ser trocado depois." onchange="if(this.value)acao('cargo_definir',{codigo:'${c.codigo}',cargo:this.value},'Cargo salvo')"><option value="">sem cargo · definir</option>${d.cargos_site.map((x) => `<option value="${x.id}">${esc(x.emoji)} ${esc(x.nome)}</option>`).join('')}</select>`;
   const q = filtroColonos.toLowerCase();
   const lista = d.colonos.filter((c) =>
     (!q || [c.codigo, c.nome, c.handle, c.origem_source, c.origem_campaign].some((x) => (x || '').toLowerCase().includes(q))) &&
@@ -455,13 +459,14 @@ async function rColonos() {
     <td>${origem(c)}</td>
     <td>${c.ultimo_source ? esc(c.ultimo_source) + (c.ultimo_campaign ? ' / ' + esc(c.ultimo_campaign) : '') : '<span class="mudo">—</span>'}</td>
     <td>${d.itens.map(([k, rot]) => `<label class="chk" style="display:flex"><input type="checkbox" ${c.checklist[k] ? 'checked' : ''} ${k === 'aviso' && !c.aceita_whatsapp ? 'disabled title="Não aceitou aviso no WhatsApp"' : ''} onchange="acao('checklist',{codigo:'${c.codigo}',item:'${k}',valor:this.checked},'Checklist salvo')">${esc(rot)}</label>`).join('')}</td>
+    <td>${cargoSite(c)}</td>
     <td>${c.cargos.map((id) => cat[id] ? `<span class="chip">${esc(cat[id].emoji)} ${esc(cat[id].nome)}<button title="Tirar" onclick="acao('cargo_atribuir',{codigo:'${c.codigo}',cargo:'${id}',valor:false})">×</button></span>` : '').join('')}
-      <select onchange="if(this.value)acao('cargo_atribuir',{codigo:'${c.codigo}',cargo:this.value,valor:true},'Cargo dado')"><option value="">+ cargo</option>${d.catalogo.filter((x) => !c.cargos.includes(x.id)).map((x) => `<option value="${x.id}">${esc(x.emoji)} ${esc(x.nome)}</option>`).join('')}</select></td>
+      <select onchange="if(this.value)acao('cargo_atribuir',{codigo:'${c.codigo}',cargo:this.value,valor:true},'Cargo dado')"><option value="">+ distintivo</option>${d.catalogo.filter((x) => !c.cargos.includes(x.id)).map((x) => `<option value="${x.id}">${esc(x.emoji)} ${esc(x.nome)}</option>`).join('')}</select></td>
     <td class="mudo">${quando(c.created_at)}</td>
     <td><label class="chk"><input type="checkbox" ${c.teste ? 'checked' : ''} onchange="acao('teste',{tipo:'personagens',id:'${c.codigo}',valor:this.checked},'Marcação de teste salva')">teste</label>
       <br>${botao(c.oculto ? 'Mostrar' : 'Ocultar', 'colono', { codigo: c.codigo, oculto: !c.oculto }, 'peq ' + (c.oculto ? '' : 'perigo'), c.oculto ? '' : 'data-confirma="Ocultar do site, da busca e dos vídeos?"')}</td></tr>`).join('');
   const temBusca = document.getElementById('buscaColono');
-  const tabela = bloco('t', `<div class="card tabela"><table><thead><tr><th>Código</th><th>Colono</th><th>Status</th><th>Origem (1º toque / UTM)</th><th>Último toque</th><th>Checklist</th><th>Cargos</th><th>Chegou</th><th></th></tr></thead><tbody>${linhas || '<tr><td colspan="9" class="mudo">Ninguém encontrado.</td></tr>'}</tbody></table></div>`);
+  const tabela = bloco('t', `<div class="card tabela"><table><thead><tr><th>Código</th><th>Colono</th><th>Status</th><th>Origem (1º toque / UTM)</th><th>Último toque</th><th>Checklist</th><th>Cargo</th><th>Distintivos</th><th>Chegou</th><th></th></tr></thead><tbody>${linhas || '<tr><td colspan="10" class="mudo">Ninguém encontrado.</td></tr>'}</tbody></table></div>`);
   if (temBusca) remendar($('#conteudo').children[0].outerHTML + tabela); else remendar(bloco('topo', topo) + tabela);
 }
 
@@ -550,9 +555,11 @@ async function rCargos() {
   const d = await get('/api/cargos');
   const membros = (m) => m.length ? m.map((x) => `<span class="chip">${esc(x.nome)}</span>`).join('') : '<span class="mudo">ninguém ainda</span>';
   remendar(
+    bloco('c', `<h2>Cargos da colônia</h2><p class="mudo">A mesma lista do cadastro do site. Cada colono escolhe o seu ao criar a conta (ou no perfil) e não troca depois. Quem tem o cargo certo resolve o problema do dia e ganha o POV do próprio trabalho.</p><div class="grade">${d.cargos.map((c) => `<div class="card"><h3>${esc(c.emoji)} ${esc(c.nome)} <span class="mudo">(${c.membros.length})</span></h3><p class="mudo">${esc(c.descricao)}</p>${membros(c.membros)}</div>`).join('')}</div>` +
+      `<div class="card"><h3>Sem cargo ainda <span class="mudo">(${d.sem_cargo.length})</span></h3><p class="mudo">Para definir, use a coluna Cargo na aba 👥 Colonos.</p>${membros(d.sem_cargo)}</div>`) +
     bloco('a', `<h2>Automáticos</h2><div class="grade">${d.automaticos.map((c) => `<div class="card"><h3>${esc(c.emoji)} ${esc(c.nome)}</h3><p class="mudo">${esc(c.regra)}</p>${membros(c.membros)}</div>`).join('')}</div>`) +
-    bloco('m', `<h2>Manuais</h2><p class="mudo">${esc(d.obs)} Para dar um cargo, use a coluna Cargos na aba 👥 Colonos.</p><div class="grade">${d.catalogo.map((c) => `<div class="card"><div class="linha" style="justify-content:space-between"><h3>${esc(c.emoji)} ${esc(c.nome)}</h3>${botao('Remover', 'cargo_remover', { id: c.id }, 'peq perigo', 'data-confirma="Remover este cargo de todo mundo?"')}</div>${membros(c.membros)}</div>`).join('')}</div>`) +
-    bloco('n', `<h2>Novo cargo</h2><div class="card linha"><input id="cargoEmoji" value="🏅" style="width:60px"><input id="cargoNome" placeholder="Nome do cargo (ex.: Piloto)" style="min-width:260px"><button class="btn aprovar" onclick="acao('cargo_criar',{emoji:$('#cargoEmoji').value,nome:$('#cargoNome').value},'Cargo criado')">Criar cargo</button></div>`));
+    bloco('m', `<h2>Distintivos (manuais)</h2><p class="mudo">${esc(d.obs)} Para dar um distintivo, use a coluna Distintivos na aba 👥 Colonos.</p><div class="grade">${d.catalogo.map((c) => `<div class="card"><div class="linha" style="justify-content:space-between"><h3>${esc(c.emoji)} ${esc(c.nome)}</h3>${botao('Remover', 'cargo_remover', { id: c.id }, 'peq perigo', 'data-confirma="Remover este distintivo de todo mundo?"')}</div>${membros(c.membros)}</div>`).join('')}</div>`) +
+    bloco('n', `<h2>Novo distintivo</h2><div class="card linha"><input id="cargoEmoji" value="🏅" style="width:60px"><input id="cargoNome" placeholder="Nome do distintivo (ex.: Destaque do mês)" style="min-width:260px"><button class="btn aprovar" onclick="acao('cargo_criar',{emoji:$('#cargoEmoji').value,nome:$('#cargoNome').value},'Distintivo criado')">Criar distintivo</button></div>`));
 }
 
 // ================================================================ CONEXÕES

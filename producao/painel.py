@@ -144,10 +144,6 @@ PADRAO_ESTADO = {
     "testes": {"personagens": [], "pedidos": []},
     "cargos": {
         "catalogo": [
-            {"id": "engenheiro", "emoji": "🛠️", "nome": "Engenheiro(a)"},
-            {"id": "botanico", "emoji": "🌱", "nome": "Botânico(a)"},
-            {"id": "comunicacoes", "emoji": "📡", "nome": "Comunicações"},
-            {"id": "explorador", "emoji": "🧭", "nome": "Explorador(a)"},
             {"id": "destaque", "emoji": "⭐", "nome": "Destaque da semana"},
         ],
         "atribuicoes": {},  # codigo → [ids]
@@ -495,10 +491,23 @@ def dados_visao(ocultar: bool) -> dict:
     }
 
 
+# Distintivos manuais antigos que eram "cargos" de mentira (os cargos de verdade vêm do site: fabrica/cargos.json)
+_DISTINTIVOS_VELHOS = {"engenheiro", "botanico", "comunicacoes", "explorador"}
+
+
+def distintivos(est: dict) -> list[dict]:
+    return [c for c in est["cargos"]["catalogo"] if c["id"] not in _DISTINTIVOS_VELHOS]
+
+
+def cargos_do_site() -> list[dict]:
+    """A MESMA lista que aparece no cadastro do site (fabrica/cargos.json), na mesma ordem."""
+    return [{k: c[k] for k in ("id", "emoji", "nome", "descricao")} for c in config.cargos().values()]
+
+
 def dados_colonos() -> dict:
     est = ESTADO.ler()
     pers = db().todos("personagens", {"select": (
-        "id,codigo,nome,handle,handle_plataforma,status,oculto,aceita_whatsapp,sprite_url,created_at,"
+        "id,codigo,nome,handle,handle_plataforma,status,oculto,aceita_whatsapp,sprite_url,created_at,cargo,"
         "origem_source,origem_medium,origem_campaign,origem_content,origem_link_slug,origem_referer,"
         "ultimo_source,ultimo_campaign,ultimo_link_slug"), "order": "id.desc"})
     pagos = db().get("pedidos", {"select": "personagem_id", "status": f"in.({','.join(episodio.STATUS_PAGOS)})"})
@@ -511,7 +520,7 @@ def dados_colonos() -> dict:
         p["checklist"] = est["checklist"].get(p["codigo"], {})
         p["teste"] = p["codigo"] in est["testes"]["personagens"]
         p["cargos"] = est["cargos"]["atribuicoes"].get(p["codigo"], [])
-    return {"colonos": pers, "itens": ITENS_CHECKLIST, "catalogo": est["cargos"]["catalogo"]}
+    return {"colonos": pers, "itens": ITENS_CHECKLIST, "catalogo": distintivos(est), "cargos_site": cargos_do_site()}
 
 
 def dados_compras() -> dict:
@@ -540,11 +549,11 @@ def dados_produtos() -> dict:
 
 def dados_cargos() -> dict:
     est = ESTADO.ler()
-    pers = {p["codigo"]: p for p in db().todos("personagens", {"select": "id,codigo,nome", "order": "id.asc"})}
+    pers = {p["codigo"]: p for p in db().todos("personagens", {"select": "id,codigo,nome,cargo,oculto", "order": "id.asc"})}
     por_id = {p["id"]: p for p in pers.values()}
     pagos = db().get("pedidos", {"select": "personagem_id", "status": f"in.({','.join(episodio.STATUS_PAGOS)})"})
     apoiadores = sorted({por_id[p["personagem_id"]]["codigo"] for p in pagos if p.get("personagem_id") in por_id})
-    cat = est["cargos"]["catalogo"]
+    cat = distintivos(est)
     membros = {c["id"]: [] for c in cat}
     for codigo, ids in est["cargos"]["atribuicoes"].items():
         for i in ids:
@@ -557,8 +566,12 @@ def dados_cargos() -> dict:
             {"id": "apoiador", "emoji": "💎", "nome": "Apoiador(a)", "regra": "Tem compra paga",
              "membros": [{"codigo": c, "nome": pers[c]["nome"]} for c in apoiadores]},
         ],
+        # cargos de verdade: o que cada colono escolheu no site (personagens.cargo)
+        "cargos": [{**c, "membros": [{"codigo": x["codigo"], "nome": x["nome"]} for x in pers.values()
+                                      if x.get("cargo") == c["id"] and not x.get("oculto")]} for c in cargos_do_site()],
+        "sem_cargo": [{"codigo": x["codigo"], "nome": x["nome"]} for x in pers.values() if not x.get("cargo") and not x.get("oculto")],
         "catalogo": [{**c, "membros": membros[c["id"]]} for c in cat],
-        "obs": "Cargos manuais ficam guardados neste computador (o site ainda não mostra cargos).",
+        "obs": "Distintivos ficam guardados neste computador (o site não mostra).",
     }
 
 
@@ -982,6 +995,20 @@ def acao_produto(d: dict):
         SINAL.mudou()
 
 
+def acao_cargo_definir(d: dict):
+    """Dá o cargo a quem ainda não escolheu no site (o banco não deixa trocar um cargo já escolhido)."""
+    codigo, cid = str(d["codigo"]).upper(), str(d.get("cargo") or "")
+    if not re.fullmatch(r"NM\d{6}", codigo):
+        raise ValueError("código inválido")
+    if cid not in config.cargos():
+        raise ValueError("cargo não existe")
+    feito = db().escrever("PATCH", "personagens", {"codigo": f"eq.{codigo}", "cargo": "is.null"},
+                          {"cargo": cid, "cargo_em": datetime.now(timezone.utc).isoformat()}, prefer="return=representation")
+    if not feito:
+        raise ValueError("esse colono já escolheu o cargo (não pode trocar)")
+    SINAL.mudou()
+
+
 def acao_cargo_criar(d: dict):
     nome = str(d.get("nome", "")).strip()[:40]
     if not nome:
@@ -989,8 +1016,8 @@ def acao_cargo_criar(d: dict):
     cid = re.sub(r"[^a-z0-9]+", "-", nome.lower()).strip("-") or secrets.token_hex(3)
 
     def fn(e):
-        if any(c["id"] == cid for c in e["cargos"]["catalogo"]):
-            raise ValueError("já existe um cargo com esse nome")
+        if any(c["id"] == cid for c in e["cargos"]["catalogo"]) or cid in config.cargos():
+            raise ValueError("já existe um cargo/distintivo com esse nome")
         e["cargos"]["catalogo"].append({"id": cid, "emoji": str(d.get("emoji") or "🏅")[:4], "nome": nome})
     ESTADO.mudar(fn)
 

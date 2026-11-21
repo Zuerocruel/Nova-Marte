@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 
 import requests
 
+import bairro
 import config
 
 # A Cakto grava a venda paga como "aprovado" (lib/cakto.ts). "pago" fica aceito
@@ -93,7 +94,9 @@ def colono_publico(p: dict) -> dict:
         "codigo": p["codigo"],
         "nome": nick or nome_exibicao(p["nome"]),
         "falado": nick or primeiro_nome(p["nome"]),
-        "x": p["pos_x"], "y": p["pos_y"],
+        # casa calculada aqui (bairro.py, a mesma conta do banco e do site): o vídeo não depende de a
+        # migração do bairro já ter rodado no Supabase
+        "x": bairro.casa_do_codigo(p["codigo"])[0], "y": bairro.casa_do_codigo(p["codigo"])[1],
         "seed": p["seed"],
         "status": p["status"],
         "sprite_url": p.get("sprite_url"),
@@ -162,6 +165,9 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
         "order": "id.asc", "limit": 12,
     })
     mundo = db.todos("personagens", {"select": campos, **visiveis, "order": "id.asc"})
+    if any((p["pos_x"], p["pos_y"]) != bairro.casa_do_codigo(p["codigo"]) for p in mundo):
+        print("aviso: as casas no banco ainda estão no bairro antigo: rode supabase/migrations/009_bairro_perto.sql "
+              "no SQL Editor do Supabase (o vídeo já usa o bairro novo; o site só muda depois disso)")
 
     # compras pagas desde o último episódio. "atualizado_em" pega o Pix gerado antes
     # e pago depois do episódio anterior. Só entram status pagos.

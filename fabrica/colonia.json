@@ -2,8 +2,8 @@
   "_leia": "Mapa fixo da colônia (coordenadas em casas; y negativo fica ao norte das casas dos colonos, que começam em 0,0). As obras são feitas nesta ordem. Cada episódio (diário) tem uma Missão do Dia que AVANÇA a primeira obra não concluída, e uma obra pode levar vários episódios (veja \"ritmo\"). O estágio de cada obra vem do Supabase (tabela colonia_obras); sem a tabela, vale o campo 'estado_inicial' daqui (só serve para o episódio 1).",
 
   "fundadores": [
-    { "id": "vega", "nome": "Comandante Vega", "curto": "Vega", "casa": [4.5, -5.6], "sprite": "vega" },
-    { "id": "lia",  "nome": "Dra. Lia",        "falado": "Doutora Lia", "curto": "Lia", "casa": [6.0, -5.6], "sprite": "lia" }
+    { "id": "vega", "nome": "Comandante Vega", "curto": "Vega", "casa": [4.5, -5.6], "sprite": "vega", "cargos": ["engenharia", "piloto", "guarda", "energia"] },
+    { "id": "lia",  "nome": "Dra. Lia",        "falado": "Doutora Lia", "curto": "Lia", "casa": [6.0, -5.6], "sprite": "lia", "cargos": ["medicina", "ciencia", "botanica", "geologia"] }
   ],
 
   "base": { "nome": "Módulo de Pouso", "x": 3, "y": -10, "w": 4, "h": 4 },

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { gerarSprite } from '@/lib/sprite';
 import {
-  CENTRO, CHUNK, LIMITE_CHUNKS, anelMaximo, ehRua, idDoCodigo, limitesDoBairro, noBairro,
+  CENTRO, CHUNK, LIMITE_CHUNKS, anelMaximo, ehRua, fioDaCasa, idDoCodigo, limitesDoBairro, noBairro,
   type PersonagemPublico,
 } from '@/lib/mundo';
 import {
@@ -65,6 +65,18 @@ function spriteColono(seed: number): HTMLCanvasElement {
     spritesColono.set(seed, c);
   }
   return c;
+}
+
+/** Fio de energia discreto, rente ao chão, com um pulsinho de luz indo da fonte até a casa. */
+function desenharFio(ctx: CanvasRenderingContext2D, casa: { pos_x: number; pos_y: number }, para: { x: number; y: number }, t: number) {
+  const ax = casa.pos_x * CASA + 8, ay = casa.pos_y * CASA + 12;
+  const bx = para.x * CASA, by = para.y * CASA;
+  const dist = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.round(dist / 1.2));
+  ctx.fillStyle = 'rgba(46,30,48,0.5)';
+  for (let i = 0; i <= n; i++) ctx.fillRect(Math.round(ax + (bx - ax) * i / n), Math.round(ay + (by - ay) * i / n), 1, 1);
+  const k = ((((t * 28) / Math.max(dist, 1) + casa.pos_x * 0.37 + casa.pos_y * 0.71) % 1) + 1) % 1;
+  ctx.fillStyle = 'rgba(255,216,90,0.75)';
+  ctx.fillRect(Math.round(bx + (ax - bx) * k), Math.round(by + (ay - by) * k), 1, 1);
 }
 
 /** Casinha do lote (cúpula com a porta e uma janela acesa quando tem gente em casa). */
@@ -234,7 +246,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       if (!c.pronta && e && w > 0) {   // começa olhando a base, a praça e o começo do bairro
         c.zoom = w < 600 ? 1.8 : 2.4;
         c.x = (CENTRO.x + 0.5) * CASA - w / 2 / c.zoom;
-        c.y = (CENTRO.y + 7) * CASA - h / 2 / c.zoom;
+        c.y = (CENTRO.y + 3) * CASA - h / 2 / c.zoom;
         c.pronta = true;
       }
       const { x: camX, y: camY, zoom } = c;
@@ -258,7 +270,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       const cantina = e?.obras.find((o) => o.slug === 'cantina' && o.status === 'concluida') ?? null;
       const oficina = e?.obras.find((o) => o.slug === 'oficina' && o.status === 'concluida') ?? null;
       if (e) {
-        desenharTrilha(ctx, e.base, CENTRO.y + 13);
+        desenharTrilha(ctx, e.base, e.praca ? e.praca.y : CENTRO.y + 6);
         if (e.praca) desenharPraca(ctx, e.praca, t);
         const energia = e.obras.some((o) => o.tipo === 'solar' && o.status === 'concluida');
         for (const o of e.obras) {
@@ -287,6 +299,12 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
             pessoas.push({ p, id, s });
           }
         }
+      // fios de energia: cada casa recebe do módulo (ou de uma construção ligada, ou da casa vizinha)
+      if (e) {
+        const fontes = [e.base, ...e.obras.filter((o) => o.status !== 'planejada')]
+          .map((o) => ({ x0: o.x, y0: o.y, x1: o.x + o.w, y1: o.y + o.h }));
+        for (const p of casas) desenharFio(ctx, p, fioDaCasa(idDoCodigo(p.codigo), Math.max(n, 1), fontes), t);
+      }
       for (const p of casas) {
         const pessoa = pessoas.find((x) => x.p === p);
         desenharCasinha(ctx, p.pos_x, p.pos_y, p.seed, !!pessoa && pessoa.s.tipo === 'casa');

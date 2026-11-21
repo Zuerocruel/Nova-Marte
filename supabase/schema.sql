@@ -40,15 +40,13 @@ alter table links add constraint links_episodio_fk foreign key (episodio_id) ref
 -- ---------------------------------------------------------------------
 -- PERSONAGENS  (cada cadastro = um personagem no mundo)
 -- ---------------------------------------------------------------------
--- Casa de cada colono: bairro em espiral em volta da base (veja migrations/007_bairro_espiral.sql)
-create or replace function casa_pos(p_id bigint) returns int[]
+-- Casa de cada colono: bairro em espiral colado na base, pulando as construções (veja migrations/009_bairro_perto.sql)
+create or replace function casa_do_lote(m bigint) returns int[]
 language plpgsql immutable parallel safe
 as $$
 declare
-  r0 constant int := 10;      -- primeiro anel com casas
-  m bigint; r bigint; t bigint; u bigint; v bigint;
+  r bigint; t bigint; u bigint; v bigint;
 begin
-  m := (p_id - 1) + (2 * r0 - 1)::bigint * (2 * r0 - 1);
   r := (floor(sqrt(m::numeric))::bigint + 1) / 2;
   t := m - (2 * r - 1) * (2 * r - 1);
   if    t < r     then u := t;             v := r;
@@ -59,6 +57,50 @@ begin
   end if;
   -- rua a cada 3 lotes: o lote u vira a casa u + floor(u/3)
   return array[(5 + u + floor(u / 3.0))::int, (-8 + v + floor(v / 3.0))::int];
+end
+$$;
+
+create or replace function casa_reservada(x int, y int) returns boolean
+language sql immutable parallel safe
+as $$
+  select exists (
+    select 1 from (values
+      (1, -12, 9, -4),     -- Módulo de Pouso
+      (1, -1, 10, 6),      -- Praça da Colônia
+      (8, -13, 18, -4),    -- fazenda-solar
+      (-6, -13, 3, -5),    -- estufa
+      (5, -18, 12, -10),   -- antena
+      (-7, -7, 1, 0),      -- extrator-gelo
+      (9, -6, 16, 1),      -- gerador-oxigenio
+      (-8, -18, 1, -11),   -- oficina
+      (7, -2, 15, 5),      -- cantina
+      (-4, -2, 3, 5),      -- enfermaria
+      (-2, -22, 6, -15),   -- abrigo
+      (9, -20, 17, -13),   -- laboratorio
+      (5, -6, 6, 1)        -- trilha do módulo até a praça
+    ) as r(x0, y0, x1, y1)
+    where x >= r.x0 and x < r.x1 and y >= r.y0 and y < r.y1
+  )
+$$;
+
+create or replace function casa_pos(p_id bigint) returns int[]
+language plpgsql immutable parallel safe
+as $$
+declare
+  r0   constant int := 2;      -- primeiro anel com casas
+  rmax constant int := 12;     -- além deste anel nada é reservado
+  m0   bigint := (2 * r0 - 1)::bigint * (2 * r0 - 1);
+  mfim bigint := (2 * rmax + 1)::bigint * (2 * rmax + 1);
+  livres bigint := 0; m bigint; c int[];
+begin
+  for m in m0 .. mfim - 1 loop
+    c := casa_do_lote(m);
+    if not casa_reservada(c[1], c[2]) then
+      livres := livres + 1;
+      if livres = greatest(p_id, 1) then return c; end if;
+    end if;
+  end loop;
+  return casa_do_lote(mfim + (p_id - livres) - 1);
 end
 $$;
 
@@ -382,4 +424,8 @@ revoke execute on function nome_exibicao(text) from public;
 grant  execute on function buscar_personagens(text, int) to service_role;
 grant  execute on function nome_exibicao(text) to service_role;
 revoke execute on function casa_pos(bigint) from public;
+revoke execute on function casa_do_lote(bigint) from public;
+revoke execute on function casa_reservada(int, int) from public;
 grant  execute on function casa_pos(bigint) to service_role;
+grant  execute on function casa_do_lote(bigint) to service_role;
+grant  execute on function casa_reservada(int, int) to service_role;

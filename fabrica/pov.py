@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hashlib
+import json
 import shutil
 import time
 from pathlib import Path
@@ -220,10 +221,48 @@ def gerar_vozes(falas: list[dict], info: dict, fundadores: list[dict]) -> dict:
     return saida
 
 
+# ---------------------------------------------------------------- falas que já saíram (para não repetir)
+# saida/pov_falas.json: {"legado": [...], "3:astronomia": [...], ...}. "legado" é o que foi dublado antes
+# deste registro existir (tirado uma vez do cache de vozes). O pov.js compara sem nomes/números/acentos.
+REGISTRO_FALAS = config.SAIDA / "pov_falas.json"
+
+
+def _registro() -> dict:
+    if REGISTRO_FALAS.exists():
+        return config.ler_json(REGISTRO_FALAS)
+    legado = []
+    for arq in sorted(config.CACHE_VOZ.glob("*.json")):
+        j = config.ler_json(arq)
+        if j.get("modelo") == config.POV_MODELO and j.get("texto"):
+            legado.append(j["texto"])
+    return {"legado": sorted(set(legado))}
+
+
+def falas_usadas(numero: int, cena: str) -> list[str]:
+    """Tudo que já foi falado nos POVs dos episódios anteriores e nos outros POVs deste episódio."""
+    reg = _registro()
+    plano = {c for c, _ in planejar_povs(config.ler_json(config.pasta_episodio(numero) / "dados.json"))}
+    usadas = list(reg.get("legado", []))
+    for chave, textos in reg.items():
+        if chave == "legado":
+            continue
+        n, c = chave.split(":", 1)
+        if int(n) < numero or (int(n) == numero and c != cena and c in plano):
+            usadas += textos
+    return usadas
+
+
+def registrar_falas(numero: int, cena: str, falas: list[dict]) -> None:
+    reg = _registro()
+    reg[f"{numero}:{cena}"] = [f["texto"] for f in falas]
+    REGISTRO_FALAS.write_text(json.dumps(reg, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 async def _gerar(numero: int, cena: str, previa: list[float] | None = None, abas: int = 3,
                  com_voz: bool = True) -> Path | list[Path]:
     pasta = config.pasta_episodio(numero)
     ep, info = montar_ep(pasta), info_pov(pasta, cena)
+    info["usadas"] = falas_usadas(numero, cena)
     fundadores = config.ler_json(config.COLONIA_JSON).get("fundadores", [])
     falas_voz: dict = {}
     destino = pasta / "pov"
@@ -262,6 +301,9 @@ async def _gerar(numero: int, cena: str, previa: list[float] | None = None, abas
             paginas = [await aba() for _ in range(abas)]
             meta = paginas[0][1]
             total = meta["quadros"]
+            if meta.get("repetidas"):
+                print(f"  aviso: acabaram as variações de {len(meta['repetidas'])} fala(s), repetindo: "
+                      + " | ".join(meta["repetidas"]) + "  (escreva variações novas no pov.js)")
             print(f"  {cena}: \"{meta['titulo']}\" · POV de {info['prota']['nome']} · {meta['duracao']:.1f}s · {total} quadros")
             faixa = -(-total // abas)
             inicio = time.time()
@@ -298,6 +340,7 @@ async def _gerar(numero: int, cena: str, previa: list[float] | None = None, abas
     musica.unlink(missing_ok=True)
     som.unlink(missing_ok=True)
     (destino / f"pov_{cena}.txt").write_text(legenda(cena, info), encoding="utf-8")
+    registrar_falas(numero, cena, meta["falas"])
     return final
 
 

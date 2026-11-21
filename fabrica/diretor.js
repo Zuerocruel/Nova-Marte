@@ -264,8 +264,16 @@ function carregarImagem(url) {
   });
 }
 
-// Bairro em espiral (igual a lib/mundo.ts e à casa_pos do banco): rua a cada 4 casas a partir do centro da base
-const CENTRO = { x: 5, y: -8 }, ANEL_INICIAL = 10;
+// Bairro em espiral colado na base (igual a lib/mundo.ts, fabrica/bairro.py e à casa_pos do banco): rua a cada
+// 4 casas a partir do centro da base; lotes em cima (ou a até 2 casas) das construções e da trilha ficam vazios
+const CENTRO = { x: 5, y: -8 }, ANEL_INICIAL = 2, MARGEM_CASA = 2;
+let RESERVAS = [];
+function prepararReservas() {
+  const m = EP.mundo, b = m.base, p = m.praca;
+  RESERVAS = [b, ...(p ? [p] : []), ...m.obras].map((o) => ({ x0: o.x - MARGEM_CASA, y0: o.y - MARGEM_CASA, x1: o.x + o.w + MARGEM_CASA, y1: o.y + o.h + MARGEM_CASA }));
+  if (p) RESERVAS.push({ x0: CENTRO.x, y0: b.y + b.h, x1: CENTRO.x + 1, y1: p.y });   // trilha do módulo até a praça
+}
+const reservadoCasa = (x, y) => RESERVAS.some((r) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1);
 const ehRua = (x, y) => ((((x - CENTRO.x) % 4) + 4) % 4) === 3 || ((((y - CENTRO.y) % 4) + 4) % 4) === 3;
 const loteDe = (d) => d - Math.floor((d + 1) / 4);
 const anelDe = (x, y) => Math.max(Math.abs(loteDe(x - CENTRO.x)), Math.abs(loteDe(y - CENTRO.y)));
@@ -274,13 +282,14 @@ function retanguloDe(o) { return { x0: o.x * CASA, y0: o.y * CASA, x1: (o.x + o.
 
 function prepararTerreno() {
   const m = EP.mundo;
+  prepararReservas();
   let minX = CENTRO.x, maxX = CENTRO.x, minY = CENTRO.y, maxY = CENTRO.y, anel = 0;
   for (const c of m.colonos) {
     minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x); minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y);
     anel = Math.max(anel, anelDe(c.x, c.y));
   }
   EP.lotes = m.colonos.length ? { anel } : null;
-  const noBairro = (x, y) => !!EP.lotes && (() => { const a = anelDe(x, y); return a >= ANEL_INICIAL && a <= EP.lotes.anel; })();
+  const noBairro = (x, y) => !!EP.lotes && !reservadoCasa(x, y) && (() => { const a = anelDe(x, y); return a >= ANEL_INICIAL && a <= EP.lotes.anel; })();
 
   const tx0 = Math.max(-200, Math.min(-48, minX - 40)), ty0 = Math.max(-220, Math.min(-64, minY - 40));
   const tx1 = Math.min(220, Math.max(80, maxX + 40));
@@ -317,9 +326,9 @@ function prepararTerreno() {
     t.fillStyle = (x + y) % 2 ? '#d9a47e' : '#cf9670';
     t.fillRect((x - tx0) * CASA, (y - ty0) * CASA, CASA, CASA);
   }
-  // trilha da base, passando pela praça, até a primeira casa do bairro (ao sul)
+  // trilha da base até a praça
   const b = m.base;
-  for (let y = b.y + b.h; y < CENTRO.y + 13; y++) {
+  for (let y = b.y + b.h; y < (m.praca ? m.praca.y : CENTRO.y + 6); y++) {
     t.fillStyle = '#cd7a52';
     t.fillRect((b.x + Math.floor(b.w / 2) - tx0) * CASA - 6, (y - ty0) * CASA, 12, CASA);
   }
@@ -397,7 +406,9 @@ window.carregarEpisodio = async function (ep) {
   prepararVinheta();
   prepararTempos();
   prepararNoite();
+  prepararFios();
   planejarVida();
+  planejarNoite();
   prepararCamera();
   await document.fonts.load(`40px ${FONTE}`);
   await document.fonts.ready;
@@ -447,7 +458,7 @@ function planejarVida() {
   const perto = (c) => Math.hypot(c.x * CASA - (r ? (r.x0 + r.x1) / 2 : 0), c.y * CASA - (r ? r.y1 : 0));
   const ajudantes = r && miss.length ? EP.mundo.colonos.slice().sort((a, b) => perto(a) - perto(b)).slice(0, 10) : [];
   EP.mundo.colonos.forEach((c, k) => {
-    const casa = { x: c.x * CASA + 8, y: c.y * CASA + 14 };
+    const casa = { x: c.x * CASA + 11, y: c.y * CASA + 19 };   // na frente da porta (sem esconder a casinha)
     let pos = casa;
     const tr = [];
     const ir = (t0, para, vel = 0.3) => {
@@ -518,8 +529,59 @@ function planejarVida() {
   });
 }
 
+// Quando anoitece, todo mundo volta para o Módulo de Pouso: cada um anda até a fila na porta e entra, um de
+// cada vez (o herói do problema do dia só vai depois de terminar o conserto). Ninguém sai mais no episódio.
+function planejarNoite() {
+  if (!isFinite(tNoite)) return;
+  const porta = VIDA.porta, chegadas = [];
+  EP.mundo.colonos.forEach((c, k) => {
+    let t0 = tNoite + 0.5 + Math.min(k, 16) * 0.25;
+    if (c.conserto) t0 = Math.max(t0, c.conserto[1] + 0.1);
+    if (c.dentro && c.dentro[0] <= t0 && c.dentro[1] > t0) {
+      if (VIDA.reacao === 'abrigar') { c.dentro[1] = Infinity; c.trechos = c.trechos.filter((tr) => tr.t0 < t0); return; }   // já está no módulo
+      c.dentro[1] = t0;   // estava em casa: sai e vai para o módulo
+    }
+    c.trechos = c.trechos.filter((tr) => tr.t0 < t0);
+    const ult = c.trechos[c.trechos.length - 1];
+    if (ult && ult.t1 > t0) t0 = ult.t1;
+    const de = ult ? ult.para : c.casaPe;
+    if (c.trabalho) c.trabalho[1] = Math.min(c.trabalho[1], t0);
+    const fila = { x: porta.x - 8 + (k % 4) * 5, y: porta.y + 9 + Math.floor(k / 4) * 5 + hash(c.x, c.y, 4) * 2 };
+    const dur = clamp(Math.hypot(fila.x - de.x, fila.y - de.y) / CASA * 0.42, 1.2, 4.5);
+    c.trechos.push({ t0, t1: t0 + dur, de, para: fila });
+    chegadas.push({ c, chega: t0 + dur, fila });
+  });
+  chegadas.sort((a, b) => a.chega - b.chega);
+  let livre = -Infinity, abre = Infinity;
+  for (const { c, chega, fila } of chegadas) {
+    const entra = Math.max(chega, livre);
+    abre = Math.min(abre, entra);
+    c.trechos.push({ t0: entra, t1: entra + 0.35, de: fila, para: { x: porta.x, y: porta.y } });
+    c.noite = entra + 0.35;
+    livre = c.noite + 0.05;
+  }
+  // fundadores entram por último (a comandante fecha a porta)
+  EP.mundo.fundadores.forEach((f, i) => {
+    let t0 = tNoite + 1.2 + i * 0.4;
+    if (f.dentro && f.dentro[0] <= t0 && f.dentro[1] > t0) { f.dentro[1] = Infinity; return; }
+    f.trechos = f.trechos.filter((tr) => tr.t0 < t0);
+    const ult = f.trechos[f.trechos.length - 1];
+    if (ult && ult.t1 > t0) t0 = ult.t1;
+    const de = ult ? ult.para.slice() : f.casa.slice();
+    const pc = [porta.x / CASA, porta.y / CASA], ao_lado = [pc[0] + (i ? 1 : -1), pc[1] + 0.6];
+    const dur = clamp(Math.hypot(ao_lado[0] - de[0], ao_lado[1] - de[1]) * 0.42, 1, 4);
+    f.trechos.push({ t0, t1: t0 + dur, de, para: ao_lado });
+    const entra = Math.max(t0 + dur, livre);
+    f.trechos.push({ t0: entra, t1: entra + 0.35, de: ao_lado, para: pc });
+    f.noite = entra + 0.35;
+    livre = f.noite + 0.05;
+    abre = Math.min(abre, entra);
+  });
+  if (isFinite(abre)) (VIDA.portaAberta = VIDA.portaAberta || []).push([abre - 0.3, livre + 0.3]);
+}
+
 function posColono(c, t) {
-  let pos = c.casaPe || { x: c.x * CASA + 8, y: c.y * CASA + 14 }, andando = false, dir = 1;
+  let pos = c.casaPe || { x: c.x * CASA + 11, y: c.y * CASA + 19 }, andando = false, dir = 1;
   for (const tr of c.trechos || []) {
     if (t < tr.t0) break;
     const k = clamp((t - tr.t0) / (tr.t1 - tr.t0));
@@ -535,7 +597,7 @@ function posColono(c, t) {
     andando = Math.abs(Math.cos(fase)) > 0.75;
     dir = Math.cos(fase) >= 0 ? 1 : -1;
   }
-  const visivel = !(c.dentro && t >= c.dentro[0] && t < c.dentro[1]);
+  const visivel = !(c.dentro && t >= c.dentro[0] && t < c.dentro[1]) && !(c.noite != null && t >= c.noite);
   const trabalhando = !!c.trabalho && !andando && t >= c.trabalho[0] && t < c.trabalho[1];
   return { x: pos.x, y: pos.y, andando, dir, visivel, trabalhando };
 }
@@ -582,7 +644,7 @@ function posFundador(f, t) {
     andando = k > 0 && k < 1;
     dir = tr.para[0] >= tr.de[0] ? 1 : -1;
   }
-  const visivel = !(f.dentro && t >= f.dentro[0] && t < f.dentro[1]);
+  const visivel = !(f.dentro && t >= f.dentro[0] && t < f.dentro[1]) && !(f.noite != null && t >= f.noite);
   return { x: pos[0] * CASA, y: pos[1] * CASA, andando, dir, visivel };
 }
 
@@ -1023,6 +1085,11 @@ function desenharNoite(cam, t, view, tx, ty, energia) {
     helmo(p.x, p.y, !!(c.conserto && t >= c.conserto[0] && t < c.conserto[1]));
   }
   for (const f of EP.mundo.fundadores) { const p = posFundador(f, t); if (p.visivel) helmo(p.x, p.y, false); }
+  if (energia) for (const c of EP.mundo.colonos) {   // casas ligadas na rede: janela e lampião da porta
+    if (c.x < view.x0 - 2 || c.x > view.x1 + 2 || c.y < view.y0 - 2 || c.y > view.y1 + 2) continue;
+    brilhoEm(c.x * CASA + 5, c.y * CASA + 6, 8, '#ffe08a', 0.55 * k);
+    brilhoEm(c.x * CASA + 7, c.y * CASA + 13, 10, '#ffd27a', 0.3 * k);
+  }
   ctx.globalCompositeOperation = 'source-over';
   // pontinhos acesos nítidos por cima do brilho (janelas, lâmpadas)
   if (energia) for (const dx of [-11, -3, 5]) { ctx.globalAlpha = k; ret(cx + dx, cy - 8, 6, 6, '#ffe58a'); ctx.globalAlpha = 1; }
@@ -1030,6 +1097,56 @@ function desenharNoite(cam, t, view, tx, ty, energia) {
     if (o.status === 'planejada' && o.slug !== EP.missao_obra) continue;
     const r = retanguloDe(o);
     if (progressoObra(o, t).p < 1) for (const [x, y] of [[r.x0, r.y1], [r.x1, r.y1], [r.x0, r.y0], [r.x1, r.y0]]) { ctx.globalAlpha = k; ret(x - 1, y - 1, 2, 2, '#fff6d0'); ctx.globalAlpha = 1; }
+  }
+}
+
+// ------------------------------------------------------------------ casas do bairro e fios de energia
+// Casinha igual à do site (components/Mundo.tsx). O fio de cada casa vai até a casa vizinha mais perto do
+// módulo (mesmo anel ou até dois para dentro) ou até a borda do módulo / de uma construção ligada, o que for
+// mais perto (mesma regra de lib/mundo.ts → fioDaCasa). Um pulsinho de luz corre da fonte até a casa.
+const TELHADOS = ['#e04f5f', '#3f8efc', '#2bb673', '#f4b400', '#9b59b6', '#ff7f50', '#00b8a9', '#ec407a'];
+function prepararFios() {
+  const m = EP.mundo;
+  const fontes = [m.base, ...m.obras.filter((o) => o.status !== 'planejada')].map((o) => ({ x0: o.x, y0: o.y, x1: o.x + o.w, y1: o.y + o.h }));
+  const dB = (x, y) => Math.hypot(x - CENTRO.x, y - CENTRO.y);
+  for (const c of m.colonos) {
+    const eu = { x: c.x + 0.5, y: c.y + 0.5 }, r = anelDe(c.x, c.y);
+    let melhor = { x: CENTRO.x, y: CENTRO.y }, dm = Infinity;
+    for (const f of fontes) {
+      const x = clamp(eu.x, f.x0, f.x1), y = clamp(eu.y, f.y0, f.y1), d = Math.hypot(x - eu.x, y - eu.y);
+      if (d < dm) { dm = d; melhor = { x, y }; }
+    }
+    for (const o of m.colonos) {
+      const ro = anelDe(o.x, o.y);
+      if (o === c || ro < Math.max(ANEL_INICIAL, r - 2) || ro > r || dB(o.x, o.y) >= dB(c.x, c.y)) continue;
+      const d = Math.hypot(o.x + 0.5 - eu.x, o.y + 0.5 - eu.y);
+      if (d < dm) { dm = d; melhor = { x: o.x + 0.5, y: o.y + 0.5 }; }
+    }
+    c.fio = melhor;
+  }
+}
+function desenharCasas(view, t, energia) {
+  const fora = (x, y) => x < view.x0 - 3 || x > view.x1 + 3 || y < view.y0 - 3 || y > view.y1 + 3;
+  for (const c of EP.mundo.colonos) {
+    if (!c.fio || (fora(c.x, c.y) && fora(c.fio.x, c.fio.y))) continue;
+    const ax = c.x * CASA + 8, ay = c.y * CASA + 12, bx = c.fio.x * CASA, by = c.fio.y * CASA;
+    const dist = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.round(dist / 1.2));
+    ctx.fillStyle = 'rgba(46,30,48,0.5)';
+    for (let i = 0; i <= n; i++) ctx.fillRect(Math.round(ax + (bx - ax) * i / n), Math.round(ay + (by - ay) * i / n), 1, 1);
+    if (energia) {
+      const k = ((((t * 28) / Math.max(dist, 1) + c.x * 0.37 + c.y * 0.71) % 1) + 1) % 1;
+      ret(Math.round(bx + (ax - bx) * k), Math.round(by + (ay - by) * k), 1, 1, 'rgba(255,216,90,0.8)');
+    }
+  }
+  for (const c of EP.mundo.colonos) {
+    if (fora(c.x, c.y)) continue;
+    const x = c.x * CASA, y = c.y * CASA;
+    ret(x + 1, y + 12, 12, 2, 'rgba(0,0,0,0.22)');
+    disco(x + 7, y + 8, 6, '#6b6f86');
+    disco(x + 7, y + 8, 5, '#e4e6f0');
+    ret(x + 2, y + 8, 11, 2, TELHADOS[c.seed % TELHADOS.length]);
+    ret(x + 6, y + 9, 3, 4, '#3a2f63');
+    ret(x + 4, y + 5, 2, 2, energia ? '#ffe58a' : '#2b2350');
   }
 }
 
@@ -1311,6 +1428,7 @@ function desenhar(t) {
   };
   const energia = t >= tempoEnergia || EP.mundo.obras.some((o) => o.tipo === 'solar' && o.status === 'concluida');
   desenharObras(t);
+  desenharCasas(view, t, energia);
   desenharColonos(view, t);
   desenharCompras(t);
   desenharBase(t, energia);
