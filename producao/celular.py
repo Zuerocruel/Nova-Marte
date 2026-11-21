@@ -11,6 +11,9 @@ Fluxo de cada rede:
   3. abre o vídeo direto no app pelo "Compartilhar" do Android (Reels / TikTok);
   4. lê a tela (uiautomator), trata pop-ups e toca nos botões até a tela final;
   5. cola a legenda no campo de descrição e confere que colou;
+  5b. troca a capa pela capa do episódio (saida/epNNN/imagens/capa_vertical.png), enviada à galeria
+      logo antes, então é a foto mais recente: Instagram "Editar capa → Adicionar do rolo da câmera",
+      TikTok "Editar capa → Carregar" (--sem-capa pula; vídeos extras não trocam a capa);
   6. toca em Compartilhar/Publicar (não no --ensaio) e espera a confirmação.
 
 Travas (não remova):
@@ -251,6 +254,22 @@ class Celular:
             raise Falha("o vídeo foi copiado mas a galeria não o indexou (abra a Galeria uma vez e tente de novo)")
         return destino, uri
 
+    def enviar_imagem(self, local: Path, nome: str) -> str:
+        """Manda a imagem para a galeria (fica como a foto mais recente)."""
+        destino = f"{PASTA_CELULAR}/{nome}"
+        self.sh(f"mkdir -p {PASTA_CELULAR}")
+        r = self.adb("push", str(local), destino, timeout=120)
+        if r.returncode != 0:
+            raise Falha(f"adb push da capa falhou: {(r.stderr or r.stdout).strip()[:200]}")
+        real = destino.replace("/sdcard/", "/storage/emulated/0/", 1)
+        self.sh(f"am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://{real}")
+        for _ in range(20):
+            if re.search(r"_id=\d+", self.sh(f"content query --uri content://media/external/images/media --projection _id "
+                                             f"--where \"_data='{real}' OR _data='{destino}'\"")):
+                return destino
+            time.sleep(0.5)
+        raise Falha("a capa foi copiada mas a galeria não a indexou")
+
     def copiar_texto(self, texto: str) -> None:
         """Coloca o texto (com emojis e quebras de linha) na área de transferência do Android.
         O texto vai como arquivo e é lido no próprio celular: nada passa pela linha de comando do Windows."""
@@ -414,8 +433,10 @@ def assinatura_legenda(texto: str) -> str:
 
 # ------------------------------------------------------------------ fluxo de uma rede
 class Postagem:
-    def __init__(self, cel: Celular, rede: str, numero: int, legenda: str, ensaio: bool, log=print) -> None:
+    def __init__(self, cel: Celular, rede: str, numero: int, legenda: str, ensaio: bool, log=print,
+                 capa: Path | None = None) -> None:
         self.cel, self.rede, self.n, self.legenda, self.ensaio, self.log = cel, rede, numero, legenda, ensaio, log
+        self.capa, self.capa_feita = capa, False
         self.t = IG if rede == "instagram" else TT
         self.tocou_final = False
         self.na_publicacao = False   # já viu a tela de publicação (campo de legenda / botão final)
@@ -434,6 +455,8 @@ class Postagem:
         self.log(f"[{pub.ROTULOS[rede]}] enviando o vídeo para a galeria ({video.stat().st_size // 1024 // 1024} MB)…")
         caminho, uri = cel.enviar_video(video)
         self.log(f"  na galeria: {caminho}")
+        if self.capa:
+            self.log(f"  capa na galeria: {cel.enviar_imagem(self.capa, f'capa_ep{self.n:03d}_{self.stamp}.png')}")
         self.log("  copiando a legenda aprovada para a área de transferência…")
         cel.copiar_texto(self.legenda.rstrip() + " ")   # espaço final: não abre a lista de sugestões de #hashtag
         comp = cel.atividade_compartilhar(pacote, **COMPARTILHAR[rede])
@@ -538,6 +561,10 @@ class Postagem:
                         cel.sh("input keyevent KEYCODE_BACK")   # fecha só o teclado
                         time.sleep(1.0)
                     continue
+                if colou and self.capa and not self.capa_feita:
+                    self._trocar_capa()
+                    self.capa_feita = True
+                    continue
                 if colou:
                     # depois de colar, o campo mostra a legenda (não mais "Escreva uma legenda…")
                     if final:
@@ -564,6 +591,65 @@ class Postagem:
                 time.sleep(1.5)
                 continue
         raise Falha("passos demais sem chegar na tela final")
+
+    # ---------------------------------------------------------------- capa
+    def _esperar(self, padrao: re.Pattern, segundos: float = 12, rid: str | None = None) -> No:
+        fim = time.time() + segundos
+        while time.time() < fim:
+            nos = self.cel.tela()
+            for n in nos:
+                if n.ativo and ((rid and n.rid.endswith(rid)) or (not rid and any(v and padrao.search(v.strip()) for v in (n.text, n.desc)))):
+                    return n
+            time.sleep(1.0)
+        raise Falha(f"capa: não apareceu {rid or padrao.pattern!r}")
+
+    def _trocar_capa(self) -> None:
+        """Troca a capa pela imagem enviada (a mais recente da galeria). Falhou → para ANTES do toque final."""
+        cel, rede = self.cel, self.rede
+        self.log("  trocando a capa…")
+        try:
+            if rede == "instagram":
+                nos = cel.tela()
+                ok = next((n for n in nos if n.rid.endswith("action_bar_button_text") and re.fullmatch(r"ok", n.rotulo, re.I)), None)
+                if ok:   # fecha a edição da legenda
+                    cel.tocar(ok, rede)
+                    time.sleep(1.5)
+                for _ in range(4):   # a legenda longa empurra a miniatura para cima: rola até o topo
+                    ed = next((n for n in cel.tela() if n.ativo and n.rotulo == "Editar capa" and n.caixa[1] >= 254), None)
+                    if ed:
+                        break
+                    cel.sh("input swipe 540 600 540 1700 400")
+                    time.sleep(1.5)
+                else:
+                    raise Falha("capa: não achei 'Editar capa'")
+                cel.tocar(ed, rede); time.sleep(2.5)
+                cel.tocar(self._esperar(re.compile(r"^Adicionar do rolo da câmera$|^Add from camera roll$", re.I), rid="add_from_gallery"), rede)
+                time.sleep(2.5)
+                foto = self._esperar(re.compile(r"^$"), rid="gallery_image")
+                if not re.search(r"há \d+ (segundo|minuto)|agora|just now|seconds? ago|minutes? ago", foto.desc, re.I):
+                    raise Falha(f"capa: a foto mais recente da galeria não é a que acabei de enviar ({foto.desc!r})")
+                cel.tocar(foto, rede); time.sleep(3)
+                cel.tocar(self._esperar(re.compile(r"^Concluir$|^Done$", re.I)), rede)
+            else:
+                cel.tocar(self._esperar(re.compile(r"^Editar capa$|^Edit cover$|^Selecionar capa$", re.I)), rede)
+                time.sleep(2.5)
+                cel.tocar(self._esperar(re.compile(r"^Carregar$|^Upload$", re.I)), rede)
+                time.sleep(3)
+                nos = cel.tela()
+                grade = sorted((n for n in nos if n.clicavel and n.ativo and not n.rotulo and n.caixa[1] > 200
+                                and (n.caixa[2] - n.caixa[0]) > 150 and abs((n.caixa[2] - n.caixa[0]) - (n.caixa[3] - n.caixa[1])) < 40),
+                               key=lambda n: (n.caixa[1], n.caixa[0]))
+                if not grade:
+                    raise Falha("capa: a galeria do TikTok não abriu")
+                cel.tocar(grade[0], rede); time.sleep(3)   # a mais recente = a capa enviada agora
+                cel.tocar(self._esperar(re.compile(r"^Salvar$|^Save$", re.I), rid="tv_choose_cover_complete"), rede)
+            time.sleep(3)
+            self.evidencia("capa")
+            self.log("  capa trocada")
+        except Exception as e:
+            # nada foi publicado: sai sem publicar e marca erro (pode tentar de novo)
+            self.na_publicacao = False
+            raise Falha(f"não consegui trocar a capa (nada publicado): {e}") from e
 
     def _final(self, botao: No) -> str:
         rotulo = botao.rotulo
@@ -652,7 +738,7 @@ def checar(serial: str | None = None) -> list[tuple[str, bool, str]]:
 
 
 def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = None, log=print,
-           extra: str | None = None) -> bool:
+           extra: str | None = None, com_capa: bool = True) -> bool:
     """Devolve True se todas as redes pedidas terminaram bem (publicado / ensaio ok).
     extra="pov_obra" posta o vídeo extra do episódio (saida/epNNN/pov/) em vez do episódio."""
     chave = pub.chave_extra(numero, extra) if extra else numero
@@ -671,7 +757,9 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
                 tudo_ok = False
                 continue
             legenda = lib["copy"]["legenda"]
-            p = Postagem(cel, rede, numero, legenda, ensaio, log=log)
+            capa = config.pasta_episodio(numero) / "imagens" / "capa_vertical.png"
+            p = Postagem(cel, rede, numero, legenda, ensaio, log=log,
+                         capa=capa if (com_capa and not extra and capa.exists()) else None)
             try:
                 resultado = p.rodar(lib["video"])
                 if ensaio:
@@ -708,6 +796,7 @@ def main() -> int:
     ap.add_argument("--checar", action="store_true", help="só confere ADB, celular e apps")
     ap.add_argument("--serial", help="serial do aparelho (se tiver mais de um)")
     ap.add_argument("--extra", help="posta um vídeo extra do episódio (ex.: pov_obra) em vez do episódio")
+    ap.add_argument("--sem-capa", action="store_true", help="não troca a capa pela capa do episódio")
     a = ap.parse_args()
 
     if a.checar:
@@ -719,7 +808,7 @@ def main() -> int:
         ap.error("informe --episodio N (ou use --checar)")
     redes = [a.so] if a.so else ["instagram", "tiktok"]
     try:
-        ok = postar(a.episodio, redes, a.ensaio, a.serial, extra=a.extra)
+        ok = postar(a.episodio, redes, a.ensaio, a.serial, extra=a.extra, com_capa=not a.sem_capa)
     except (Falha, pub.Recusado) as e:
         print(f"✖ {e}")
         return 1
