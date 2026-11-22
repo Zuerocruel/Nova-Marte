@@ -80,6 +80,38 @@ def gerar_apresentacao(numero: int | None = None) -> list[Path]:
     return saidas
 
 
+LEGENDA_CONVITE = """🤝 Traga a sua tripulação para Marte!
+
+1️⃣ Entre na Colônia ao vivo com a sua conta
+2️⃣ Toque em "Copiar" no seu link de convite (logo abaixo do chat)
+3️⃣ Mande para os amigos: quem entrar pelo seu link conta para você
+
+👑 Quem mais convida concorre a cargos: líder, embaixador, festas!
+➡️ Ainda não é colono? Link na bio
+
+#pixelart #marte #serie #operacaomartezero"""
+
+
+def gerar_convite(numero: int | None = None) -> list[Path]:
+    pasta = config.SAIDA / "divulgacao" / "convite"
+    saidas = asyncio.run(_gerar(numero or ultimo_episodio(), "gerarConvite", pasta))
+    if not (pasta / "legenda.txt").exists():
+        (pasta / "legenda.txt").write_text(LEGENDA_CONVITE + "\n", encoding="utf-8")
+    return saidas
+
+
+def gerar_thumb_longo(numero: int | None = None) -> list[Path]:
+    """Thumbnail 1280x720 do vídeo longo do YouTube (saida/divulgacao/videos/youtube_longo/thumb.png)."""
+    pasta = config.SAIDA / "divulgacao" / "videos" / "youtube_longo"
+    tmp = pasta / "_thumb"
+    saidas = asyncio.run(_gerar(numero or ultimo_episodio(), "gerarThumbLongo", tmp))
+    pasta.mkdir(parents=True, exist_ok=True)
+    final = pasta / "thumb.png"
+    saidas[0].replace(final)
+    tmp.rmdir()
+    return [final]
+
+
 def gerar_stories(numero: int) -> list[Path]:
     return asyncio.run(_gerar(numero, "gerarStories", config.pasta_episodio(numero) / "stories"))
 
@@ -88,10 +120,17 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--apresentacao", action="store_true")
     ap.add_argument("--stories", type=int, metavar="EPISODIO")
+    ap.add_argument("--convite", action="store_true", help="posts de feed (3) e stories (2) de como convidar")
+    ap.add_argument("--thumb-longo", action="store_true", help="thumbnail do vídeo longo do YouTube")
     ap.add_argument("--fundo", type=int, help="episódio usado de fundo na apresentação (padrão: o último)")
     a = ap.parse_args()
-    if not a.apresentacao and not a.stories:
-        ap.error("use --apresentacao e/ou --stories N")
+    if not a.apresentacao and not a.stories and not a.convite and not a.thumb_longo:
+        ap.error("use --apresentacao, --convite e/ou --stories N")
+    if a.thumb_longo:
+        print(gerar_thumb_longo(a.fundo)[0])
+    if a.convite:
+        for p in gerar_convite(a.fundo):
+            print(p)
     if a.apresentacao:
         for p in gerar_apresentacao(a.fundo):
             print(p)

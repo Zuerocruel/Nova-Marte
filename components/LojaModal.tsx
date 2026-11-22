@@ -117,13 +117,20 @@ export default function LojaModal() {
 
                 {item.opcoes.length > 0 && (
                   <>
-                    <label htmlFor="modal-opcao">{item.slug === 'eventos-furia-marte' ? 'Qual evento?' : item.slug === 'capsula-habitacional' ? 'Qual cápsula?' : 'Escolha:'}</label>
-                    <div className="modal-opcoes" id="modal-opcao" role="radiogroup">
-                      {item.opcoes.map((o) => (
-                        <button type="button" key={o.valor} role="radio" aria-checked={opcao === o.valor}
-                          className={opcao === o.valor ? 'ativa' : ''} onClick={() => setOpcao(o.valor)}>{o.rotulo}</button>
-                      ))}
-                    </div>
+                    <label htmlFor="modal-opcao">{item.slug === 'eventos-furia-marte' ? 'Qual evento?' : item.slug === 'capsula-habitacional' ? 'Qual cápsula?' : item.slug === 'bandeira' ? 'Qual bandeira?' : 'Escolha:'}</label>
+                    {item.opcoes.length > 12 ? (   // muitas opções (ex.: ~200 países da bandeira): lista suspensa
+                      <select id="modal-opcao" value={opcao} onChange={(e) => setOpcao(e.target.value)} required>
+                        <option value="">Escolha…</option>
+                        {item.opcoes.map((o) => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
+                      </select>
+                    ) : (
+                      <div className="modal-opcoes" id="modal-opcao" role="radiogroup">
+                        {item.opcoes.map((o) => (
+                          <button type="button" key={o.valor} role="radio" aria-checked={opcao === o.valor}
+                            className={opcao === o.valor ? 'ativa' : ''} onClick={() => setOpcao(o.valor)}>{o.rotulo}</button>
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
 

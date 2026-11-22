@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Press_Start_2P } from 'next/font/google';
 import Link from 'next/link';
 import BloqueioInspecao from '@/components/BloqueioInspecao';
+import Entrada from '@/components/Entrada';
 import './globals.css';
 
 const pixel = Press_Start_2P({ weight: '400', subsets: ['latin'], variable: '--font-pixel', display: 'swap' });
@@ -20,12 +21,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR" className={pixel.variable}>
       <body>
         <BloqueioInspecao />
+        <Entrada />
         <header className="topo">
           <Link href="/" className="logo">OPERAÇÃO MARTE ZERO</Link>
           <nav>
             <Link href="/">Entrar</Link>
             <Link href="/mundo">Mundo</Link>
             <Link href="/loja">Loja</Link>
+            <Link href="/central">Central</Link>
             <Link href="/meus-itens">Meus itens</Link>
             <Link href="/eu">Meu perfil</Link>
           </nav>

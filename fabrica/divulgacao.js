@@ -170,3 +170,89 @@ window.gerarStories = function (info) {
     { nome: 'story_3_colonia_ao_vivo.png', url: stAoVivo() },
   ];
 };
+
+// ------------------------------------------------------------------ como convidar (feed 4:5 + stories 9:16)
+function cvPassos(w, y0, alt, tamT) {
+  passo(1, 'ENTRE NA COLÔNIA', 'Abra o Mundo ao vivo com a sua conta.', y0, COR.agua);
+  passo(2, 'COPIE O SEU LINK', 'Logo abaixo do chat: toque em Copiar.', y0 + alt, COR.ouro);
+  passo(3, 'MANDE PARA OS AMIGOS', 'Grupo, direct, stories: quem entrar conta para você.', y0 + alt * 2, COR.marte);
+}
+function cvFeed1() {
+  const w = 1080, h = 1350; novo(w, h);
+  fotoMundo(EP.duracao * 0.25, 'colonia', 5); fundoMundo(w, h, 0.1);
+  gradiente(w, h, [[0, 0.95], [0.34, 0.08], [0.62, 0.08], [1, 0.96]]);
+  escrever('TRAGA A SUA', w / 2, 150, 60, '#fff'); escrever('TRIPULAÇÃO', w / 2, 240, 76, COR.ouro);
+  selo('SEU LINK DE CONVITE', w / 2 - 270, 300, 34, COR.agua);
+  colonosGrandes(1020, 13);
+  escrever('ARRASTE PARA VER COMO  >>', w / 2, 1265, 24, COR.areia);
+  return png();
+}
+function cvFeed2() {
+  const w = 1080, h = 1350; novo(w, h);
+  fotoMundo(EP.duracao * 0.3, 'base', 3.2); fundoMundo(w, h, 0.62);
+  escrever('COMO CONVIDAR', w / 2, 130, 58, COR.ouro);
+  cvPassos(w, 230, 220);
+  painel(90, 930, w - 180, 170, COR.borda, 0.92);
+  escrever('operacao-marte-zero.vercel.app/c/', w / 2, 990, 26, COR.areia, { contorno: false });
+  escrever('SEU CÓDIGO', w / 2, 1045, 34, COR.ouro);
+  escrever('cada colono tem o seu', w / 2, 1180, 26, '#fff');
+  return png();
+}
+function cvFeed3() {
+  const w = 1080, h = 1350; novo(w, h);
+  fotoMundo(cenaT('missao', 0.7) ?? EP.duracao * 0.6, 'obra', 5); fundoMundo(w, h, 0.35);
+  painel(90, 250, w - 180, 720, COR.ouro, 0.94);
+  escrever('QUEM MAIS CONVIDA', w / 2, 340, 46, '#fff');
+  escrever('CONCORRE A CARGOS', w / 2, 410, 46, COR.ouro);
+  ['lider', 'vice', 'comunicacao'].forEach((id, i) => boneco(liderDeExemplo(9 + i * 17, id), w / 2 + (i - 1) * 230, 650, 12, i === 2));
+  escrever('LÍDER · EMBAIXADOR · FESTAS', w / 2, 820, 30, COR.areia, { maxW: w - 260 });
+  escrever('com traje e tag exclusivos', w / 2, 890, 24, '#fff', { contorno: false });
+  selo('LINK NA BIO', w / 2 - 190, 1060, 40, COR.agua);
+  return png();
+}
+function cvStory1() {
+  const w = 1080, h = 1920; novo(w, h);
+  fotoMundo(EP.duracao * 0.25, 'colonia', 5.5); fundoMundo(w, h, 0.55);
+  escrever('CONVIDE E', w / 2, 330, 72, '#fff'); escrever('GANHE CARGO', w / 2, 425, 72, COR.ouro);
+  cvPassos(w, 540, 230);
+  painel(90, 1270, w - 180, 260, COR.agua, 0.93);
+  escrever('SEU LINK FICA NA', w / 2, 1340, 34, '#fff'); escrever('COLÔNIA AO VIVO', w / 2, 1400, 40, COR.agua);
+  escrever(EP.site_tela, w / 2, 1470, 24, COR.areia, { contorno: false });
+  return png();
+}
+function cvStory2() {
+  const w = 1080, h = 1920; novo(w, h);
+  fotoMundo(cenaT('missao', 0.7) ?? EP.duracao * 0.6, 'obra', 6); fundoMundo(w, h, 0.25);
+  gradiente(w, h, [[0, 0.92], [0.3, 0.1], [0.62, 0.1], [1, 0.96]]);
+  escrever('QUEM MAIS', w / 2, 330, 72, '#fff'); escrever('CONVIDA', w / 2, 425, 72, COR.ouro);
+  escrever('vira líder, embaixador ou chefe das festas', w / 2, 510, 26, '#fff', { maxW: w - 220 });
+  ['lider', 'vice', 'comunicacao'].forEach((id, i) => boneco(liderDeExemplo(9 + i * 17, id), w / 2 + (i - 1) * 260, 1080, 14, i === 2));
+  painel(90, 1330, w - 180, 220, COR.ouro, 0.93);
+  escrever('COPIE O SEU LINK EM', w / 2, 1400, 30, '#fff'); escrever(EP.site_tela, w / 2, 1470, 28, COR.ouro, { maxW: w - 240 });
+  return png();
+}
+window.gerarConvite = function () {
+  return [
+    { nome: 'convite_feed_1.png', url: cvFeed1() }, { nome: 'convite_feed_2.png', url: cvFeed2() }, { nome: 'convite_feed_3.png', url: cvFeed3() },
+    { nome: 'convite_story_1.png', url: cvStory1() }, { nome: 'convite_story_2.png', url: cvStory2() },
+  ];
+};
+
+// ------------------------------------------------------------------ thumbnail do vídeo longo do YouTube (1280x720)
+window.gerarThumbLongo = function () {
+  const w = 1280, h = 720; novo(w, h);
+  fotoMundo(cenaT('missao', 0.75) ?? EP.duracao * 0.6, 'obra', 6.5); fundoMundo(w, h, 0.05);
+  const g = sx.createLinearGradient(0, 0, w * 0.72, 0);
+  g.addColorStop(0, 'rgba(20,15,38,0.96)'); g.addColorStop(0.62, 'rgba(20,15,38,0.7)'); g.addColorStop(1, 'rgba(20,15,38,0)');
+  sx.fillStyle = g; sx.fillRect(0, 0, w, h);
+  selo('GUIA COMPLETO', 52, 46, 30, COR.alerta, '#fff');
+  escrever('VIRE PERSONAGEM', 56, 230, 66, '#fff', { alinhar: 'left', maxW: 760 });
+  escrever('DE UMA SÉRIE', 56, 320, 66, '#fff', { alinhar: 'left', maxW: 760 });
+  escrever('EM MARTE!', 56, 420, 84, COR.ouro, { alinhar: 'left', maxW: 760 });
+  selo('GRÁTIS · EM 30 SEGUNDOS', 56, 500, 28, COR.agua);
+  escrever('OPERAÇÃO MARTE ZERO', 56, h - 52, 26, COR.areia, { alinhar: 'left' });
+  boneco(liderDeExemplo(9, 'lider'), w - 240, h - 300, 24);
+  boneco(liderDeExemplo(26, 'eng-civil'), w - 420, h - 150, 12, true);
+  EP.mundo.colonos.slice(0, 2).forEach((c, i) => boneco(spriteDe(c), w - 120 - i * 130, h - 110, 11, i % 2 === 0));
+  return [{ nome: 'thumb.png', url: png() }];
+};

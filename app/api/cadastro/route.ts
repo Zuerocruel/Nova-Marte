@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/lib/supabase';
 import { COOKIE_FT, COOKIE_LT, COOKIE_VID, lerToque } from '@/lib/origem';
+import { COOKIE_CONVITE } from '@/lib/convite';
 import { chaveApelido, erroApelido, limparApelido, normalizarBusca, normalizarHandle, normalizarWhatsapp } from '@/lib/texto';
 import { ipDe, permitido } from '@/lib/limite';
 import { gravarSessao } from '@/lib/sessao';
@@ -92,6 +93,13 @@ export async function POST(req: NextRequest) {
     }
     console.error('cadastro', error);
     return NextResponse.json({ erro: 'Não foi possível cadastrar agora.' }, { status: 500 });
+  }
+
+  // veio pelo link de convite de outro colono (/c/NM...)? grava quem convidou (migração 013)
+  const conv = req.cookies.get(COOKIE_CONVITE)?.value?.toUpperCase();
+  if (conv && /^NM\d{6}$/.test(conv) && conv !== data!.codigo) {
+    const { data: quem } = await db().from('personagens').select('id').eq('codigo', conv).maybeSingle();
+    if (quem) await db().from('personagens').update({ convidado_por: quem.id }).eq('codigo', data!.codigo);
   }
 
   const res = NextResponse.json({ codigo: data!.codigo });

@@ -22,6 +22,7 @@ import os
 import queue
 import re
 import secrets
+import unicodedata
 import shutil
 import socket
 import subprocess
@@ -152,7 +153,8 @@ PADRAO_ESTADO = {
     # Aprovar o episódio = postar sozinho no próximo horário de madrugada (Instagram + TikTok pelo celular,
     # YouTube pelo n8n já agendado para o mesmo horário). Ver agenda_automatica().
     "auto_postar": {"ligado": True, "horario": "03:00"},
-    "divulgacao": {},    # apresentacao/{aprovado_em}, stories/{"3": {aprovado_em, enviado_em}}, institucional/{aprovado_em}
+    "divulgacao": {},
+    "produtos_novos": [],   # propostas de produto pago (aba Produtos novos): aprovar = cria na Cakto pela API    # apresentacao/{aprovado_em}, stories/{"3": {aprovado_em, enviado_em}}, institucional/{aprovado_em}
 }
 ITENS_CHECKLIST = [
     ("revisado", "Nome revisado"),
@@ -450,12 +452,45 @@ def eh_teste_pedido(p: dict, testes: dict, ids_teste: set) -> bool:
     return p["id"] in testes["pedidos"] or (p.get("personagem_id") in ids_teste)
 
 
+ROBO_UA = re.compile(r"bot|crawl|spider|slurp|google-safety|googleother|google-inspectiontool|facebookexternalhit|"
+                     r"facebookcatalog|meta-externalagent|whatsapp|telegrambot|twitterbot|discordbot|slackbot|"
+                     r"headless|phantom|curl/|wget|python-|go-http|okhttp|axios|node-fetch|java/|preview", re.I)
+
+
+def marcar_robos(cliques: list[dict]) -> dict[int, str]:
+    """id do clique → motivo, para as visitas suspeitas de robô (o resto é visita real).
+    Regras: user-agent de robô conhecido (Google-Safety, facebookexternalhit, curl...), user-agent vazio ou
+    genérico ("Mozilla/5.0 (compatible)"), e rajada: 2+ cliques no MESMO link em até 5 s, sem site de origem,
+    de visitantes diferentes (é o YouTube/Google conferindo o link logo depois que a descrição é salva)."""
+    motivo = {}
+    for c in cliques:
+        ua = (c.get("user_agent") or "").strip()
+        if not ua:
+            motivo[c["id"]] = "sem user-agent"
+        elif m := ROBO_UA.search(ua):
+            motivo[c["id"]] = f"robô declarado ({m.group(0)})"
+        elif re.fullmatch(r"Mozilla/5\.0 \(compatible\)", ua):
+            motivo[c["id"]] = "user-agent genérico de verificador de links"
+    links = [c for c in cliques if c["tipo"] == "link"]
+    for a in links:
+        par = [b for b in links if b["id"] != a["id"] and b["alvo"] == a["alvo"] and not a.get("referer") and not b.get("referer")
+               and b.get("visitante_id") != a.get("visitante_id") and abs((ts(b["created_at"]) - ts(a["created_at"])).total_seconds()) <= 5]
+        if par and a["id"] not in motivo:
+            motivo[a["id"]] = "rajada: 2+ acessos no mesmo segundo, sem origem (verificador automático)"
+    return motivo
+
+
 def dados_visao(ocultar: bool) -> dict:
     est = ESTADO.ler()
     testes = est["testes"]
     pers = db().todos("personagens", {"select": "id,codigo,created_at,origem_source,origem_campaign,visitante_id", "order": "id.asc"})
     peds = db().todos("pedidos", {"select": "id,status,valor_centavos,personagem_id,created_at", "order": "id.asc"})
-    clqs = db().todos("cliques", {"select": "id,tipo,visitante_id,created_at", "order": "id.asc"})
+    clqs = db().todos("cliques", {"select": "id,tipo,alvo,visitante_id,referer,user_agent,created_at", "order": "id.asc"})
+    robos = marcar_robos(clqs)
+    lista_visitas = [{"id": c["id"], "quando": c["created_at"], "link": c["alvo"], "referer": c.get("referer"),
+                      "ua": (c.get("user_agent") or "")[:140], "robo": robos.get(c["id"])}
+                     for c in reversed(clqs) if c["tipo"] == "link"][:200]
+    clqs = [c for c in clqs if c["id"] not in robos]   # daqui para baixo: só visitas reais
     ids_teste = {p["id"] for p in pers if p["codigo"] in testes["personagens"]}
     visit_teste = {p["visitante_id"] for p in pers if p["id"] in ids_teste and p.get("visitante_id")}
     if ocultar:
@@ -508,7 +543,9 @@ def dados_visao(ocultar: bool) -> dict:
         "periodos": tabela,
         "dias": list(por_dia.values())[::-1],
         "origens": sorted(origens.values(), key=lambda o: -o["cadastros"]),
-        "obs": "Visitas = cliques em links rastreáveis (/l/…). O site ainda não conta visitas de página.",
+        "obs": "Visitas = cliques em links rastreáveis (/l/…), SEM os robôs (listados abaixo, separados).",
+        "visitas": lista_visitas,
+        "robos": sum(1 for v in lista_visitas if v["robo"]),
     }
 
 
@@ -1324,7 +1361,12 @@ def dados_pecas() -> dict:
     ult = eps[-1] if eps else None
     stories = sorted((config.pasta_episodio(ult) / "stories").glob("story_*.png")) if ult else []
     inst = PASTA_DIVULGACAO / "institucional" / "institucional.mp4"
+    conv = sorted((PASTA_DIVULGACAO / "convite").glob("convite_*.png"))
+    leg_conv = PASTA_DIVULGACAO / "convite" / "legenda.txt"
     return {
+        "videos": dados_videos(),
+        "convite": {"imagens": [_url_saida(i) for i in conv], "legenda": leg_conv.read_text(encoding="utf-8") if leg_conv.exists() else "",
+                    **est.get("convite", {}), "gerando": FILA.ocupada("Gerar posts de convite")},
         "apresentacao": {"imagens": [_url_saida(i) for i in imgs],
                          "legenda": txt.read_text(encoding="utf-8") if txt.exists() else "",
                          "aprovado_em": est.get("apresentacao", {}).get("aprovado_em"),
@@ -1337,6 +1379,71 @@ def dados_pecas() -> dict:
                                       if inst.with_name("roteiro.txt").exists() else ""),
                           **est.get("institucional", {}), "gerando": FILA.ocupada("Gerar vídeo institucional")},
     }
+
+
+NOMES_VIDEOS = {"cargos": "👑 Cargos de Nova Marte (cada um dá uma voltinha)", "convite": "🤝 Como convidar com o seu link",
+                "novidade_chat": "💬 Novidade: chat ao vivo + online agora", "novidade_central": "🎮 Novidade: central do colono",
+                "novidade_moedas": "🪙 Novidade: loja de moedas", "youtube_longo": "📺 YouTube longo (horizontal, guia completo)"}
+
+
+def dados_videos() -> list[dict]:
+    est = ESTADO.ler()["divulgacao"].get("videos", {})
+    pasta = PASTA_DIVULGACAO / "videos"
+    saida = []
+    for nome, titulo in NOMES_VIDEOS.items():
+        d = pasta / nome
+        v = d / "video.mp4"
+        ler = lambda arq: (d / arq).read_text(encoding="utf-8") if (d / arq).exists() else ""
+        saida.append({"nome": nome, "titulo": titulo, "video": _url_saida(v) if v.exists() else None,
+                      "thumb": _url_saida(d / "thumb.png") if (d / "thumb.png").exists() else None,
+                      "roteiro": ler("roteiro.txt"), "copies": ler("copies.txt"),
+                      "horizontal": nome == "youtube_longo", "gerando": FILA.ocupada(f"Gerar vídeo {nome}"), **est.get(nome, {})})
+    return saida
+
+
+def acao_gerar_video(d: dict):
+    nome = d.get("nome")
+    if nome not in NOMES_VIDEOS:
+        raise ValueError("vídeo inválido")
+
+    def fn(job):
+        ESTADO.mudar(lambda e: e["divulgacao"].setdefault("videos", {}).pop(nome, None))
+        rodar(job, [sys.executable, "explicativos.py", nome, "--site", site_teste()], FABRICA)
+        if nome == "youtube_longo":
+            rodar(job, [sys.executable, "divulgacao.py", "--thumb-longo"], FABRICA)
+    return {"job": FILA.adicionar(f"Gerar vídeo {nome}", fn).id}
+
+
+def acao_aprovar_video(d: dict):
+    nome = d.get("nome")
+    if nome not in NOMES_VIDEOS or not (PASTA_DIVULGACAO / "videos" / nome / "video.mp4").exists():
+        raise ValueError("gere o vídeo antes")
+    ESTADO.mudar(lambda e: e["divulgacao"].setdefault("videos", {}).setdefault(nome, {}).update(aprovado_em=agora()))
+    return {"msg": "Aprovado. Nada é postado sozinho: o vídeo está na pasta saida/divulgacao/videos/" + nome}
+
+
+def acao_desaprovar_video(d: dict):
+    ESTADO.mudar(lambda e: e["divulgacao"].get("videos", {}).pop(d.get("nome"), None))
+
+
+def acao_aprovar_convite(d: dict):
+    """Posts de convite aprovados → as 5 imagens vão para a galeria do celular (prontas para postar)."""
+    imgs = sorted((PASTA_DIVULGACAO / "convite").glob("convite_*.png"))
+    if not imgs:
+        raise ValueError("gere os posts de convite antes")
+    ESTADO.mudar(lambda e: e["divulgacao"].setdefault("convite", {}).update(aprovado_em=agora()))
+
+    def fn(job):
+        rodar(job, [sys.executable, "celular.py", "--galeria", *map(str, imgs)], PRODUCAO)
+        ESTADO.mudar(lambda e: e["divulgacao"]["convite"].update(enviado_em=agora()))
+    return {"job": FILA.adicionar("Mandar posts de convite para o celular", fn).id, "msg": "Aprovado: mandando para o celular"}
+
+
+def acao_gerar_convite(d: dict):
+    def fn(job):
+        ESTADO.mudar(lambda e: e["divulgacao"].pop("convite", None))
+        rodar(job, [sys.executable, "divulgacao.py", "--convite"], FABRICA)
+    return {"job": FILA.adicionar("Gerar posts de convite", fn).id}
 
 
 def acao_gerar_apresentacao(d: dict):
@@ -1417,6 +1524,194 @@ def acao_desaprovar_institucional(d: dict):
     ESTADO.mudar(lambda e: e["divulgacao"].pop("institucional", None))
 
 
+# ---------------------------------------------------------------- site para testar (minigames / entrada)
+def site_teste() -> str:
+    """Endereço para os iframes de teste: a prévia local (npm run dev, porta 3000) se estiver no ar; senão o site."""
+    try:
+        import requests as _rq
+        if _rq.get("http://127.0.0.1:3000/entrada", timeout=1.5).status_code < 500:
+            return "http://127.0.0.1:3000"
+    except Exception:  # noqa: BLE001
+        pass
+    return f"https://{config.SITE_TELA}"
+
+
+# ---------------------------------------------------------------- Convites (quem trouxe quem)
+def dados_convites() -> dict:
+    try:
+        pers = db().todos("personagens", {"select": "id,codigo,nome,apelido,created_at,convidado_por,origem_source,"
+                                                    "origem_campaign,oculto", "order": "id.asc"})
+        falta = None
+    except Exception as e:  # noqa: BLE001
+        pers = db().todos("personagens", {"select": "id,codigo,nome,apelido,created_at,origem_source,origem_campaign,oculto",
+                                          "order": "id.asc"})
+        falta = f"rode supabase/migrations/013_jogo_convites_online.sql ({str(e)[:60]})"
+    clq = db().todos("cliques", {"select": "id,tipo,alvo,referer,user_agent,visitante_id,created_at", "alvo": "like.convite-*"})
+    robos = marcar_robos(clq)
+    nome = lambda x: (x.get("apelido") or "").strip() or episodio.nome_exibicao(x["nome"])
+    por_id = {x["id"]: x for x in pers}
+    base = f"https://{config.SITE_TELA}"
+    linhas = []
+    for x in pers:
+        trouxe = [y for y in pers if y.get("convidado_por") == x["id"] or
+                  (not y.get("convidado_por") and y.get("origem_source") == "convite" and y.get("origem_campaign") == x["codigo"])]
+        cliques = [c for c in clq if c["alvo"] == f"convite-{x['codigo']}"]
+        reais = [c for c in cliques if c["id"] not in robos]
+        linhas.append({
+            "codigo": x["codigo"], "nome": nome(x), "oculto": x.get("oculto"),
+            "link": f"{base}/c/{x['codigo']}",
+            "utm": f"utm_source=convite&utm_medium=colono&utm_campaign={x['codigo']}",
+            "cliques": len(reais), "robos": len(cliques) - len(reais),
+            "cadastros": len(trouxe),
+            "trouxe": [{"codigo": y["codigo"], "nome": nome(y), "em": y["created_at"]} for y in trouxe],
+            "convidado_por": (lambda c: {"codigo": c["codigo"], "nome": nome(c)} if c else None)(por_id.get(x.get("convidado_por"))),
+        })
+    linhas.sort(key=lambda l: (-l["cadastros"], -l["cliques"], l["codigo"]))
+    return {"colonos": linhas, "falta": falta, "total_convidados": sum(1 for x in pers if x.get("convidado_por"))}
+
+
+# ---------------------------------------------------------------- Minigames (testar, aprovar, ligar no site)
+def dados_minigames() -> dict:
+    try:
+        jogos = db().get("minigames", {"select": "*", "order": "slug"})
+        partidas = db().todos("minigame_partidas", {"select": "minigame,pontos,resultado,moedas,created_at", "order": "id.desc"})
+        falta = None
+    except Exception as e:  # noqa: BLE001
+        jogos, partidas, falta = [], [], f"rode supabase/migrations/013_jogo_convites_online.sql ({str(e)[:60]})"
+    for j in jogos:
+        pj = [x for x in partidas if x["minigame"] == j["slug"]]
+        j["estatisticas"] = {"partidas": len(pj), "media": round(sum(x["pontos"] for x in pj) / len(pj)) if pj else 0,
+                             "perderam": sum(1 for x in pj if x["resultado"] != "terminou"),
+                             "moedas": sum(x["moedas"] for x in pj)}
+    return {"jogos": jogos, "falta": falta, "site": site_teste()}
+
+
+def acao_minigame(d: dict):
+    """Aprovar / ligar / desligar um minigame (sem confirmação; o site muda na hora)."""
+    slug, o = str(d.get("slug") or ""), d.get("o")
+    if not re.fullmatch(r"[a-z]+", slug):
+        raise ValueError("minigame inválido")
+    if o == "aprovar":
+        mud = {"aprovado_em": agora()}
+    elif o == "desaprovar":
+        mud = {"aprovado_em": None, "ativo": False}
+    elif o in ("ligar", "desligar"):
+        if o == "ligar" and not (db().get("minigames", {"select": "aprovado_em", "slug": f"eq.{slug}"}) or [{}])[0].get("aprovado_em"):
+            raise ValueError("aprove (depois de testar) antes de ligar no site")
+        mud = {"ativo": o == "ligar"}
+    elif o == "ajustar":
+        mud = {k: max(1, min(int(d[k]), 500)) for k in ("moedas_max", "partidas_dia") if k in d}
+    else:
+        raise ValueError("ação inválida")
+    db().escrever("PATCH", "minigames", {"slug": f"eq.{slug}"}, mud, prefer="return=minimal")
+    SINAL.mudou()
+    return {"msg": {"aprovar": "Aprovado", "ligar": "Ligado no site", "desligar": "Desligado do site"}.get(o, "Salvo")}
+
+
+# ---------------------------------------------------------------- Loja de moedas (aprovar itens e preços)
+def dados_loja_moedas() -> dict:
+    prop = config.ler_json(FABRICA / "loja_moedas.json")["itens"]
+    try:
+        no_banco = {x["slug"]: x for x in db().get("loja_moedas", {"select": "*"})}
+        vendas = db().todos("loja_moedas_compras", {"select": "item"})
+        falta = None
+    except Exception as e:  # noqa: BLE001
+        no_banco, vendas, falta = {}, [], f"rode supabase/migrations/013_jogo_convites_online.sql ({str(e)[:60]})"
+    itens = []
+    for i, x in enumerate(prop):
+        b = no_banco.get(x["slug"], {})
+        itens.append({**x, "ordem": i, "preco": b.get("preco", x["preco"]), "preco_sugerido": x["preco"],
+                      "aprovado_em": b.get("aprovado_em"), "ativo": b.get("ativo", False),
+                      "vendas": sum(1 for v in vendas if v["item"] == x["slug"])})
+    return {"itens": itens, "falta": falta,
+            "economia": "Um dia bom rende ~150 moedas (missões ~60 + minigames). Cor ≈ 2 dias · traje ≈ 1 semana · especial ≈ 3–4 semanas."}
+
+
+def acao_loja_moedas(d: dict):
+    """Aprovar item + preço, ligar/desligar no site (sem confirmação)."""
+    slug, o = str(d.get("slug") or ""), d.get("o")
+    prop = {x["slug"]: x for x in config.ler_json(FABRICA / "loja_moedas.json")["itens"]}
+    if slug not in prop:
+        raise ValueError("item não existe em fabrica/loja_moedas.json")
+    x = prop[slug]
+    if o == "aprovar":
+        preco = int(d.get("preco") or x["preco"])
+        if not 10 <= preco <= 100000:
+            raise ValueError("preço entre 10 e 100000 moedas")
+        ordem = list(prop).index(slug)
+        db().escrever("POST", "loja_moedas", {"on_conflict": "slug"},
+                      {"slug": slug, "nome": x["nome"], "tipo": x["tipo"], "preco": preco, "traje": x["traje"],
+                       "aprovado_em": agora(), "ordem": ordem}, prefer="resolution=merge-duplicates,return=minimal")
+    elif o in ("ligar", "desligar"):
+        if o == "ligar" and not (db().get("loja_moedas", {"select": "aprovado_em", "slug": f"eq.{slug}"}) or [{}])[0].get("aprovado_em"):
+            raise ValueError("aprove o item e o preço antes de ligar")
+        db().escrever("PATCH", "loja_moedas", {"slug": f"eq.{slug}"}, {"ativo": o == "ligar"}, prefer="return=minimal")
+    else:
+        raise ValueError("ação inválida")
+    SINAL.mudou()
+
+
+# ---------------------------------------------------------------- Produtos novos (aprovar → Cakto pela API)
+def dados_produtos_novos() -> dict:
+    import cakto_api
+    imagens = sorted(f"/itens/{x.name}" for x in (RAIZ / "public" / "itens").glob("*.png"))
+    return {"propostas": ESTADO.ler()["produtos_novos"], "imagens": imagens,
+            "cakto": cakto_api.Cakto().configurada(), "site": f"https://{config.SITE_TELA}"}
+
+
+def acao_produto_novo(d: dict):
+    """Cria/edita uma proposta de produto (fica em rascunho até aprovar)."""
+    nome = str(d.get("nome") or "").strip()[:80]
+    if not nome:
+        raise ValueError("dê um nome ao produto")
+    preco = round(float(str(d.get("preco") or "0").replace(",", ".")), 2)
+    if not 1 <= preco <= 5000:
+        raise ValueError("preço entre R$ 1 e R$ 5.000")
+    slug = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode().lower()).strip("-")
+    prop = {"id": d.get("id") or secrets.token_hex(4), "slug": slug, "nome": nome, "descricao": str(d.get("descricao") or "")[:500],
+            "preco": preco, "imagem": str(d.get("imagem") or ""), "criado_em": agora(), "status": "rascunho"}
+
+    def fn(e):
+        e["produtos_novos"] = [x for x in e["produtos_novos"] if x["id"] != prop["id"]] + [prop]
+    ESTADO.mudar(fn)
+
+
+def acao_produto_novo_remover(d: dict):
+    ESTADO.mudar(lambda e: e.update(produtos_novos=[x for x in e["produtos_novos"] if x["id"] != d.get("id") or x.get("status") == "criado"]))
+
+
+def acao_produto_novo_aprovar(d: dict):
+    """Aprovar = criar na Cakto pela API (com a imagem) e cadastrar na loja do site (desligado até você ligar)."""
+    import cakto_api
+    prop = next((x for x in ESTADO.ler()["produtos_novos"] if x["id"] == d.get("id")), None)
+    if not prop or prop.get("status") == "criado":
+        raise ValueError("proposta não encontrada (ou já criada)")
+    if not prop["imagem"]:
+        raise ValueError("escolha a imagem do produto")
+    c = cakto_api.Cakto()
+    if not c.configurada():
+        raise ValueError("para criar na Cakto pela API, coloque CAKTO_CLIENT_ID e CAKTO_CLIENT_SECRET no .env.local "
+                         "(Cakto → Integrações → API) e reinicie o painel")
+    url_img = f"https://{config.SITE_TELA}{prop['imagem']}"
+    criado = c.criar_produto(prop["nome"], prop["descricao"], prop["preco"], url_img)
+    checkout = criado.get("checkoutUrl") or criado.get("checkout_url") or ""
+    if not checkout:
+        raise ValueError(f"criado na Cakto (id {criado.get('id')}), mas a API não devolveu o link de checkout: copie o link "
+                         "da oferta na Cakto e cadastre o produto na aba Produtos")
+    db().escrever("POST", "produtos", {"on_conflict": "slug"},
+                  {"slug": prop["slug"], "nome": prop["nome"], "descricao": prop["descricao"],
+                   "preco_centavos": int(round(prop["preco"] * 100)), "imagem_url": prop["imagem"],
+                   "tipo": "pago", "ativo": False, "checkout_url": checkout},
+                  prefer="resolution=merge-duplicates,return=minimal")
+
+    def fn(e):
+        for x in e["produtos_novos"]:
+            if x["id"] == prop["id"]:
+                x.update(status="criado", cakto_id=criado.get("id"), checkout=checkout, aprovado_em=agora())
+    ESTADO.mudar(fn)
+    return {"msg": "Criado na Cakto e na loja (desligado: ligue na aba Produtos quando quiser)"}
+
+
 # ---------------------------------------------------------------- Cargos de Nova Marte (liderança)
 def dados_liderancas() -> dict:
     """Catálogo (fabrica/liderancas.json) + quem ocupa cada cargo + candidatos (quem entrou pelo site primeiro)."""
@@ -1490,8 +1785,6 @@ def acao_chat_ocultar(d: dict):
 
 
 def acao_chat_limpar(d: dict):
-    if d.get("confirmar") != "LIMPAR":
-        raise ValueError("digite LIMPAR para confirmar")
     db().s.delete(f"{db().url}/chat_mensagens", params={"id": "gt.0"}, timeout=30).raise_for_status()
     SINAL.mudou()
 
@@ -1698,6 +1991,11 @@ GETS = {
     "/api/cadastros": lambda q: dados_cadastros(),
     "/api/liderancas": lambda q: dados_liderancas(),
     "/api/pecas": lambda q: dados_pecas(),
+    "/api/convites": lambda q: dados_convites(),
+    "/api/minigames": lambda q: dados_minigames(),
+    "/api/loja-moedas": lambda q: dados_loja_moedas(),
+    "/api/produtos-novos": lambda q: dados_produtos_novos(),
+    "/api/site-teste": lambda q: {"site": site_teste()},
     "/api/visao": lambda q: dados_visao(q.get("ocultar", ["1"])[0] == "1"),
     "/api/compras": lambda q: dados_compras(),
     "/api/site": lambda q: dados_site(),
@@ -1822,7 +2120,8 @@ class Handler(BaseHTTPRequestHandler):
     def _midia(self, rel: str):
         """Serve vídeo/prévias de saida/epNNN com suporte a Range (para o player avançar)."""
         partes = rel.split("/")
-        divulg = len(partes) == 3 and partes[0] == "divulgacao" and partes[1] in ("apresentacao", "institucional")
+        divulg = (partes[0] == "divulgacao" and ((len(partes) == 3 and partes[1] in ("apresentacao", "institucional", "convite"))
+                                                 or (len(partes) == 4 and partes[1] == "videos" and re.fullmatch(r"[a-z_]+", partes[2]))))
         sub_ok = divulg or (re.fullmatch(r"ep\d{3}", partes[0]) and
                             (len(partes) == 2 or (len(partes) == 3 and partes[1] in ("imagens", "pov", "stories"))))
         if not sub_ok or not re.fullmatch(r"[\w.\-]+\.(mp4|png|txt)", partes[-1]):
@@ -1873,6 +2172,13 @@ def vigia() -> None:
             if html.stat().st_mtime != mt:
                 mt = html.stat().st_mtime
                 SINAL.mudou(recarregar=True)
+            if time.time() - getattr(vigia, "ultima_limpeza", 0) > 600:   # chat: apaga o que passou de 10 min
+                vigia.ultima_limpeza = time.time()
+                try:
+                    antes = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+                    db().s.delete(f"{db().url}/chat_mensagens", params={"created_at": f"lt.{antes}"}, timeout=30)
+                except Exception:  # noqa: BLE001
+                    pass
             try:
                 agenda_automatica()
             except Exception as ex:  # noqa: BLE001

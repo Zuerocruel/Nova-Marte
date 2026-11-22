@@ -14,7 +14,21 @@ import { descricaoPet, situacaoPet } from '@/lib/pet';
 import { cargoDe } from '@/lib/cargos';
 import type { EstadoColonia } from '@/lib/colonia';
 import LojaModal from './LojaModal';
-import { liderancaDe, nomeComTitulo, vestirTraje } from '@/lib/liderancas';
+import { liderancaDe, nomeComTitulo, vestirTraje, type Lideranca } from '@/lib/liderancas';
+
+// trajes da loja de moedas (slug → traje), carregados uma vez; o cargo de liderança tem prioridade sobre eles
+const TRAJES_LOJA = new Map<string, Lideranca>();
+let trajesPedidos = false;
+function trajeDaLoja(slug?: string | null): Lideranca | null {
+  if (!slug) return null;
+  if (!trajesPedidos && typeof window !== 'undefined') {
+    trajesPedidos = true;
+    fetch('/api/loja-moedas').then((r) => r.json()).then((d) => {
+      for (const it of d.itens ?? []) TRAJES_LOJA.set(it.slug, { id: 'loja-' + it.slug, traje: it.traje, acessorios: it.traje.acessorios ?? [], cor: it.traje.cor ?? it.traje.detalhe ?? '#ffc83d' } as unknown as Lideranca);
+    }).catch(() => {});
+  }
+  return TRAJES_LOJA.get(slug) ?? null;
+}
 import BotaoComentar from './BotaoComentar';
 import type { MensagemChat } from '@/app/api/chat/route';
 
@@ -25,7 +39,22 @@ import type { MensagemChat } from '@/app/api/chat/route';
  * rádio ganha um balão com a mensagem. Tudo segue o relógio: todo mundo vê a mesma cena.
  */
 const RECARREGA_MS = 30_000;
-const ZOOM_MIN = 0.75, ZOOM_MAX = 8;
+const ZOOM_MIN = 0.2, ZOOM_MAX = 8;   // 0.2: o hexágono inteiro cabe na tela
+
+// ---- mapa em HEXÁGONO (bordas arredondadas, minimalista): a colônia mora dentro; fora é o espaço.
+// Raio em casas: no mínimo 110 (bem maior que o bairro de hoje) e cresce junto com o bairro.
+export const raioHex = (total: number) => Math.max(110, Math.ceil((limitesDoBairro(Math.max(total, 1)).x1 - CENTRO.x) * 1.6) + 30);
+function caminhoHex(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  const v = Array.from({ length: 6 }, (_, i) => { const a = Math.PI / 6 + (i * Math.PI) / 3; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; });
+  const raio = r * 0.14;
+  ctx.moveTo((v[5][0] + v[0][0]) / 2, (v[5][1] + v[0][1]) / 2);
+  for (let i = 0; i < 6; i++) { const a = v[i], b = v[(i + 1) % 6]; ctx.arcTo(a[0], a[1], b[0], b[1], raio); }
+  ctx.closePath();
+}
+function dentroDoHex(x: number, y: number, cx: number, cy: number, r: number) {   // hexágono de pontas em cima/embaixo
+  const dx = Math.abs(x - cx), dy = Math.abs(y - cy);
+  return dx <= r * Math.cos(Math.PI / 6) && dy <= r - dx * Math.tan(Math.PI / 6);
+}
 const BALAO_MS = 7_000;   // quanto tempo a fala do rádio fica no balão em cima do colono
 
 /** Quebra o texto em até `max` linhas de no máximo `largura` px (a última ganha "…" se sobrar texto). */
@@ -60,8 +89,8 @@ const TELHADOS = ['#e04f5f', '#3f8efc', '#2bb673', '#f4b400', '#9b59b6', '#ff7f5
 
 const spritesColono = new Map<number, HTMLCanvasElement>();
 const spritesLider = new Map<string, HTMLCanvasElement>();
-function spriteColono(seed: number, lideranca?: string | null): HTMLCanvasElement {
-  const lid = liderancaDe(lideranca);
+function spriteColono(seed: number, lideranca?: string | null, trajeMoedas?: string | null): HTMLCanvasElement {
+  const lid = liderancaDe(lideranca) ?? trajeDaLoja(trajeMoedas);
   const k = lid ? `${seed}:${lid.id}` : '';
   let c = lid ? spritesLider.get(k) : spritesColono.get(seed);
   if (!c) {
@@ -96,9 +125,11 @@ function desenharCasinha(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
   ctx.fillStyle = temGente ? '#ffe58a' : '#2b2350'; ctx.fillRect(x + 4, y + 5, 2, 2);
 }
 
-export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
-  codigoInicial?: string; novo?: boolean; mensagens?: MensagemChat[];
+export default function Mundo({ codigoInicial, novo, mensagens = [], online = [] }: {
+  codigoInicial?: string; novo?: boolean; mensagens?: MensagemChat[]; online?: string[];
 }) {
+  const onlineRef = useRef(new Set<string>());
+  onlineRef.current = new Set(online);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cam = useRef({ x: 0, y: 0, zoom: 3, pronta: false });
   const chunks = useRef(new Map<string, Chunk>());
@@ -271,6 +302,19 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       for (let by = Math.floor(vy0 / BLOCO); by <= Math.floor(vy1 / BLOCO); by++)
         for (let bx = Math.floor(vx0 / BLOCO); bx <= Math.floor(vx1 / BLOCO); bx++)
           ctx.drawImage(blocoTerreno(bx, by), bx * TB, by * TB, TB + 0.5, TB + 0.5);
+      {   // fora do hexágono: espaço escuro com estrelinhas; borda clara e arredondada
+        const hx = (CENTRO.x + 0.5) * CASA, hy = (CENTRO.y + 0.5) * CASA, hr = raioHex(n) * CASA;
+        const x0 = camX - 50, y0 = camY - 50, x1 = camX + w / zoom + 50, y1 = camY + h / zoom + 50;
+        ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); caminhoHex(ctx, hx, hy, hr);
+        ctx.fillStyle = '#0d0a1c'; ctx.fill('evenodd');
+        ctx.fillStyle = '#ffffff40';
+        for (let i = 0; i < 260; i++) {
+          const sx = hx + (((i * 7919) % 4000) / 4000 - 0.5) * hr * 3.4, sy = hy + (((i * 104729) % 4000) / 4000 - 0.5) * hr * 3.4;
+          if (sx > x0 && sx < x1 && sy > y0 && sy < y1 && !dentroDoHex(sx, sy, hx, hy, hr)) ctx.fillRect(sx, sy, 2 / zoom + 1, 2 / zoom + 1);
+        }
+        ctx.beginPath(); caminhoHex(ctx, hx, hy, hr);
+        ctx.lineWidth = Math.max(2, 3 / zoom); ctx.strokeStyle = '#f6d7a766'; ctx.stroke();
+      }
       if (e) for (const cr of e.crateras ?? []) {   // crateras batizadas pelos colonos
         if (cr.x < vx0 - 4 || cr.x > vx1 + 4 || cr.y < vy0 - 4 || cr.y > vy1 + 4) continue;
         crateraBatizada(ctx, cr.x * CASA + 8, cr.y * CASA + 8, cr.r, cr.id);
@@ -421,9 +465,10 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
               : (s.tipo === 'praca' && Math.sin(t * 4 + pe.id) > 0.8 ? -2 : s.tipo === 'obra' && Math.floor(t * 3 + pe.id) % 2 ? -1 : 0);
             ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(s.x - 4, s.y - 1, 8, 2);
             ctx.save(); ctx.translate(Math.round(s.x), Math.round(s.y + pulo)); if (s.dir < 0) ctx.scale(-1, 1);
-            if (img && img.complete && img.naturalWidth && !p.lideranca) ctx.drawImage(img, -6, -12, 12, 12);
-            else ctx.drawImage(spriteColono(p.seed, p.lideranca), -6, -12, 12, 12);
+            if (img && img.complete && img.naturalWidth && !p.lideranca && !p.traje_moedas) ctx.drawImage(img, -6, -12, 12, 12);
+            else ctx.drawImage(spriteColono(p.seed, p.lideranca, p.traje_moedas), -6, -12, 12, 12);
             ctx.restore();
+            if (onlineRef.current.has(p.codigo)) { ctx.fillStyle = '#4ed37a'; ctx.fillRect(s.x - 1, s.y - 16, 2.5, 2.5); }   // online agora
             if (p.status === 'estreou') { ctx.fillStyle = '#ffd84a'; ctx.fillRect(s.x + 4, s.y - 13, 2.5, 2.5); }
             if (s.tipo === 'obra' && Math.floor(t * 4 + pe.id) % 3 === 0) { ctx.fillStyle = COR.ouro; ctx.fillRect(s.x + 5 * s.dir, s.y - 7, 2, 2); }
           },
@@ -592,9 +637,10 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       const dx = p.x - ant.x, dy = p.y - ant.y;
       if (Math.abs(dx) + Math.abs(dy) > 3) arrastou = true;
       const c = cam.current;
-      const lb = limitesDoBairro(Math.max(totalRef.current, 1));
-      c.x = Math.max((lb.x0 - 40) * CASA, Math.min((lb.x1 + 40) * CASA, c.x - dx / c.zoom));
-      c.y = Math.max((lb.y0 - 40) * CASA, Math.min((lb.y1 + 40) * CASA, c.y - dy / c.zoom));
+      const r = raioHex(totalRef.current) * CASA, hx = (CENTRO.x + 0.5) * CASA, hy = (CENTRO.y + 0.5) * CASA;
+      const vw = cv.clientWidth / c.zoom, vh = cv.clientHeight / c.zoom;   // o centro da tela não sai do hexágono
+      c.x = Math.max(hx - r - vw / 2, Math.min(hx + r - vw / 2, c.x - dx / c.zoom));
+      c.y = Math.max(hy - r - vh / 2, Math.min(hy + r - vh / 2, c.y - dy / c.zoom));
       ponteiros.set(e.pointerId, p);
     };
     const up = (e: PointerEvent) => {

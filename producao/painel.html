@@ -157,9 +157,10 @@ const TOKEN = '__TOKEN__', BOOT = '__BOOT__';
 const GRUPOS = [
   ['Hoje', [['aprovacoes', '✅ Aprovações'], ['episodios', '🎬 Episódios']]],
   ['Conteúdo', [['divulgacao', '📢 Divulgação']]],
-  ['Colônia', [['cadastros', '🆕 Cadastros'], ['colonos', '👥 Colonos'], ['liderancas', '🎖️ Cargos de Nova Marte'],
-               ['cargos', '🏅 Profissões e distintivos'], ['chat', '💬 Chat']]],
-  ['Loja', [['compras', '🛒 Compras'], ['produtos', '🏪 Produtos']]],
+  ['Colônia', [['cadastros', '🆕 Cadastros'], ['convites', '🤝 Convites'], ['colonos', '👥 Colonos'],
+               ['liderancas', '🎖️ Cargos de Nova Marte'], ['cargos', '🏅 Profissões e distintivos'], ['chat', '💬 Chat']]],
+  ['Jogo', [['minigames', '🎮 Minigames'], ['lojamoedas', '🪙 Loja de moedas'], ['entrada', '🚀 Entrada do site']]],
+  ['Loja', [['compras', '🛒 Compras'], ['produtos', '🏪 Produtos'], ['produtosnovos', '🆕 Produtos novos']]],
   ['Sistema', [['visao', '📊 Visão geral'], ['site', '🌐 Site'], ['conexoes', '🔌 Conexões']]],
 ];
 const ABAS = GRUPOS.flatMap(([, abas]) => abas);
@@ -339,7 +340,24 @@ async function htmlPecas() {
     <div class="linha" style="margin-top:10px">
       ${inst.aprovado_em ? `<span class="st aprovado">aprovado</span>${botao('Desaprovar', 'desaprovar_institucional')}` : (inst.video ? botao('✅ Aprovar', 'aprovar_institucional', {}, 'aprovar') : '')}
       ${botao('↻ Gerar', 'gerar_institucional', {}, '', inst.gerando ? 'disabled' : '')}</div></div>`;
-  return `<h2>Divulgação para aprovar</h2>${cardAp}${cardSt}${cardInst}`;
+  const cv = d.convite;
+  const cardConv = `<div class="card"><h3>🤝 Posts de convite (3 de feed + 2 stories)</h3>
+    <p class="mudo">Como convidar com o link próprio de cada colono. Ao aprovar, os 5 vão para a galeria do celular.</p>
+    ${cv.imagens.length ? miniaturas(cv.imagens, 120) : '<p class="mudo">Ainda não gerados.</p>'}
+    ${cv.legenda ? `<details><summary>Legenda (sem link)</summary><pre class="log">${esc(cv.legenda)}</pre></details>` : ''}
+    <div class="linha" style="margin-top:10px">${cv.aprovado_em ? `<span class="st aprovado">aprovado</span><span class="mudo">${cv.enviado_em ? 'no celular desde ' + quando(cv.enviado_em) : 'mandando…'}</span>`
+      : (cv.imagens.length ? botao('✅ Aprovar e mandar para o celular', 'aprovar_convite', {}, 'aprovar') : '')}
+      ${botao('↻ Gerar de novo', 'gerar_convite', {}, '', cv.gerando ? 'disabled' : '')}</div></div>`;
+  const cardVid = (v) => `<div class="card"><h3>${esc(v.titulo)}</h3>
+    <div class="linha" style="align-items:flex-start">${v.video ? `<video controls preload="metadata" src="${v.video}" style="max-width:${v.horizontal ? 480 : 240}px"></video>` : '<p class="mudo">Ainda não gerado.</p>'}
+      ${v.thumb ? `<a href="${v.thumb}" target="_blank"><img src="${v.thumb}" style="width:320px;border:3px solid var(--borda)"></a>` : ''}</div>
+    ${v.copies ? `<details><summary>Copies${v.horizontal ? ' (título, descrição com link, capítulos, hashtags)' : ' (legenda sem link)'}</summary><pre class="log">${esc(v.copies)}</pre></details>` : ''}
+    ${v.roteiro ? `<details><summary>Roteiro</summary><pre class="log">${esc(v.roteiro)}</pre></details>` : ''}
+    <div class="linha" style="margin-top:10px">${v.aprovado_em ? `<span class="st aprovado">aprovado</span>${botao('Desaprovar', 'desaprovar_video', { nome: v.nome })}`
+      : (v.video ? botao('✅ Aprovar', 'aprovar_video', { nome: v.nome }, 'aprovar') : '')}
+      ${botao(v.video ? '↻ Gerar de novo' : '▶ Gerar', 'gerar_video', { nome: v.nome }, '', v.gerando ? 'disabled' : '')}
+      <span class="mudo">Nada é postado sozinho${v.horizontal ? ': você sobe no YouTube à mão' : ''}.</span></div></div>`;
+  return `<h2>Divulgação para aprovar</h2>${cardAp}${cardSt}${cardConv}${cardInst}<h2>Vídeos explicativos</h2>${d.videos.map(cardVid).join('')}`;
 }
 
 // ================================================================ APROVAÇÕES
@@ -683,6 +701,9 @@ async function rVisao() {
     bloco('k', `<h2>Últimos 7 dias</h2><div class="kpis">${kpis.map(([r, v]) => `<div class="kpi"><b>${v}</b><span>${r}</span></div>`).join('')}</div><p class="mudo">${esc(d.obs)}</p>`) +
     bloco('p', `<h2>Por período</h2><div class="card tabela"><table><thead><tr><th>Período</th><th class="num">Visitas</th><th class="num">Cliques em comprar</th><th class="num">Cadastros</th><th class="num">Vendas pagas</th><th class="num">Receita</th></tr></thead><tbody>${d.periodos.map((p) => `<tr><td>${esc(p.periodo)}</td><td class="num">${p.visitas}</td><td class="num">${p.cliques_comprar}</td><td class="num">${p.cadastros}</td><td class="num">${p.vendas}</td><td class="num">${reais(p.receita_centavos)}</td></tr>`).join('')}</tbody></table></div>`) +
     bloco('d', `<h2>Dia a dia (14 dias)</h2><div class="card tabela"><table><thead><tr><th>Dia</th><th class="num">Visitas</th><th class="num">Cadastros</th><th class="num">Vendas</th><th class="num">Receita</th></tr></thead><tbody>${d.dias.map((x) => `<tr><td>${new Date(x.dia + 'T12:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })}</td><td class="num">${x.visitas}</td><td class="num">${x.cadastros}</td><td class="num">${x.vendas}</td><td class="num">${reais(x.receita_centavos)}</td></tr>`).join('')}</tbody></table></div>`) +
+    bloco('v', `<h2>Acessos pelos links (${d.visitas.length - d.robos} reais · ${d.robos} suspeitos de robô)</h2>
+      <p class="mudo">Robô = verificador automático (Google/YouTube conferindo o link, prévia do Facebook/Instagram, curl...). Eles não contam nas visitas acima.</p>
+      <div class="card tabela"><table><thead><tr><th>Quando</th><th>Link</th><th>Veio de</th><th>Tipo</th><th>Navegador</th></tr></thead><tbody>${d.visitas.map((v) => `<tr style="${v.robo ? 'opacity:.55' : ''}"><td>${quando(v.quando)}</td><td>/l/${esc(v.link)}</td><td>${esc(v.referer || '—')}</td><td>${v.robo ? `<span class="st erro" title="${esc(v.robo)}">🤖 robô</span><br><small class="mudo">${esc(v.robo)}</small>` : '<span class="st ok">👤 real</span>'}</td><td><small class="mudo">${esc(v.ua)}</small></td></tr>`).join('')}</tbody></table></div>`) +
     bloco('o', `<h2>Origem dos cadastros</h2><div class="card tabela"><table><thead><tr><th>Origem</th><th class="num">Cadastros</th><th class="num">Compradores</th></tr></thead><tbody>${d.origens.map((o) => `<tr><td>${esc(o.origem)}</td><td class="num">${o.cadastros}</td><td class="num">${o.compradores}</td></tr>`).join('') || '<tr><td colspan="3" class="mudo">Sem cadastros.</td></tr>'}</tbody></table></div>`));
 }
 
@@ -729,13 +750,10 @@ async function rSite() {
 async function rChat() {
   const d = await get('/api/chat');
   if (!d.existe) return remendar(bloco('x', `<div class="aviso">${esc(d.obs)}</div>`));
-  remendar(bloco('topo', `<div class="linha"><button class="btn perigo" onclick="limparChat()">🧹 Limpar chat</button><span class="mudo">${d.mensagens.length} mensagem(ns) recentes</span></div>`) +
+  remendar(bloco('topo', `<div class="linha"><button class="btn perigo" onclick="limparChat()">🧹 Limpar chat</button><span class="mudo">${d.mensagens.length} mensagem(ns) recentes · limpeza automática a cada 10 min</span></div>`) +
     bloco('m', `<div class="card">${d.mensagens.map((m) => `<div class="item"><div class="txt"><b>${esc(m.nome || m.autor || m.personagem_id || 'anônimo')}</b><small>${quando(m.created_at)}</small>${esc(m.texto || m.mensagem || '')}</div>${m.oculto ? '<span class="st neutro">oculta</span>' : botao('Ocultar', 'chat_ocultar', { id: m.id }, 'peq perigo')}</div>`).join('') || '<p class="mudo">Sem mensagens.</p>'}</div>`));
 }
-window.limparChat = () => {
-  const c = prompt('Isso apaga TODAS as mensagens do chat. Digite LIMPAR para confirmar:');
-  if (c) acao('chat_limpar', { confirmar: c }, 'Chat limpo');
-};
+window.limparChat = () => acao('chat_limpar', {}, 'Chat limpo');   // sem confirmação (pedido do dono)
 
 // ================================================================ PRODUTOS
 async function rProdutos() {
@@ -799,6 +817,88 @@ async function nomearLider(cargo) {
 }
 window.nomearLider = nomearLider;
 
+// ================================================================ CONVITES
+async function rConvites() {
+  const d = await get('/api/convites');
+  const linha = (c) => `<tr><td><b>${esc(c.nome)}</b><br><small class="mudo">${esc(c.codigo)}${c.convidado_por ? ' · veio por ' + esc(c.convidado_por.nome) : ''}</small></td>
+    <td class="num">${c.cliques}${c.robos ? `<br><small class="mudo">+${c.robos} 🤖</small>` : ''}</td><td class="num"><b>${c.cadastros}</b></td>
+    <td>${c.trouxe.map((y) => `<span class="chip">${esc(y.nome)} · ${quando(y.em)}</span>`).join('') || '<span class="mudo">—</span>'}</td>
+    <td><small><a href="${esc(c.link)}" target="_blank">${esc(c.link)}</a><br><span class="mudo">${esc(c.utm)}</span></small></td></tr>`;
+  remendar(
+    (d.falta ? bloco('falta', `<div class="aviso">⚠ ${esc(d.falta)}</div>`) : '') +
+    bloco('topo', `<p class="mudo">Cada colono tem um link próprio (<b>/c/NM000123</b>, com UTM por pessoa). Ele aparece para a pessoa na Colônia ao vivo e na Central, com botão de copiar. Quem trouxer mais gente concorre a cargos (líder, embaixador, festas…). Total de colonos que vieram por convite: <b>${d.total_convidados}</b>.</p>`) +
+    bloco('t', `<div class="card tabela"><table><thead><tr><th>Colono</th><th class="num">Cliques no link</th><th class="num">Cadastros</th><th>Quem veio por ele</th><th>Link e UTM</th></tr></thead><tbody>${d.colonos.map(linha).join('')}</tbody></table></div>`));
+}
+
+// ================================================================ MINIGAMES
+async function rMinigames() {
+  const d = await get('/api/minigames');
+  const card = (j) => `<div class="card"><div class="linha" style="justify-content:space-between"><h3 style="margin:0">${esc(j.nome)}</h3>
+      ${j.ativo ? '<span class="st publicado">ligado no site</span>' : j.aprovado_em ? '<span class="st aprovado">aprovado</span>' : '<span class="st pendente">em teste</span>'}</div>
+    <p class="mudo">${esc(j.descricao)}</p>
+    <div class="linha">${!j.aprovado_em ? botao('✅ Aprovar', 'minigame', { slug: j.slug, o: 'aprovar' }, 'aprovar') : botao('Desaprovar', 'minigame', { slug: j.slug, o: 'desaprovar' })}
+      ${j.ativo ? botao('Desligar do site', 'minigame', { slug: j.slug, o: 'desligar' }, 'perigo') : botao('🟢 Ligar no site', 'minigame', { slug: j.slug, o: 'ligar' }, 'publicar', j.aprovado_em ? '' : 'disabled title="Aprove depois de testar"')}
+      <button class="btn" onclick="testarJogo('${esc(j.slug)}')">🕹️ Testar aqui</button></div>
+    <div class="linha" style="margin-top:8px"><span class="mudo">Teto por partida:</span><input type="number" id="mx-${esc(j.slug)}" value="${j.moedas_max}" style="width:80px">
+      <span class="mudo">partidas valendo/dia:</span><input type="number" id="pd-${esc(j.slug)}" value="${j.partidas_dia}" style="width:70px">
+      <button class="btn peq" onclick="acao('minigame',{slug:'${esc(j.slug)}',o:'ajustar',moedas_max:$('#mx-${esc(j.slug)}').value,partidas_dia:$('#pd-${esc(j.slug)}').value})">Salvar</button></div>
+    <p class="mudo" style="margin:8px 0 0">${j.estatisticas.partidas} partidas · média ${j.estatisticas.media} pts · ${j.estatisticas.perderam} perderam os corações/saíram · ${j.estatisticas.moedas} moedas pagas</p></div>`;
+  remendar(
+    (d.falta ? bloco('falta', `<div class="aviso">⚠ ${esc(d.falta)}</div>`) : '') +
+    bloco('topo', `<p class="mudo">Teste aqui (modo teste: sem login, nada é gravado), aprove e ligue no site. Ligar/desligar não pede confirmação e o site muda na hora. Regras: 45 s, 3 corações; perdeu os 3 (ou saiu no meio) → aquele jogo trava 12 h para a pessoa, gravado no banco. Testes usam ${esc(d.site)}.</p>`) +
+    bloco('g', `<div class="grade">${d.jogos.map(card).join('') || '<p class="mudo">Sem minigames no banco ainda.</p>'}</div>`) +
+    bloco('teste', `<div id="areaTeste"></div>`));
+  window._siteTeste = d.site;
+}
+window.testarJogo = (slug) => {
+  const a = $('#areaTeste'); if (!a) return;
+  a.innerHTML = `<h2>Testando: ${esc(slug)}</h2><div class="card"><iframe src="${window._siteTeste}/jogar/${slug}" style="width:420px;max-width:100%;height:700px;border:0;background:#140f26"></iframe></div>`;
+  a.scrollIntoView({ behavior: 'smooth' });
+};
+
+// ================================================================ LOJA DE MOEDAS
+function trajeCanvas(seed, t) { return `<canvas width="16" height="16" data-seed="${seed}" data-lid='${esc(JSON.stringify({ traje: t, acessorios: t.acessorios || [], cor: t.cor || t.detalhe }))}' style="width:72px;height:72px;image-rendering:pixelated;background:#c1673e;border:3px solid var(--borda)"></canvas>`; }
+async function rLojaMoedas() {
+  const d = await get('/api/loja-moedas');
+  const TIPO = { cor: 'Cor', traje: 'Traje', especial: '✨ Especial' };
+  const card = (i) => `<div class="card lid">${trajeCanvas(23, i.traje)}<div>
+    <h3>${esc(i.nome)}</h3><p class="mudo" style="margin:0 0 6px">${TIPO[i.tipo]} · sugerido 🪙 ${i.preco_sugerido} · ${i.vendas} venda(s)</p>
+    <div class="linha"><span>🪙</span><input type="number" id="pr-${esc(i.slug)}" value="${i.preco}" style="width:90px">
+      ${botao(i.aprovado_em ? 'Salvar preço' : '✅ Aprovar item e preço', 'loja_moedas', { slug: i.slug, o: 'aprovar' }, i.aprovado_em ? 'peq' : 'aprovar peq', `onclick="this.dataset.dados=JSON.stringify({slug:'${esc(i.slug)}',o:'aprovar',preco:$('#pr-${esc(i.slug)}').value})"`)}
+      ${i.ativo ? botao('Desligar', 'loja_moedas', { slug: i.slug, o: 'desligar' }, 'peq perigo') : botao('🟢 Ligar', 'loja_moedas', { slug: i.slug, o: 'ligar' }, 'peq publicar', i.aprovado_em ? '' : 'disabled')}</div></div></div>`;
+  remendar(
+    (d.falta ? bloco('falta', `<div class="aviso">⚠ ${esc(d.falta)}</div>`) : '') +
+    bloco('topo', `<p class="mudo">${esc(d.economia)} Nada aparece no site antes de aprovar e ligar. A loja paga continua dando muito mais (episódio, casa, eventos).</p>`) +
+    bloco('g', `<div class="grade-lid">${d.itens.map(card).join('')}</div>`));
+  desenharPrevias();
+}
+
+// ================================================================ PRODUTOS NOVOS (aprovar → Cakto)
+async function rProdutosNovos() {
+  const d = await get('/api/produtos-novos');
+  const opcoesImg = d.imagens.map((u) => `<option value="${esc(u)}">${esc(u.split('/').pop())}</option>`).join('');
+  const card = (x) => `<div class="card lid"><img src="${esc(d.site + x.imagem)}" style="width:96px;border:3px solid var(--borda)" onerror="this.style.visibility='hidden'"><div>
+    <h3>${esc(x.nome)} · R$ ${Number(x.preco).toFixed(2).replace('.', ',')}</h3><p class="mudo">${esc(x.descricao)}</p>
+    ${x.status === 'criado' ? `<span class="st publicado">criado na Cakto</span> <small class="mudo">${esc(x.checkout || '')}</small>`
+      : `<div class="linha">${botao('✅ Aprovar e criar na Cakto', 'produto_novo_aprovar', { id: x.id }, 'aprovar', d.cakto ? '' : 'title="Falta a chave da API da Cakto no .env.local"')}${botao('Remover', 'produto_novo_remover', { id: x.id }, 'perigo peq')}</div>`}</div></div>`;
+  remendar(
+    (!d.cakto ? bloco('falta', `<div class="aviso">⚠ Para criar na Cakto pela API, coloque <b>CAKTO_CLIENT_ID</b> e <b>CAKTO_CLIENT_SECRET</b> no .env.local (Cakto → Integrações → API) e reinicie o painel. As propostas já podem ser montadas.</div>`) : '') +
+    bloco('form', `<h2>Nova proposta</h2><div class="card"><div class="linha"><input id="pnNome" placeholder="Nome do produto" style="min-width:240px"><input id="pnPreco" placeholder="Preço (R$)" style="width:110px">
+      <select id="pnImg"><option value="">Imagem…</option>${opcoesImg}</select></div>
+      <textarea id="pnDesc" placeholder="Descrição (aparece na loja e na Cakto)" style="min-height:70px;margin-top:8px"></textarea>
+      <button class="btn aprovar" style="margin-top:8px" onclick="acao('produto_novo',{nome:$('#pnNome').value,preco:$('#pnPreco').value,imagem:$('#pnImg').value,descricao:$('#pnDesc').value},'Proposta salva')">Salvar proposta</button></div>`) +
+    bloco('l', `<h2>Propostas</h2><div class="grade-lid">${d.propostas.map(card).join('') || '<p class="mudo">Nenhuma proposta ainda.</p>'}</div>`));
+}
+
+// ================================================================ ENTRADA DO SITE (prévia)
+async function rEntrada() {
+  const d = await get('/api/site-teste');
+  if ($('#previaEntrada')) return;
+  remendar(bloco('e', `<p class="mudo">O foguete na plataforma ligando os propulsores, com a barra de carregamento (repete sem parar aqui). No site aparece uma vez por visita, com "pular". Prévia de ${esc(d.site)}.</p>
+    <div class="linha" style="align-items:flex-start"><div class="card"><h3>Celular</h3><iframe id="previaEntrada" src="${esc(d.site)}/entrada" style="width:390px;height:780px;border:0"></iframe></div>
+    <div class="card"><h3>Computador</h3><iframe src="${esc(d.site)}/entrada" style="width:640px;height:400px;border:0"></iframe></div></div>`));
+}
+
 // ================================================================ CONEXÕES
 async function rConexoes() {
   const d = await get('/api/conexoes');
@@ -808,7 +908,8 @@ async function rConexoes() {
     Object.entries(grupos).map(([g, itens]) => bloco(g, `<h2>${esc(g)}</h2><div class="card">${itens.map((i) => `<div class="item"><div class="txt"><b>${esc(i.nome)}</b><small>${esc(i.detalhe)}</small></div><span class="st ${esc(i.status)}">${esc(i.status)}</span></div>`).join('')}</div>`)).join(''));
 }
 
-const RENDER = { aprovacoes: rAprovacoes, cadastros: rCadastros, episodios: rEpisodios, divulgacao: rDivulgacao, colonos: rColonos, visao: rVisao, compras: rCompras, site: rSite, chat: rChat, produtos: rProdutos, cargos: rCargos, liderancas: rLiderancas, conexoes: rConexoes };
+const RENDER = { aprovacoes: rAprovacoes, cadastros: rCadastros, episodios: rEpisodios, divulgacao: rDivulgacao, colonos: rColonos, visao: rVisao, compras: rCompras, site: rSite, chat: rChat, produtos: rProdutos, cargos: rCargos, liderancas: rLiderancas, conexoes: rConexoes,
+  convites: rConvites, minigames: rMinigames, lojamoedas: rLojaMoedas, produtosnovos: rProdutosNovos, entrada: rEntrada };
 window.irPara = irPara; window.acao = acao; window.atualizar = atualizar; window.lembrar = lembrar; window.$ = $;
 
 desenharAbas();

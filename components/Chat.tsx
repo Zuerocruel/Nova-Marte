@@ -35,7 +35,8 @@ export default function Chat({ aoMudar }: { aoMudar?: (m: MensagemChat[]) => voi
   const [indisponivel, setIndisponivel] = useState(false);
   const lista = useRef<HTMLOListElement>(null);
   const ultimoId = useRef(0);
-  const colado = useRef(true);   // rolagem presa no fim (não puxa para baixo se a pessoa está lendo o histórico)
+  const colado = useRef(true);
+  const enviandoRef = useRef(false);   // trava imediata contra envio duplo (Enter duplo / toque duplo)   // rolagem presa no fim (não puxa para baixo se a pessoa está lendo o histórico)
 
   const carregar = async () => {
     try {
@@ -71,7 +72,8 @@ export default function Chat({ aoMudar }: { aoMudar?: (m: MensagemChat[]) => voi
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
-    if (!texto.trim() || enviando) return;
+    if (!texto.trim() || enviando || enviandoRef.current) return;
+    enviandoRef.current = true;
     setErro(''); setEnviando(true);
     try {
       const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
@@ -84,6 +86,7 @@ export default function Chat({ aoMudar }: { aoMudar?: (m: MensagemChat[]) => voi
       setErro(err instanceof Error ? err.message : 'Erro');
     } finally {
       setEnviando(false);
+      enviandoRef.current = false;
     }
   }
 

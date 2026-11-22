@@ -70,6 +70,14 @@ export async function POST(req: NextRequest) {
   const { data: p } = await db().from('personagens').select('id, oculto').eq('codigo', codigo).maybeSingle();
   if (!p || p.oculto) return NextResponse.json({ erro: 'Seu colono não pode usar o chat.' }, { status: 403 });
 
+  // envio duplicado (Enter duplo, rede lenta, duas abas): a mesma mensagem em 20 s não grava de novo
+  const { data: igual } = await db().from('chat_mensagens').select('id').eq('personagem_id', p.id).eq('texto', texto)
+    .gte('created_at', new Date(Date.now() - 20_000).toISOString()).limit(1).maybeSingle();
+  if (igual) return NextResponse.json({ ok: true, id: igual.id });
+
+  // limpeza automática: o chat só guarda os últimos 10 minutos
+  await db().from('chat_mensagens').delete().lt('created_at', new Date(Date.now() - CHAT_DURA_MS).toISOString());
+
   const { data, error } = await db().from('chat_mensagens')
     .insert({ personagem_id: p.id, texto }).select('id').single();
   if (error) return NextResponse.json({ erro: 'Não foi possível enviar agora.' }, { status: 500 });

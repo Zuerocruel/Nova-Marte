@@ -1,0 +1,19 @@
+{
+  "_leia": "Itens PROPOSTOS da loja de moedas (aba 'Loja de moedas' do painel). Nada vai ao site sem você aprovar o item e o preço e ligar. Economia: um dia bom rende ~150 moedas (missões ~60 + minigames até 30 por partida, 3 partidas por jogo/dia). Cor ≈ 2 dias, traje ≈ 1 semana, especial ≈ 3–4 semanas. O traje usa o mesmo desenho dos cargos (fabrica/traje.js): corpo, detalhe, calça, acessórios.",
+  "itens": [
+    {"slug": "cor-azul-orbita", "nome": "Macacão Azul Órbita", "tipo": "cor", "preco": 250, "traje": {"corpo": "#3f8efc", "detalhe": "#1b1530"}},
+    {"slug": "cor-verde-estufa", "nome": "Macacão Verde Estufa", "tipo": "cor", "preco": 250, "traje": {"corpo": "#2bb673", "detalhe": "#1b1530"}},
+    {"slug": "cor-roxo-nebulosa", "nome": "Macacão Roxo Nebulosa", "tipo": "cor", "preco": 250, "traje": {"corpo": "#9b59b6", "detalhe": "#f4f1ff"}},
+    {"slug": "cor-laranja-marte", "nome": "Macacão Laranja Marte", "tipo": "cor", "preco": 250, "traje": {"corpo": "#ff7f50", "detalhe": "#3a2f63"}},
+    {"slug": "cor-rosa-aurora", "nome": "Macacão Rosa Aurora", "tipo": "cor", "preco": 300, "traje": {"corpo": "#ec407a", "detalhe": "#ffd84a"}},
+    {"slug": "cor-preto-vacuo", "nome": "Macacão Preto Vácuo", "tipo": "cor", "preco": 350, "traje": {"corpo": "#1b1530", "detalhe": "#3fd0c9", "calca": "#1b1530"}},
+    {"slug": "traje-explorador", "nome": "Traje de Explorador", "tipo": "traje", "preco": 900, "traje": {"corpo": "#c1673e", "detalhe": "#ffd84a", "calca": "#5a3825", "acessorios": ["capacete", "mochila"], "cor": "#e2603b"}},
+    {"slug": "traje-piloto", "nome": "Traje de Piloto", "tipo": "traje", "preco": 1000, "traje": {"corpo": "#e4e6f0", "detalhe": "#e04f5f", "calca": "#3a2f63", "acessorios": ["capacete", "oculos"], "cor": "#e04f5f"}},
+    {"slug": "traje-mecanico", "nome": "Traje de Mecânico", "tipo": "traje", "preco": 1000, "traje": {"corpo": "#24408f", "detalhe": "#ffc83d", "calca": "#1b1530", "acessorios": ["boina", "oculos"], "cor": "#ffc83d"}},
+    {"slug": "traje-botanico", "nome": "Traje de Botânico", "tipo": "traje", "preco": 1100, "traje": {"corpo": "#2bb673", "detalhe": "#c8a26b", "calca": "#5a3825", "acessorios": ["folha", "mochila"], "cor": "#4ed37a"}},
+    {"slug": "traje-radio", "nome": "Traje do Rádio", "tipo": "traje", "preco": 1200, "traje": {"corpo": "#9b59b6", "detalhe": "#f4f1ff", "calca": "#3a2f63", "acessorios": ["antena", "mochila"], "cor": "#c792ff"}},
+    {"slug": "especial-dourado", "nome": "✨ Traje Dourado", "tipo": "especial", "preco": 3500, "traje": {"corpo": "#ffd84a", "detalhe": "#c99a1f", "calca": "#c99a1f", "acessorios": ["estrela", "capa"], "cor": "#ffd84a"}},
+    {"slug": "especial-gelo", "nome": "✨ Traje de Gelo Polar", "tipo": "especial", "preco": 4000, "traje": {"corpo": "#dff3ff", "detalhe": "#3fd0c9", "calca": "#8fe6ff", "acessorios": ["capacete", "capa"], "cor": "#8fe6ff"}},
+    {"slug": "especial-meteoro", "nome": "✨ Traje Meteoro", "tipo": "especial", "preco": 5000, "traje": {"corpo": "#5a2a18", "detalhe": "#ff7a2f", "calca": "#1b1530", "acessorios": ["capacete", "capa", "estrela"], "cor": "#ff7a2f"}}
+  ]
+}

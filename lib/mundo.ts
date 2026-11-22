@@ -37,6 +37,7 @@ export type PersonagemPublico = {
   sprite_url: string | null;
   cargo?: string | null;          // id em fabrica/cargos.json (migração 008)
   lideranca?: string | null;      // id em fabrica/liderancas.json (migração 012)
+  traje_moedas?: string | null;   // traje comprado na loja de moedas (migração 013)
 };
 
 /** Lote → casa: entra uma rua a cada 3 lotes. */

@@ -111,8 +111,21 @@ def produto_falado(slug: str, nome: str, opcao: str | None = None) -> str:
     return ("uma " if curto.split()[0].lower().endswith("a") else "um ") + curto[0].lower() + curto[1:]
 
 
+_PAISES = None
+
+
+def pais(valor: str | None) -> str | None:
+    """'br' → 'Brasil' (fabrica/paises.json, sem o emoji: a fonte do vídeo não desenha emoji)."""
+    global _PAISES
+    if _PAISES is None:
+        _PAISES = {x["valor"]: x["rotulo"].split(" ", 1)[1] for x in config.ler_json(config.FABRICA / "paises.json")}
+    return _PAISES.get(valor or "")
+
+
 def curto_com_variante(c: dict, slug: str) -> str:
-    """"Rover", "Cápsula Habitacional" ou, com a variante escolhida, "Cápsula Estufa"."""
+    """"Rover", "Cápsula Habitacional", "Cápsula Estufa" ou "Bandeira: Brasil"."""
+    if slug == "bandeira" and c.get("opcao") not in (None, "", "cores") and pais(c.get("opcao")):
+        return f"Bandeira: {pais(c['opcao'])}"
     if slug == "capsula-habitacional" and c.get("opcao") in CAPSULA_FALADA:
         return CAPSULA_FALADA[c["opcao"]].removeprefix("uma ").title()   # "Cápsula Estufa"
     return produto_curto(c["produto"])
