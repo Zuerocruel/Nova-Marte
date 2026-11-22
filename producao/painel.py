@@ -343,6 +343,7 @@ def dados_episodios() -> dict:
             "aprovado_em": e.get("aprovado_em"),
             "publicado_em": e.get("publicado_em") or (no_banco.get(n) or {}).get("publicado_em"),
             "copies": (pasta / "copies.json").exists(),
+            "resumo": resumo_copies(n),
             "gerando": FILA.ocupada(f"Gerar episódio {n} "),
             "redes": redes_de(n),
             "postando": FILA.ocupada(f"Postar episódio {n} "),
@@ -373,8 +374,22 @@ def dados_extras(n: int, pasta: Path, est: dict) -> dict:
             "redes": {r: {k: st.get(r, {}).get(k) for k in CAMPOS_REDE} | {"status": st.get(r, {}).get("status", "pendente")}
                       for r in ("instagram", "tiktok")},
         })
-    return {"imagens": imagens, "povs": povs, "gerando": FILA.ocupada(f"Gerar extras {n} "),
+    return {"imagens": imagens, "povs": povs, "carrossel": dados_carrossel(n, est), "gerando": FILA.ocupada(f"Gerar extras {n} "),
             "postando": FILA.ocupada(f"Postar extra {n}-")}
+
+
+def resumo_copies(numero: int) -> dict | None:
+    """Manchete, pauta (o que vai no episódio) e ganchos. copies.json antigo (sem esses campos): calcula na hora."""
+    arq = config.pasta_episodio(numero) / "copies.json"
+    if not arq.exists():
+        return None
+    c = config.ler_json(arq)
+    if "pauta" not in c:
+        try:
+            c = copies.gerar(numero)
+        except Exception:   # episódio antigo sem algum arquivo: sem resumo
+            return None
+    return {k: c[k] for k in ("manchete", "pauta", "ganchos")}
 
 
 def dados_copies(numero: int) -> dict:
@@ -384,7 +399,7 @@ def dados_copies(numero: int) -> dict:
         return {"existe": False}
     c = config.ler_json(arq)
     auto = redes_de(numero)
-    return {"existe": True, "copies": {p: {**c[p], **est.get(p, {}), "rotulo": copies.PLATAFORMAS[p]["rotulo"],
+    return {"existe": True, "resumo": resumo_copies(numero), "copies": {p: {**c[p], **est.get(p, {}), "rotulo": copies.PLATAFORMAS[p]["rotulo"],
                                            "auto": auto[p], "regras": pub.validar_copy(p, c[p])}
                                        for p in copies.PLATAFORMAS}}
 
@@ -521,6 +536,122 @@ def dados_colonos() -> dict:
         p["teste"] = p["codigo"] in est["testes"]["personagens"]
         p["cargos"] = est["cargos"]["atribuicoes"].get(p["codigo"], [])
     return {"colonos": pers, "itens": ITENS_CHECKLIST, "catalogo": distintivos(est), "cargos_site": cargos_do_site()}
+
+
+# ---------------------------------------------------------------- aba Cadastros (ao vivo)
+REDE_DO_PREFIXO = {"ig": "Instagram", "tt": "TikTok", "yt": "YouTube"}
+REDE_DO_SOURCE = {"instagram": "Instagram", "tiktok": "TikTok", "youtube": "YouTube"}
+
+
+def origem_legivel(p: dict) -> dict:
+    """De onde a pessoa veio, em português: rede + lugar (bio/canal, descrição ou post do episódio, POV, comentário).
+    Usa o 1º toque gravado no cadastro (link rastreável /l/<slug>, UTM ou site de onde veio)."""
+    slug = (p.get("origem_link_slug") or "").lower()
+    src = (p.get("origem_source") or "").lower()
+    ref = (p.get("origem_referer") or "").lower()
+    med = (p.get("origem_medium") or "").lower()
+    m = re.fullmatch(r"(ig|tt|yt)-(.+)", slug)
+    if m:
+        rede, resto = REDE_DO_PREFIXO[m.group(1)], m.group(2)
+        ep = re.fullmatch(r"ep0*(\d+)(-pov)?", resto)
+        if resto == "bio":
+            lugar = "canal (link do perfil)" if rede == "YouTube" else "link da bio"
+        elif ep:
+            lugar = (f"POV do ep. {ep.group(1)}" if ep.group(2)
+                     else f"descrição do ep. {ep.group(1)}" if rede == "YouTube" else f"post do ep. {ep.group(1)}")
+        elif resto.startswith("coment"):
+            lugar = "comentário"
+        else:
+            lugar = f"link /l/{slug}"
+        return {"rede": rede, "lugar": lugar, "rotulo": f"{rede} · {lugar}"}
+    rede = REDE_DO_SOURCE.get(src) or next((v for k, v in REDE_DO_SOURCE.items() if k in ref), None)
+    if rede:
+        lugar = "comentário" if "coment" in med else "sem link rastreado"
+        return {"rede": rede, "lugar": lugar, "rotulo": f"{rede} · {lugar}"}
+    if "vercel" in src or "vercel" in ref:
+        return {"rede": "Direto", "lugar": "abriu pelo painel da Vercel (teste)", "rotulo": "Link direto · pela Vercel"}
+    if src in ("", "direto"):
+        return {"rede": "Direto", "lugar": "digitou ou abriu o link do site" + (f" (vindo de {ref})" if ref else ""),
+                "rotulo": "Link direto"}
+    return {"rede": "Outro", "lugar": src or ref, "rotulo": f"Outro · {src or ref}"}
+
+
+def aparicoes_nos_episodios() -> dict:
+    """O que apareceu em cada episódio PUBLICADO (lido de saida/epNNN): quem foi chamado pelo nome, quem tinha
+    casa no mapa, itens nas casas, Fúria, Destaque e crateras. Base do checklist automático."""
+    publicados = sorted(int(e["numero"]) for e in db().get("episodios", {"select": "numero", "publicado_em": "not.is.null"}))
+    nomeados, com_casa, itens, servicos, crateras = {}, {}, {}, {}, {}
+    for n in publicados:
+        pasta = config.pasta_episodio(n)
+        if not (pasta / "dados.json").exists():
+            continue
+        d = config.ler_json(pasta / "dados.json")
+        r = config.ler_json(pasta / "roteiro.json") if (pasta / "roteiro.json").exists() else {}
+        for c in d.get("novos", []):
+            nomeados.setdefault(c["codigo"], n)
+        for c in d.get("mundo", []):
+            com_casa.setdefault(c["codigo"], n)
+        for c in d.get("compras", []):
+            itens.setdefault((c["codigo"], c["produto_slug"]), n)
+        if (r.get("problema") or {}).get("furia"):
+            servicos.setdefault(r["problema"]["furia"]["pedido"], n)
+        for x in r.get("destaques", []):
+            servicos.setdefault(x["pedido"], n)
+        for c in d.get("crateras", []):
+            if c.get("nova"):
+                crateras.setdefault(c["id"], n)
+    return {"nomeados": nomeados, "com_casa": com_casa, "itens": itens, "servicos": servicos, "crateras": crateras}
+
+
+def dados_cadastros() -> dict:
+    est = ESTADO.ler()
+    pers = db().todos("personagens", {"select": (
+        "id,codigo,nome,apelido,handle,handle_plataforma,status,oculto,aceita_whatsapp,cargo,created_at,"
+        "origem_source,origem_medium,origem_campaign,origem_content,origem_link_slug,origem_referer"), "order": "id.desc"})
+    peds = db().todos("pedidos", {"select": "id,status,personagem_id,opcao,texto_personalizado,created_at,produto:produtos(slug,nome)",
+                                  "personagem_id": "not.is.null", "order": "id.asc"})
+    try:
+        resg = db().get("resgates", {"select": "id,status,texto,personagem_id,produto:produtos(slug,nome)", "order": "id.asc"})
+    except Exception:   # noqa: BLE001  (sem a tabela resgates)
+        resg = []
+    ap = aparicoes_nos_episodios()
+    servico = set(episodio.SERVICOS)
+    cargos = config.cargos()
+    agora_ts = datetime.now(timezone.utc)
+    saida, por_origem = [], {}
+    for p in pers:
+        cod = p["codigo"]
+        ck = est["checklist"].get(cod, {})
+        nomeado, casa = ap["nomeados"].get(cod), ap["com_casa"].get(cod)
+        itens = []
+        for x in (x for x in peds if x["personagem_id"] == p["id"]):
+            slug = (x.get("produto") or {}).get("slug", "")
+            pago = x["status"] in episodio.STATUS_PAGOS
+            ep = (ap["servicos"].get(x["id"]) if slug in servico else ap["itens"].get((cod, slug))) if pago else None
+            itens.append({"pedido": x["id"], "produto": (x.get("produto") or {}).get("nome", "?"), "status": x["status"],
+                          "pago": pago, "opcao": x.get("opcao"), "texto": x.get("texto_personalizado"),
+                          "apareceu_ep": ep, "no_site": pago and slug not in servico})
+        for x in (x for x in resg if x["personagem_id"] == p["id"]):
+            ok = x["status"] == "aprovado"
+            itens.append({"pedido": f"R{x['id']}", "produto": (x.get("produto") or {}).get("nome", "Item grátis"),
+                          "status": x["status"], "pago": ok, "opcao": None, "texto": x.get("texto"),
+                          "apareceu_ep": ap["crateras"].get(x["id"]) if ok else None, "no_site": ok})
+        o = origem_legivel(p)
+        por_origem[o["rotulo"]] = por_origem.get(o["rotulo"], 0) + 1
+        criado = datetime.fromisoformat(p["created_at"].replace("Z", "+00:00"))
+        cg = cargos.get(p.get("cargo") or "")
+        saida.append({
+            "codigo": cod, "nome": p["nome"], "apelido": p.get("apelido"), "handle": p["handle"],
+            "plataforma": p["handle_plataforma"], "oculto": p["oculto"], "status": p["status"],
+            "cargo": f"{cg['emoji']} {cg['nome']}" if cg else None, "created_at": p["created_at"],
+            "novo": (agora_ts - criado).total_seconds() < 24 * 3600, "teste": cod in est["testes"]["personagens"],
+            "origem": o, "aceita_whatsapp": p["aceita_whatsapp"], "itens": itens,
+            "auto": {"nomeado_ep": nomeado, "casa_ep": casa},
+            "manual": {k: bool(ck.get(k)) for k in ("revisado", "aviso")},
+        })
+    hoje = agora_ts.astimezone().date()
+    return {"cadastros": saida, "por_origem": sorted(por_origem.items(), key=lambda kv: -kv[1]),
+            "hoje": sum(1 for c in saida if datetime.fromisoformat(c["created_at"].replace("Z", "+00:00")).astimezone().date() == hoje)}
 
 
 def dados_compras() -> dict:
@@ -889,6 +1020,17 @@ def acao_gerar_copies(d: dict):
     ESTADO.mudar(lambda e: e["copies"].pop(str(n), None))
 
 
+def acao_refazer_copies(d: dict):
+    """Refaz as 3 copies a partir da manchete, da pauta e dos ganchos editados no painel (as copies precisam de
+    aprovação de novo; edições feitas direto nas copies são substituídas)."""
+    n = _ep(d)
+    g = d.get("ganchos") or {}
+    ganchos = {k: str(g[k])[:300] for k in ("historia", "comentar", "curtir", "seguir", "inscrever") if k in g}
+    pauta = [x.strip()[:300] for x in str(d.get("pauta") or "").splitlines() if x.strip()][:20]
+    copies.gravar(n, pauta_editada=pauta, ganchos_editados=ganchos, manchete_editada=str(d.get("manchete") or "")[:90])
+    ESTADO.mudar(lambda e: e["copies"].pop(str(n), None))
+
+
 def _salvar_copy(n: int, plat: str, campos: dict) -> None:
     if plat not in copies.PLATAFORMAS:
         raise ValueError("plataforma inválida")
@@ -1108,9 +1250,29 @@ def acao_publicar_site(d: dict):
 # ---------------------------------------------------------------- conteúdo extra (imagens e POVs)
 def _item_extra(d: dict) -> str:
     item = str(d.get("item", ""))
-    if not re.fullmatch(r"pov_[a-z]+", item):
+    if not re.fullmatch(r"pov_[a-z]+|carrossel", item):
         raise ValueError("item inválido")
     return item
+
+
+def legenda_carrossel_padrao(n: int) -> str:
+    """Legenda inicial do carrossel: a do Instagram do episódio (copies.json) com o convite para arrastar."""
+    arq = config.pasta_episodio(n) / "copies.json"
+    base = config.ler_json(arq)["instagram"]["legenda"] if arq.exists() else f"Operação Marte Zero · Episódio {n}"
+    return "👉 Arrasta pro lado: o resumo do episódio em imagens!\n\n" + base
+
+
+def dados_carrossel(n: int, est: dict) -> dict | None:
+    imagens, txt = pub.arquivos_carrossel(n)
+    if not imagens:
+        return None
+    pasta = config.pasta_episodio(n)
+    st = pub.ler().get(pub.chave_extra(n, "carrossel"), {}).get("instagram", {})
+    return {"item": "carrossel",
+            "imagens": [f"/midia/{pasta.name}/imagens/{i.name}?v={int(i.stat().st_mtime)}" for i in imagens],
+            "legenda": txt.read_text(encoding="utf-8") if txt.exists() else legenda_carrossel_padrao(n),
+            "aprovado_em": est.get("extras", {}).get(str(n), {}).get("carrossel", {}).get("aprovado_em"),
+            "instagram": {k: st.get(k) for k in CAMPOS_REDE} | {"status": st.get("status", "pendente")}}
 
 
 def acao_gerar_extras(d: dict):
@@ -1134,6 +1296,19 @@ def acao_gerar_extras(d: dict):
 
 def acao_aprovar_extra(d: dict):
     n, item = _ep(d), _item_extra(d)
+    if item == "carrossel":
+        imagens, txt = pub.arquivos_carrossel(n)
+        if len(imagens) < 2:
+            raise ValueError("imagens do carrossel não encontradas: gere os extras")
+        if isinstance(d.get("legenda"), str):
+            txt.write_text(d["legenda"].strip() + "\n", encoding="utf-8")
+        elif not txt.exists():
+            txt.write_text(legenda_carrossel_padrao(n).strip() + "\n", encoding="utf-8")
+        problemas = pub.validar_copy("instagram", {"legenda": txt.read_text(encoding="utf-8")})
+        if problemas:
+            raise ValueError("não aprovei: " + "; ".join(problemas))
+        ESTADO.mudar(lambda e: e["extras"].setdefault(str(n), {}).setdefault(item, {}).update(aprovado_em=agora()))
+        return
     pasta = config.pasta_episodio(n) / "pov"
     if not (pasta / f"{item}.mp4").exists():
         raise ValueError("vídeo não encontrado")
@@ -1156,6 +1331,8 @@ def acao_postar_extra(d: dict):
     n, item = _ep(d), _item_extra(d)
     ensaio = bool(d.get("ensaio"))
     redes = [r for r in d.get("redes", []) if r in ("instagram", "tiktok")]
+    if item == "carrossel":
+        redes = ["instagram"]          # carrossel é só do Instagram
     if not redes:
         raise ValueError("marque pelo menos uma rede")
     if FILA.ocupada("Postar episódio ") or FILA.ocupada("Postar extra "):
@@ -1220,6 +1397,7 @@ GETS = {
     "/api/episodios": lambda q: dados_episodios(),
     "/api/copies": lambda q: dados_copies(int(q.get("ep", ["1"])[0])),
     "/api/colonos": lambda q: dados_colonos(),
+    "/api/cadastros": lambda q: dados_cadastros(),
     "/api/visao": lambda q: dados_visao(q.get("ocultar", ["1"])[0] == "1"),
     "/api/compras": lambda q: dados_compras(),
     "/api/site": lambda q: dados_site(),

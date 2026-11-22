@@ -702,6 +702,68 @@
         "{heroi} analisa a amostra a noite toda e confirma: vida microscópica de bilhões de anos atrás. Marte já foi vivo!",
         "{heroi} manda as fotos para a Terra pela antena. Os cientistas de lá estão pulando de alegria."
       ]
+    },
+    {
+      "id": "chuva-meteoros",
+      "categoria": "clima",
+      "titulo": "Chuva de meteoros",
+      "alvo": "colonia",
+      "reacao": "abrigar",
+      "peso": {
+        "primavera": 0,
+        "verao": 0,
+        "outono": 0,
+        "inverno": 0
+      },
+      "alerta": [
+        "Chuva de meteoros! Pedras do espaço estão caindo perto da colônia.",
+        "Meteoros no céu de Marte! Sem atmosfera grossa, quase nada queima antes de chegar ao chão."
+      ],
+      "solucao": [
+        "{heroi} leva todo mundo para dentro do módulo até a chuva passar. Ninguém se machucou, e ainda sobraram pedras de meteoro para estudar.",
+        "{heroi} manda todos para o abrigo e confere o casco depois. Só arranhões, e uma cratera nova no deserto."
+      ]
+    },
+    {
+      "id": "reator-instavel",
+      "categoria": "manutencao",
+      "titulo": "Reator instável",
+      "alvo": "base",
+      "peso": {
+        "primavera": 0,
+        "verao": 0,
+        "outono": 0,
+        "inverno": 0
+      },
+      "alerta": [
+        "O reator do módulo está esquentando além do normal. O painel inteiro ficou vermelho.",
+        "Alerta no reator! A temperatura do núcleo está subindo sem parar."
+      ],
+      "solucao": [
+        "{heroi} desliga o reator com calma, troca a bomba de resfriamento e liga de novo. Tudo verde.",
+        "{heroi} encontra um sensor queimado, troca a peça e o reator volta ao normal."
+      ]
+    },
+    {
+      "id": "nave-alienigena",
+      "categoria": "ataque",
+      "titulo": "Nave desconhecida no céu",
+      "alvo": "colonia",
+      "reacao": "recolher",
+      "peso": {
+        "primavera": 0,
+        "verao": 0,
+        "outono": 0,
+        "inverno": 0
+      },
+      "alerta": [
+        "Tem uma luz estranha parada sobre a colônia. Não é satélite, não é meteoro.",
+        "Objeto voador não identificado sobre a colônia! Todos para casa!"
+      ],
+      "solucao": [
+        "{heroi} pisca as luzes do módulo três vezes, e a nave responde e vai embora. Será que eles voltam?",
+        "{heroi} manda um sinal de paz pelo rádio. A nave dá uma volta na colônia e some no horizonte."
+      ]
     }
   ],
   "obras_da_categoria": {
@@ -716,5 +778,22 @@
   "nao_protege": [
     "saude",
     "descoberta"
-  ]
+  ],
+  "furia": {
+    "_leia": "Produto 'Eventos Fúria de Marte': cada compra força UM destes problemas num próximo episódio (um por episódio, na ordem das compras). O evento é o que o comprador escolheu na loja (por_opcao); sem escolha, sai pelo número do pedido. Os de peso 0 só acontecem assim.",
+    "eventos": [
+      "tempestade-global",
+      "chuva-meteoros",
+      "nevasca-co2",
+      "reator-instavel",
+      "nave-alienigena"
+    ],
+    "por_opcao": {
+      "poeira": "tempestade-global",
+      "meteoros": "chuva-meteoros",
+      "inverno": "nevasca-co2",
+      "reator": "reator-instavel",
+      "aliens": "nave-alienigena"
+    }
+  }
 }

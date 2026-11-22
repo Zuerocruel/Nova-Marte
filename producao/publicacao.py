@@ -194,6 +194,38 @@ def exigir_liberado_extra(numero: int, item: str, rede: str, ensaio: bool = Fals
     return {"video": video, "copy": {"legenda": legenda}}
 
 
+
+def arquivos_carrossel(numero: int) -> tuple[list[Path], Path]:
+    """As imagens do carrossel (em ordem) e o arquivo da legenda, em saida/epNNN/imagens/."""
+    import config
+    pasta = config.pasta_episodio(numero) / "imagens"
+    return sorted(pasta.glob("carrossel_*.png")), pasta / "carrossel.txt"
+
+
+def exigir_liberado_carrossel(numero: int, rede: str, ensaio: bool = False) -> dict:
+    """Mesmas travas do episódio para o carrossel do Instagram: aprovado no painel, imagens iguais às aprovadas,
+    legenda dentro das regras e nada reenviado sozinho."""
+    if rede != "instagram":
+        raise Recusado("o carrossel só vai para o Instagram")
+    est = estado_painel().get("extras", {}).get(str(numero), {}).get("carrossel", {})
+    if not est.get("aprovado_em"):
+        raise Recusado(f"o carrossel do episódio {numero} não está aprovado no painel")
+    imagens, txt = arquivos_carrossel(numero)
+    if not 2 <= len(imagens) <= 10 or not txt.exists():
+        raise Recusado("imagens do carrossel (2 a 10) ou carrossel.txt não existem: gere os extras de novo")
+    aprovado = datetime.fromisoformat(est["aprovado_em"]).timestamp() + 5
+    if any(i.stat().st_mtime > aprovado for i in imagens):
+        raise Recusado("as imagens foram geradas de novo depois da aprovação: aprove de novo no painel")
+    legenda = txt.read_text(encoding="utf-8")
+    problemas = validar_copy(rede, {"legenda": legenda})
+    if problemas:
+        raise Recusado("legenda fora das regras: " + "; ".join(problemas))
+    s = status(chave_extra(numero, "carrossel"), rede)
+    if s.get("status") in TRAVADOS and not ensaio:
+        raise Recusado(f"{ROTULOS[rede]} está '{s['status']}' — nada é reenviado sozinho. "
+                       "Confira no app e use 'Liberar' no painel se precisar postar de novo.")
+    return {"imagens": imagens, "copy": {"legenda": legenda}}
+
 # ---------------------------------------------------------------- regras de texto
 RE_URL = re.compile(r"(https?://\S+|www\.\S+|\b[\w-]+(\.[\w-]+)*\.(app|com|br|net|org|io|link|me|ly|gg)(/\S*)?)", re.I)
 RE_HASHTAG = re.compile(r"(?<![\w#])#[\wÀ-ÿ]+", re.U)

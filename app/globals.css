@@ -178,3 +178,65 @@ details { margin-top: 8px; }
 .cargo-emoji { font-size: 22px; line-height: 1; }
 .selo-cargo { display: inline-flex; gap: 6px; align-items: center; padding: 4px 10px; border-radius: 999px; background: #3fd0c91f;
               color: var(--agua); font-size: 14px; }
+
+/* ---------- Mundo ao vivo: botões de comprar e de comentar ---------- */
+.acoes-mundo { display: flex; gap: 12px; flex-wrap: wrap; align-items: stretch; margin: 12px 0; }
+.btn-comprar-vivo {
+  font-family: var(--pixel); font-size: 15px; line-height: 1.4; cursor: pointer; border: 0;
+  color: #2a1600; background: linear-gradient(180deg, #ffe58a, #ffc83d 55%, #f0a020);
+  padding: 14px 22px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  box-shadow: inset -4px -4px 0 #c07a10, 4px 4px 0 #0008, 0 0 0 0 #ffc83d88;
+  animation: pulso-comprar 1.6s ease-in-out infinite;
+}
+.btn-comprar-vivo small { font-family: system-ui, sans-serif; font-size: 12px; font-weight: 600; opacity: .8; }
+.btn-comprar-vivo:hover { filter: brightness(1.08); }
+.btn-comprar-vivo:active { transform: translate(2px, 2px); }
+@keyframes pulso-comprar {
+  0%, 100% { box-shadow: inset -4px -4px 0 #c07a10, 4px 4px 0 #0008, 0 0 0 0 #ffc83d88; }
+  50% { box-shadow: inset -4px -4px 0 #c07a10, 4px 4px 0 #0008, 0 0 0 10px #ffc83d00; }
+}
+@media (prefers-reduced-motion: reduce) { .btn-comprar-vivo { animation: none; } }
+.btn-ig { background: linear-gradient(135deg, #833ab4, #fd1d1d 60%, #fcb045); box-shadow: inset -4px -4px 0 #6a1f7a, 4px 4px 0 #0008; display: inline-flex; align-items: center; }
+
+/* ---------- pop-up (modal) centralizado, com fim, rolando sem barra visível ---------- */
+.modal-fundo {
+  position: fixed; inset: 0; z-index: 100; background: rgba(8, 5, 20, .78);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal-caixa {
+  position: relative; width: min(560px, 100%); max-height: min(88vh, 88dvh); overflow-y: auto;
+  background: var(--ceu-2); border: 4px solid var(--borda); padding: 22px 20px 24px;
+  box-shadow: 8px 8px 0 #000a; scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain;
+}
+.modal-caixa::-webkit-scrollbar { display: none; }
+.modal-fechar {
+  position: sticky; top: 0; float: right; margin: -10px -8px 0 0; z-index: 2; width: 40px; height: 40px;
+  font-size: 26px; line-height: 1; cursor: pointer; color: var(--texto); background: var(--borda); border: 0;
+}
+.modal-titulo { font-family: var(--pixel); font-size: 16px; color: var(--areia); margin: 4px 0 10px; }
+.modal-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.modal-produto {
+  display: flex; flex-direction: column; gap: 6px; align-items: stretch; text-align: left; cursor: pointer;
+  background: var(--ceu); color: var(--texto); border: 3px solid var(--borda); padding: 8px; font-size: 13px;
+}
+.modal-produto:hover, .modal-produto:focus-visible { border-color: #ffc83d; }
+.modal-produto img { width: 100%; aspect-ratio: 1; object-fit: cover; image-rendering: pixelated; }
+.preco-mini { color: #ffc83d; font-family: var(--pixel); font-size: 11px; }
+.modal-img { width: 100%; image-rendering: pixelated; margin: 6px 0; }
+.modal-opcoes { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+.modal-opcoes button {
+  cursor: pointer; padding: 10px 12px; background: var(--ceu); color: var(--texto); border: 3px solid var(--borda); font-size: 14px;
+}
+.modal-opcoes button.ativa { border-color: #ffc83d; color: #ffc83d; }
+
+/* outdoor: a mesma arte da loja, com o texto do comprador na tela do holograma */
+.outdoor-previa { position: relative; margin: 6px 0; }
+.outdoor-previa img { width: 100%; display: block; image-rendering: pixelated; }
+.outdoor-tela {
+  position: absolute; left: 18.3%; top: 20.6%; width: 63.3%; height: 30.6%;
+  display: flex; align-items: center; justify-content: center; text-align: center; padding: 3%;
+}
+.outdoor-tela span {
+  font-family: var(--pixel); color: #fff; text-transform: uppercase; line-height: 1.35; word-break: break-word;
+  font-size: clamp(10px, 3.4vw, 20px); text-shadow: 0 0 6px #3fd0c9, 0 0 2px #3fd0c9, 2px 2px 0 #0b2a3a;
+}

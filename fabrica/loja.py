@@ -32,7 +32,7 @@ def ultimo_episodio() -> int:
     return max(nums)
 
 
-async def _gerar(numero: int, so_perfil: bool = False, banner: bool = False) -> list[Path]:
+async def _gerar(numero: int, so_perfil: bool = False, banner: bool = False, outdoor_vazio: bool = False) -> list[Path]:
     ep = montar_ep(config.pasta_episodio(numero))
     srv, url = servidor()
     try:
@@ -43,7 +43,7 @@ async def _gerar(numero: int, so_perfil: bool = False, banner: bool = False) -> 
             await pagina.add_script_tag(url="perfil.js")
             await pagina.add_script_tag(url="banner.js")
             await pagina.wait_for_function("typeof window.gerarLoja === 'function' && typeof window.gerarPerfis === 'function' && typeof window.gerarBanner === 'function'")
-            pecas = await pagina.evaluate("gerarBanner()" if banner else "gerarPerfis()" if so_perfil else "gerarLoja()")
+            pecas = await pagina.evaluate("gerarOutdoorVazio()" if outdoor_vazio else "gerarBanner()" if banner else "gerarPerfis()" if so_perfil else "gerarLoja()")
             await browser.close()
     finally:
         srv.shutdown()
@@ -61,6 +61,7 @@ if __name__ == "__main__":
     ap.add_argument("--episodio", type=int)
     ap.add_argument("--so-perfil", action="store_true")
     ap.add_argument("--banner", action="store_true")
+    ap.add_argument("--outdoor-vazio", action="store_true", help="só o outdoor sem texto (pop-up de compra do site)")
     a = ap.parse_args()
-    for p in asyncio.run(_gerar(a.episodio or ultimo_episodio(), a.so_perfil, a.banner)):
+    for p in asyncio.run(_gerar(a.episodio or ultimo_episodio(), a.so_perfil, a.banner, a.outdoor_vazio)):
         print(p)

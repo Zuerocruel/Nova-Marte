@@ -2,6 +2,7 @@ import 'server-only';
 import { db } from '@/lib/supabase';
 import colonia from '@/fabrica/colonia.json';
 import marte from '@/fabrica/marte.json';
+import { posCratera } from '@/lib/mundo';
 
 /**
  * Estado da colônia para o "Mundo ao vivo": a MESMA geometria do vídeo (fabrica/colonia.json),
@@ -15,6 +16,8 @@ export type ProblemaDoDia = { titulo: string; rotulo: string; categoria: string;
 export type CompraNoMapa = { pos_x: number; pos_y: number; produto_slug: string; seed: number };
 /** Pet do Colono: vive no quintal do dono (lib/pet.ts) em vez de ficar parado como ícone. */
 export type PetNoMapa = { codigo: string; pos_x: number; pos_y: number };
+/** Cratera batizada por um colono (resgate aprovado de "Nomeie sua Cratera"). */
+export type CrateraNoMapa = { id: number; nome: string; dono: string; codigo: string; x: number; y: number; r: number };
 export type EstadoColonia = {
   base: { nome: string; x: number; y: number; w: number; h: number };
   praca: { nome: string; x: number; y: number; w: number; h: number } | null;
@@ -26,7 +29,19 @@ export type EstadoColonia = {
   obra_atual: { nome: string; progresso: number } | null;
   compras: CompraNoMapa[];
   pets: PetNoMapa[];
+  crateras: CrateraNoMapa[];
 };
+
+/** "BuracoNegrote" → "Cratera BuracoNegrote" (quem já escreveu "Cratera ..." fica como escreveu). Igual a fabrica/episodio.py. */
+function nomeExibicao(nome: string): string {
+  const p = (nome || '').trim().split(/\s+/);
+  return p[0] ? p[0] + (p[1] ? ` ${p[1][0]}.` : '') : 'Colono';
+}
+
+export function nomeDaCratera(texto: string): string {
+  const t = texto.trim().replace(/\s+/g, ' ');
+  return /^cratera/i.test(t) ? t : `Cratera ${t}`;
+}
 
 type ObraCat = (typeof colonia.obras)[number];
 
@@ -40,7 +55,7 @@ export function estacaoDoEpisodio(n: number): Estacao {
 }
 
 export async function estadoColonia(): Promise<EstadoColonia> {
-  const [obrasDb, epDb, comprasDb] = await Promise.all([
+  const [obrasDb, epDb, comprasDb, crateraDb] = await Promise.all([
     db().from('colonia_obras').select('slug, status, progresso'),
     db().from('episodios').select('numero, titulo, publicado_em, resumo')
       .not('publicado_em', 'is', null).order('numero', { ascending: false }).limit(1).maybeSingle()
@@ -48,6 +63,9 @@ export async function estadoColonia(): Promise<EstadoColonia> {
         .not('publicado_em', 'is', null).order('numero', { ascending: false }).limit(1).maybeSingle() : r)),
     db().from('pedidos').select('produtos(slug), personagens!inner(codigo, pos_x, pos_y, seed, oculto)')
       .eq('status', 'aprovado').eq('personagens.oculto', false).order('id', { ascending: false }).limit(400),
+    db().from('resgates').select('id, texto, produtos!inner(slug), personagens!inner(codigo, nome, apelido, oculto)')
+      .eq('status', 'aprovado').eq('produtos.slug', 'nomeie-sua-cratera').eq('personagens.oculto', false)
+      .order('id').limit(400),
   ]);
 
   const estados = new Map((obrasDb.data ?? []).map((o) => [o.slug as string, o]));
@@ -78,6 +96,7 @@ export async function estadoColonia(): Promise<EstadoColonia> {
   const vistos = new Set<string>();
   for (const c of (comprasDb.data ?? []) as unknown as LinhaCompra[]) {
     if (!c.produtos || !c.personagens) continue;
+    if (c.produtos.slug === 'eventos-furia-marte' || c.produtos.slug === 'destaque-proximo-ep') continue;   // não são objeto na casa
     if (/pet/i.test(c.produtos.slug)) {        // um pet por dono
       if (!pets.some((p) => p.codigo === c.personagens!.codigo)) pets.push({ codigo: c.personagens.codigo, pos_x: c.personagens.pos_x, pos_y: c.personagens.pos_y });
       continue;
@@ -87,6 +106,15 @@ export async function estadoColonia(): Promise<EstadoColonia> {
     vistos.add(k);
     compras.push({ pos_x: c.personagens.pos_x, pos_y: c.personagens.pos_y, produto_slug: c.produtos.slug, seed: c.personagens.seed });
   }
+
+  type LinhaCratera = { id: number; texto: string; personagens: { codigo: string; nome: string; apelido?: string | null } | null };
+  const crateras: CrateraNoMapa[] = ((crateraDb.data ?? []) as unknown as LinhaCratera[])
+    .filter((r) => r.personagens && r.texto?.trim())
+    .map((r) => ({
+      id: r.id, nome: nomeDaCratera(r.texto), codigo: r.personagens!.codigo,
+      dono: r.personagens!.apelido?.trim() || nomeExibicao(r.personagens!.nome),   // como no vídeo: nick ou "Nome S."
+      ...posCratera(r.id),
+    }));
 
   return {
     base: colonia.base,
@@ -99,5 +127,6 @@ export async function estadoColonia(): Promise<EstadoColonia> {
     obra_atual: atual ? { nome: atual.nome, progresso: atual.progresso } : null,
     compras,
     pets,
+    crateras,
   };
 }

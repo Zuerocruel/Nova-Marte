@@ -80,6 +80,10 @@
   .contador { font-size: 12px; color: var(--texto2); text-align: right; }
   .contador.passou { color: var(--erro); }
   details summary { cursor: pointer; color: var(--texto2); font-size: 13px; }
+  .grade-cad { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px; }
+  .cadastro.novo { border-color: var(--ouro, #ffc83d); box-shadow: 0 0 0 1px var(--ouro, #ffc83d); }
+  .checklist { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 4px; font-size: 14px; }
+  .checklist .ck-falta { color: #f2b25c; }
 </style>
 </head>
 <body>
@@ -98,7 +102,7 @@
 'use strict';
 const TOKEN = '__TOKEN__', BOOT = '__BOOT__';
 const ABAS = [
-  ['aprovacoes', '✅ Aprovações'], ['episodios', '🎬 Episódios'], ['divulgacao', '📢 Divulgação'],
+  ['aprovacoes', '✅ Aprovações'], ['cadastros', '🆕 Cadastros'], ['episodios', '🎬 Episódios'], ['divulgacao', '📢 Divulgação'],
   ['colonos', '👥 Colonos'], ['visao', '📊 Visão geral'], ['compras', '🛒 Compras'], ['site', '🌐 Site'],
   ['chat', '💬 Chat'], ['produtos', '🏪 Produtos'], ['cargos', '🏅 Cargos'], ['conexoes', '🔌 Conexões'],
 ];
@@ -310,6 +314,18 @@ function blocoRedes(e) {
       Rede com ✅, 🕒 ou ⚠ não é reenviada sozinha: confira no app e use Liberar.</p></div>`;
 }
 
+// o que vai no episódio + ganchos (o texto editável fica na aba Divulgação)
+const GANCHOS = [['historia', '➡️ Gancho da história (próximo episódio)'], ['comentar', '💬 Comentar (pergunta do dia)'],
+  ['curtir', '❤️ Curtir'], ['seguir', '👉 Seguir (Instagram / TikTok)'], ['inscrever', '🔔 Inscrever (YouTube)']];
+function resumoEpisodio(e) {
+  const r = e.resumo;
+  return `<details open style="margin:12px 0"><summary>📝 Pauta e ganchos · copies: ${REDES.map(([p, nome]) => `${nome} ${e.copies_aprovadas[p] ? '✅' : '⏳'}`).join(' · ')}</summary>
+    <p><b>Manchete:</b> ${esc(r.manchete)}</p>
+    <ul>${r.pauta.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+    <ul class="mudo">${GANCHOS.map(([k, rot]) => `<li>${rot}: ${esc(r.ganchos[k] || '')}</li>`).join('')}</ul>
+    <button class="btn" onclick="irPara('divulgacao',{ep:${e.numero}})">✏️ Editar pauta, ganchos e copies</button></details>`;
+}
+
 // ================================================================ EPISÓDIOS
 async function rEpisodios() {
   const d = await get('/api/episodios');
@@ -327,6 +343,7 @@ async function rEpisodios() {
         <div class="linha">${estado}${e.sem_voz ? '<span class="st pendente">prévia sem voz</span>' : ''}${e.gerando ? '<span class="st pendente">gerando…</span>' : ''}
         <span class="mudo">${e.duracao ? Math.round(e.duracao) + ' s · ' : ''}gerado ${quando(e.gerado_em)}</span></div>
         <details style="margin:12px 0"><summary>Roteiro (${e.falas.length} falas)</summary><ol>${e.falas.map((f) => `<li><b>${esc(f.id)}</b>: ${esc(f.fala)}</li>`).join('')}</ol></details>
+        ${e.resumo ? resumoEpisodio(e) : ''}
         <div class="linha">
           ${e.aprovado_em ? botao('Desaprovar', 'desaprovar_episodio', { numero: e.numero }) : botao('✅ Aprovar', 'aprovar_episodio', { numero: e.numero }, 'aprovar', e.video && !e.gerando ? '' : 'disabled')}
           ${botao('🚀 Publicar', 'publicar_episodio', { numero: e.numero }, 'publicar',
@@ -370,13 +387,34 @@ function blocoExtras(e) {
           <button class="btn" onclick="postarExtra(${e.numero},'${p.item}',true)" ${pode ? '' : 'disabled'} title="Faz tudo menos o toque final">🧪 Ensaio</button>
         </div></div></div>`;
   }).join('');
+  const car = x.carrossel ? (() => {
+    const c = x.carrossel, id = `${e.numero}-carrossel`, travado = TRAVADOS.includes(c.instagram.status);
+    const pode = c.aprovado_em && !x.postando && !x.gerando && !travado;
+    return `<div class="card" style="margin-top:10px">
+      <h4 style="margin:0 0 6px">🖼️ Carrossel do Instagram <span class="mudo">(o botão “Comente no Instagram” do site passa a levar para ele)</span></h4>
+      <div class="linha">${c.imagens.map((u) => `<img src="${u}" style="height:150px;border:1px solid var(--borda);border-radius:6px">`).join('')}</div>
+      <div class="linha">${c.aprovado_em ? '<span class="st aprovado">aprovado</span>' : '<span class="st aguardando">aguardando aprovação</span>'}
+        ${chipRede('instagram', c.instagram)}${travado ? botao('Liberar', 'liberar_extra', { numero: e.numero, item: 'carrossel', plataforma: 'instagram' }, 'peq perigo', 'data-confirma="Você conferiu no app? Liberar deixa postar de novo."') : ''}
+        ${c.instagram.status === 'conferir' ? botao('✅ Está no ar', 'marcar_extra_publicado', { numero: e.numero, item: 'carrossel', plataforma: 'instagram' }, 'peq') : ''}</div>
+      <textarea id="leg-${id}" style="width:100%;min-height:110px;margin-top:8px">${esc(c.legenda)}</textarea>
+      <div class="linha" style="margin-top:6px">
+        ${c.aprovado_em ? botao('Desaprovar', 'desaprovar_extra', { numero: e.numero, item: 'carrossel' })
+          : `<button class="btn aprovar" onclick="aprovarExtra(${e.numero},'carrossel')">✅ Aprovar imagens e legenda</button>`}
+        <button class="btn publicar" onclick="postarCarrossel(${e.numero},false)" ${pode ? '' : 'disabled'}>📤 Publicar no Instagram</button>
+        <button class="btn" onclick="postarCarrossel(${e.numero},true)" ${c.aprovado_em && !x.postando ? '' : 'disabled'} title="Faz tudo menos o toque final">🧪 Ensaio</button>
+      </div></div>`;
+  })() : '';
   return `<div style="margin-top:14px;border-top:1px solid var(--borda);padding-top:12px">
     <div class="linha"><b>Conteúdo extra</b>${gerar}${x.gerando ? '<span class="st pendente">gerando…</span>' : ''}${x.postando ? '<span class="st pendente">postando…</span>' : ''}</div>
     <p class="mudo">Sem IA e sem custo: thumbnail do YouTube, capa dos Reels/TikTok, carrossel do Instagram (clique para baixar) e 4 vídeos em primeira pessoa com um colono de verdade.
       Para postar um POV: confira o vídeo, ajuste a legenda e aprove. Instagram e TikTok vão pelo celular.</p>
-    ${imgs ? `<div>${imgs}</div>` : ''}${povs}</div>`;
+    ${imgs ? `<div>${imgs}</div>` : ''}${car}${povs}</div>`;
 }
 window.aprovarExtra = (n, item) => acao('aprovar_extra', { numero: n, item, legenda: $(`#leg-${n}-${item}`).value }, 'Vídeo aprovado');
+window.postarCarrossel = (n, ensaio) => {
+  if (!ensaio && !confirm(`Publicar o carrossel do episódio ${n} no Instagram?\n\nO celular precisa estar no USB e desbloqueado.`)) return;
+  acao('postar_extra', { numero: n, item: 'carrossel', redes: ['instagram'], ensaio }, ensaio ? 'Ensaio na fila' : 'Postagem na fila');
+};
 window.postarExtra = (n, item, ensaio) => {
   const redes = ['instagram', 'tiktok'].filter((r) => $(`#rx-${n}-${item}-${r}`)?.checked);
   if (!ensaio && !confirm(`Publicar ${item.replace('pov_', 'POV ')} em ${redes.join(' e ')}?`)) return;
@@ -419,7 +457,18 @@ async function rDivulgacao() {
     </div>
     <p class="mudo">Automático: 📤 Publicar nas redes na aba 🎬 Episódios. Se postar à mão, cole o link do post aqui.
       Regras: menos de 15 hashtags${p === 'youtube' ? '; sem link na descrição enquanto o canal não liberar (YOUTUBE_LINK_NA_DESCRICAO)' : '; sem link na legenda (use “link na bio”)'}.</p></div>`)).join('');
-  remendar(bloco('sel' + epDivulgacao, seletor) + bloco('g' + epDivulgacao, `<div class="grade">${cards}</div>`));
+  const r = c.resumo;
+  const pauta = r ? bloco('pg' + epDivulgacao + JSON.stringify(r).length, `<div class="card" id="pautaCard">
+    <h3>📝 O que vai neste episódio e os ganchos</h3>
+    <p class="mudo">Edite aqui e clique em “Refazer as 3 copies”: o título do YouTube e as legendas são montados de novo com isto.
+      Ajustes finos de cada rede você faz direto nas copies abaixo (depois de refazer).</p>
+    <label class="mudo">Manchete (título do YouTube e 1ª linha do Instagram/TikTok)</label>
+    <input style="width:100%" id="pgManchete" maxlength="90" value="${esc(r.manchete)}">
+    <label class="mudo">Pauta: o que acontece no episódio (uma linha por momento)</label>
+    <textarea id="pgPauta" style="min-height:150px">${esc(r.pauta.join('\n'))}</textarea>
+    ${GANCHOS.map(([k, rot]) => `<label class="mudo">${rot}</label><input style="width:100%" data-gancho="${k}" maxlength="300" value="${esc(r.ganchos[k] || '')}">`).join('')}
+    <div class="linha" style="margin-top:10px"><button class="btn aprovar" onclick="refazerCopies()">↻ Refazer as 3 copies com isto</button></div></div>`) : '';
+  remendar(bloco('sel' + epDivulgacao, seletor) + pauta + bloco('g' + epDivulgacao, `<div class="grade">${cards}</div>`));
   document.querySelectorAll('[data-campo]').forEach(contar);
 }
 window.contar = (el) => {
@@ -432,9 +481,54 @@ window.copiar = async (p) => {
   const texto = p === 'youtube' ? `${c.titulo}\n\n${c.descricao}\n\nTags: ${c.tags}` : c.legenda;
   await navigator.clipboard.writeText(texto); toast('Texto copiado');
 };
+window.refazerCopies = () => {
+  if (!confirm('Refazer as copies do YouTube, Instagram e TikTok com esta pauta e estes ganchos?\n\nEdições feitas direto nas copies serão substituídas e as 3 precisam ser aprovadas de novo.')) return;
+  const ganchos = Object.fromEntries([...document.querySelectorAll('[data-gancho]')].map((el) => [el.dataset.gancho, el.value]));
+  acao('refazer_copies', { numero: epDivulgacao, manchete: $('#pgManchete').value, pauta: $('#pgPauta').value, ganchos }, 'Copies refeitas: aprove de novo');
+};
 window.salvarCopy = (p) => acao('salvar_copy', { numero: epDivulgacao, plataforma: p, campos: camposDe(p) }, 'Copy salva (aprove de novo)');
 window.aprovarCopy = (p) => acao('aprovar_copy', { numero: epDivulgacao, plataforma: p, campos: camposDe(p) }, 'Copy aprovada');
 window.marcarPostado = (p) => acao('marcar_postado', { numero: epDivulgacao, plataforma: p, url: $(`[data-plat="${p}"] [data-url]`).value }, 'Marcado como postado');
+
+// ================================================================ CADASTROS (ao vivo)
+// Quem se cadastrou (mais novo primeiro), de onde veio e um checklist por pessoa. O "entrou no vídeo" e o
+// "item apareceu" são automáticos (lidos dos episódios publicados); "revisado" e "aviso" são marcados à mão.
+let filtroCadastros = 'todos';
+async function rCadastros() {
+  const d = await get('/api/cadastros');
+  const ok = (sim, txt, nao) => `<li class="${sim ? 'ck-ok' : 'ck-falta'}">${sim ? '✅' : '⏳'} ${sim ? txt : (nao || txt)}</li>`;
+  const filtros = { todos: () => true, novos: (c) => c.novo, 'fora do vídeo': (c) => !c.auto.casa_ep, 'item sem aparecer': (c) => c.itens.some((i) => i.pago && !i.apareceu_ep) };
+  const lista = d.cadastros.filter((c) => !c.oculto && filtros[filtroCadastros](c));
+  const item = (i) => {
+    if (!i.pago) {
+      const st = i.status === 'pendente' ? '⏳ aguardando pagamento: não aparece em lugar nenhum' : `❌ ${esc(i.status)}: não aparece`;
+      return `<li class="ck-falta">🛒 <b>${esc(i.produto)}</b> · ${st}</li>`;
+    }
+    const det = [i.opcao, i.texto && `“${i.texto}”`].filter(Boolean).map(esc).join(' · ');
+    return `<li class="${i.apareceu_ep ? 'ck-ok' : 'ck-falta'}">🛒 <b>${esc(i.produto)}</b>${det ? ` (${det})` : ''} · ${String(i.pedido).startsWith('R') ? 'resgate aprovado' : 'pago'} ✅
+      ${i.no_site ? '· no site ✅ ' : ''}· ${i.apareceu_ep ? `no vídeo: ep. ${i.apareceu_ep} ✅` : 'no vídeo: ⏳ próximo episódio'}</li>`;
+  };
+  const cards = lista.map((c) => `<div class="card cadastro${c.novo ? ' novo' : ''}">
+    <div class="linha" style="justify-content:space-between">
+      <div><b>${esc(c.apelido || c.nome)}</b> ${c.apelido ? `<span class="mudo">(${esc(c.nome)})</span>` : ''}
+        <span class="mudo">· ${esc(c.codigo)} · @${esc(c.handle)} (${esc(c.plataforma)})</span>
+        ${c.novo ? '<span class="st aguardando">NOVO</span>' : ''}${c.teste ? '<span class="st neutro">teste</span>' : ''}</div>
+      <span class="mudo">${quando(c.created_at)}</span></div>
+    <div class="linha" style="margin:6px 0"><span class="chip" title="${esc(c.origem.lugar)}">📍 ${esc(c.origem.rotulo)}</span>
+      ${c.origem.lugar && !c.origem.rotulo.includes(c.origem.lugar) ? `<span class="mudo">${esc(c.origem.lugar)}</span>` : ''}</div>
+    <ul class="checklist">
+      <li><label class="chk"><input type="checkbox" ${c.manual.revisado ? 'checked' : ''} onchange="acao('checklist',{codigo:'${c.codigo}',item:'revisado',valor:this.checked},'Checklist salvo')"> Nome revisado</label></li>
+      ${ok(!!c.cargo, `Cargo: ${esc(c.cargo || '')}`, 'Ainda sem cargo')}
+      ${ok(!!c.auto.casa_ep, c.auto.nomeado_ep ? `Entrou no vídeo: chamado pelo nome no ep. ${c.auto.nomeado_ep}` : `Entrou no vídeo: casa no mapa do ep. ${c.auto.casa_ep}`, 'Entra no vídeo no próximo episódio')}
+      ${c.itens.map(item).join('') || '<li class="mudo">Nenhuma compra ou item grátis.</li>'}
+      <li>${c.aceita_whatsapp ? `<label class="chk"><input type="checkbox" ${c.manual.aviso ? 'checked' : ''} onchange="acao('checklist',{codigo:'${c.codigo}',item:'aviso',valor:this.checked},'Checklist salvo')"> Aviso no WhatsApp enviado</label>` : '<span class="mudo">Não quis aviso no WhatsApp</span>'}</li>
+    </ul></div>`).join('');
+  const topo = `<div class="kpis"><div class="kpi"><b>${d.hoje}</b><span>Cadastros hoje</span></div><div class="kpi"><b>${d.cadastros.length}</b><span>Total</span></div></div>
+    <div class="linha" style="margin:10px 0">${d.por_origem.map(([o, n]) => `<span class="chip">📍 ${esc(o)}: <b>${n}</b></span>`).join(' ')}</div>
+    <div class="linha"><select onchange="filtroCadastros=this.value;atualizar(true)">${Object.keys(filtros).map((f) => `<option ${f === filtroCadastros ? 'selected' : ''}>${f}</option>`).join('')}</select>
+      <span class="mudo">${lista.length} pessoa(s) · atualiza sozinho quando alguém se cadastra ou compra (a cada ~15 s)</span></div>`;
+  remendar(bloco('topo' + filtroCadastros + d.hoje + d.cadastros.length + JSON.stringify(d.por_origem), topo) + bloco('l' + filtroCadastros + JSON.stringify(lista).length, `<div class="grade-cad">${cards || '<p class="mudo">Ninguém aqui.</p>'}</div>`));
+}
 
 // ================================================================ COLONOS
 async function rColonos() {
@@ -571,7 +665,7 @@ async function rConexoes() {
     Object.entries(grupos).map(([g, itens]) => bloco(g, `<h2>${esc(g)}</h2><div class="card">${itens.map((i) => `<div class="item"><div class="txt"><b>${esc(i.nome)}</b><small>${esc(i.detalhe)}</small></div><span class="st ${esc(i.status)}">${esc(i.status)}</span></div>`).join('')}</div>`)).join(''));
 }
 
-const RENDER = { aprovacoes: rAprovacoes, episodios: rEpisodios, divulgacao: rDivulgacao, colonos: rColonos, visao: rVisao, compras: rCompras, site: rSite, chat: rChat, produtos: rProdutos, cargos: rCargos, conexoes: rConexoes };
+const RENDER = { aprovacoes: rAprovacoes, cadastros: rCadastros, episodios: rEpisodios, divulgacao: rDivulgacao, colonos: rColonos, visao: rVisao, compras: rCompras, site: rSite, chat: rChat, produtos: rProdutos, cargos: rCargos, conexoes: rConexoes };
 window.irPara = irPara; window.acao = acao; window.atualizar = atualizar; window.lembrar = lembrar; window.$ = $;
 
 desenharAbas();

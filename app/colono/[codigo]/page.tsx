@@ -7,6 +7,7 @@ import EscolherApelidoPerfil from '@/components/EscolherApelidoPerfil';
 import { cargoDe } from '@/lib/cargos';
 import { perfilDe } from '@/lib/perfil';
 import { codigoDaSessao } from '@/lib/sessao';
+import BotaoComentar from '@/components/BotaoComentar';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,7 @@ export default async function PerfilColono({ params }: Props) {
           </p>
           <p style={{ marginTop: 14, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <a className="btn sec" href={`/mundo?c=${p.codigo}`}>Ver casa no mapa</a>
+            <BotaoComentar />
             {meu && <span className="selo-meu">Este é você</span>}
           </p>
           {meu && !p.apelido && <EscolherApelidoPerfil />}

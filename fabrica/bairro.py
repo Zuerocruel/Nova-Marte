@@ -73,6 +73,21 @@ def casa_do_codigo(codigo: str) -> tuple[int, int]:
     return casa_do_id(int("".join(ch for ch in codigo if ch.isdigit()) or 1))
 
 
+# ---------- crateras batizadas (item "Nomeie sua Cratera") ----------
+# Ficam num anel FORA da colônia (as obras vão até ~14 casas do módulo), cada uma num ângulo (ângulo áureo, sem
+# empilhar). A mesma conta está em lib/crateras.ts. O bairro só chega nesse anel perto de ~800 colonos.
+CRATERA_RAIO = 20
+
+
+def pos_cratera(id_: int) -> dict:
+    """Centro (em casas) e raio (em pixels do mundo, CASA = 16) da cratera do resgate `id_`."""
+    id_ = max(1, int(id_))
+    ang = 0.9 + (id_ - 1) * 2.399963
+    dist = CRATERA_RAIO + (id_ * 3) % 4
+    return {"x": CENTRO[0] + round(dist * math.cos(ang)), "y": CENTRO[1] + round(dist * math.sin(ang)),
+            "r": 38 + (id_ * 5) % 8}
+
+
 if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 20
     casas = [casa_do_id(i) for i in range(1, n + 1)]

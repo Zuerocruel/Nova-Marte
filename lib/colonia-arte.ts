@@ -168,6 +168,27 @@ export function blocoDeTerreno(bx: number, by: number, livre: (x: number, y: num
   return c;
 }
 
+/** Cratera batizada (item "Nomeie sua Cratera"): mesma arte de crateraBatizada em fabrica/diretor.js. */
+export function crateraBatizada(t: Ctx, px: number, py: number, r: number, id: number) {
+  disco(t, px, py + 3, r + 4, '#d98a62', 0.62);
+  disco(t, px, py + 2, r + 1, '#e7a17a', 0.6);
+  disco(t, px, py, r, '#7d3722', 0.6);
+  disco(t, px + 2, py + 3, r - 4, '#8f4129', 0.55);
+  disco(t, px + 4, py + 5, Math.floor(r * 0.55), '#a14b2f', 0.5);
+  disco(t, px - Math.floor(r * 0.35), py - 2, Math.floor(r * 0.18), '#6b2f1d', 0.5);
+  for (let k = 0; k < 9; k++) {   // pedras na borda
+    const a = k * 0.7 + hash(id, k, 3) * 0.5, d = r + 3 + hash(id, k, 4) * 6;
+    const x = Math.round(px + Math.cos(a) * d), y = Math.round(py + Math.sin(a) * d * 0.62 + 2);
+    ret(t, x - 2, y - 1, 4 + (k % 2) * 2, 3, '#7a3a24');
+    ret(t, x - 1, y - 2, 2, 1, '#c9805c');
+  }
+  const mx = px + Math.round(r * 0.72), my = py - Math.round(r * 0.62) - 2;   // marco com bandeirinha
+  ret(t, mx - 2, my + 1, 6, 2, 'rgba(0,0,0,0.25)');
+  ret(t, mx, my - 14, 2, 15, '#d8dbe8');
+  ret(t, mx + 2, my - 14, 8, 5, '#ffc83d');
+  ret(t, mx + 2, my - 10, 8, 1, '#e2a82a');
+}
+
 // ------------------------------------------------------------------ módulo de pouso e obras
 export function desenharBase(c: Ctx, b: Geo, t: number, energia: boolean) {
   const cx = (b.x + b.w / 2) * CASA, cy = (b.y + b.h / 2) * CASA, y = cy;

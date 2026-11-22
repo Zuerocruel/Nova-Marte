@@ -102,10 +102,20 @@ def escolher(n: int, d: dict, hist: list[dict] | None = None) -> dict | None:
     est, _ = estacao(n)
     concluidas = {o["slug"] for o in d.get("obras", []) if o.get("status") == "concluida"}
     hist = historico(n) if hist is None else hist
-    opcoes = candidatos(est, concluidas, hist) or candidatos(est, concluidas, hist[:1]) \
-        or candidatos(est, concluidas, [])
     rnd = random.Random(f"problema:{n}")
-    p = rnd.choices([o for o, _ in opcoes], weights=[w for _, w in opcoes])[0]
+    # Fúria de Marte comprada: o pedido mais antigo da fila escolhe o evento (pelo número do pedido) e
+    # passa na frente do sorteio. Um por episódio; os outros esperam os próximos.
+    fila = (d.get("servicos") or {}).get("eventos-furia-marte") or []
+    furia = fila[0] if fila else None
+    if furia:
+        # o comprador escolhe o evento na loja (opção do pedido); sem escolha, sai pelo número do pedido
+        evs = marte()["furia"]["eventos"]
+        pid = marte()["furia"]["por_opcao"].get(furia.get("opcao") or "") or evs[furia["pedido"] % len(evs)]
+        p = next(x for x in marte()["problemas"] if x["id"] == pid)
+    else:
+        opcoes = candidatos(est, concluidas, hist) or candidatos(est, concluidas, hist[:1]) \
+            or candidatos(est, concluidas, [])
+        p = rnd.choices([o for o, _ in opcoes], weights=[w for _, w in opcoes])[0]
 
     # quem resolve: SEMPRE alguém com o cargo certo para o problema (ex.: falta de água → Geologia, Rover,
     # Estufa). Entre os colonos do cargo, sorteia um; se nenhum colono tem o cargo, chama o fundador da
@@ -137,7 +147,9 @@ def escolher(n: int, d: dict, hist: list[dict] | None = None) -> dict | None:
     reacao = p.get("reacao") or ("recolher" if p["categoria"] in ("clima", "ataque") and alvo == "colonia" else "heroi")
     return {"id": p["id"], "categoria": p["categoria"], "titulo": p["titulo"], "reacao": reacao,
             "rotulo": marte()["categorias"][p["categoria"]], "alvo": alvo,
-            "alerta": rnd.choice(p["alerta"]), "solucao": rnd.choice(p["solucao"]), "heroi": heroi}
+            "alerta": rnd.choice(p["alerta"]), "solucao": rnd.choice(p["solucao"]), "heroi": heroi,
+            **({"furia": {"pedido": furia["pedido"], "codigo": furia["codigo"], "nome": furia["nome"],
+                          "falado": furia["falado"]}} if furia else {})}
 
 
 if __name__ == "__main__":

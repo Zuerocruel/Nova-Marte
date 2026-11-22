@@ -507,6 +507,12 @@ const ITENS = {
   },
 };
 
+// Outdoor sem o "SEU NOME AQUI": fundo do pop-up de compra do site, que escreve o texto do comprador por cima
+// (a tela do holograma vai de x 66 a 294 e de y 74 a 184, em 360 px → 18,3% / 20,6% / 63,3% × 30,6% da imagem).
+window.gerarOutdoorVazio = function () {
+  return [compor('itens/outdoor-holografico-vazio.png', () => { const ef = ITENS['outdoor-holografico'](); TEXTOS.length = 0; return ef; }, { noite: true })];
+};
+
 window.gerarLoja = function () {
   const saida = [];
   for (const [slug, fn] of Object.entries(ITENS)) {

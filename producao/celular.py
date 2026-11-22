@@ -37,7 +37,7 @@ import tempfile
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 PRODUCAO = Path(__file__).resolve().parent
@@ -76,11 +76,12 @@ FINAL_RID = rx(r"share_button", r"publish", r"post_button", r"btn_post", r"submi
 # tela de PUBLICAÇÃO (para as travas de tela): só o botão final de verdade. O "Seu Story" do TikTok
 # (rid tv_quick_publish) fica no editor: nunca é tocado (FINAL_RID), mas não quer dizer que já é a tela final.
 TELA_FINAL_RID = rx(r"share_button", r"post_button", r"btn_post")
+FEED = rx(r"^feed$", r"^publicação$", r"^post$")   # carrossel: post no feed (nunca Reels/Story)
 ESCOLHA_DESTINO = rx(r"^feed$", r"^publicação$", r"^post$", r"^reels?$", r"^story$", r"^stories$")
 AVANCAR = rx(r"^avançar$", r"^próximo$", r"^next$", r"^seguinte$")
 DISPENSAR = rx(r"^ok$", r"^entendi$", r"^continuar$", r"^agora não$", r"^not now$", r"^got it$",
                r"^fechar$", r"^close$", r"^pular$", r"^skip$", r"^ignorar$", r"^dispensar$", r"^dismiss$")
-DESCARTAR = rx(r"^descartar", r"^discard", r"^excluir rascunho", r"^delete draft", r"^começar de novo", r"^start over")
+DESCARTAR = rx(r"^descartar", r"^discard", r"^recomeçar$", r"^start over$", r"^excluir rascunho", r"^delete draft", r"^começar de novo", r"^start over")
 # nunca tocar (vale para os dois apps)
 PROIBIDO = rx(r"salvar rascunho", r"save draft", r"^rascunho", r"^drafts?$")
 # TikTok: nunca o Story
@@ -270,6 +271,53 @@ class Celular:
             time.sleep(0.5)
         raise Falha("a capa foi copiada mas a galeria não a indexou")
 
+    def ler_area_de_transferencia(self) -> str:
+        self.sh(f"am start -W -n {CLIPPER}/.Main")
+        time.sleep(1.0)
+        m = re.search(r'data="(.*)"', self.sh("am broadcast -a clipper.get"), re.S)
+        self.sh("input keyevent KEYCODE_HOME")
+        return m.group(1).strip() if m else ""
+
+    def link_do_ultimo_post(self, perfil: str = "operacaomartezero") -> str:
+        """Abre o perfil, entra no post mais recente (linha 1, coluna 1), toca em Enviar → 'Copiar link' e devolve
+        o link limpo (sem ?…). Não publica nem envia nada: só copia o link."""
+        self.acordar()
+        self.sh(f"am start -a android.intent.action.VIEW -d https://www.instagram.com/{perfil}/ com.instagram.android")
+        time.sleep(6)
+        post = None
+        for _ in range(4):
+            post = next((n for n in self.tela() if n.rid.endswith("/image_button") and "linha 1, coluna 1" in n.desc), None)
+            if post:
+                break
+            self.sh("input swipe 540 1500 540 900 300")
+            time.sleep(1.5)
+        if not post:
+            raise Falha("não achei o post mais recente no perfil")
+        self.tocar(post, "instagram")
+        time.sleep(4)
+        enviar = None
+        for _ in range(4):
+            enviar = next((n for n in self.tela() if n.rid.endswith("/row_feed_button_share")), None)
+            if enviar:
+                break
+            self.sh("input swipe 540 1700 540 1100 400")
+            time.sleep(1.5)
+        if not enviar:
+            raise Falha("não achei o botão Enviar do post")
+        self.tocar(enviar, "instagram")
+        time.sleep(3)
+        copiar = next((n for n in self.tela() if n.rid.endswith("/button") and n.rotulo.lower() == "copiar link"), None)
+        if not copiar:
+            self.sh("input keyevent KEYCODE_BACK")
+            raise Falha("não achei 'Copiar link'")
+        self.tocar(copiar, "instagram")
+        time.sleep(1.5)
+        link = self.ler_area_de_transferencia()
+        m = re.match(r"(https://www\.instagram\.com/(p|reel)/[\w-]+/)", link)
+        if not m:
+            raise Falha(f"a área de transferência não tem um link de post: {link[:80]!r}")
+        return m.group(1)
+
     def copiar_texto(self, texto: str) -> None:
         """Coloca o texto (com emojis e quebras de linha) na área de transferência do Android.
         O texto vai como arquivo e é lido no próprio celular: nada passa pela linha de comando do Windows."""
@@ -434,8 +482,12 @@ def assinatura_legenda(texto: str) -> str:
 # ------------------------------------------------------------------ fluxo de uma rede
 class Postagem:
     def __init__(self, cel: Celular, rede: str, numero: int, legenda: str, ensaio: bool, log=print,
-                 capa: Path | None = None) -> None:
+                 capa: Path | None = None, chave: int | str | None = None) -> None:
         self.cel, self.rede, self.n, self.legenda, self.ensaio, self.log = cel, rede, numero, legenda, ensaio, log
+        # onde o status é gravado: o episódio (3) ou o vídeo extra ("3-pov_colonia"). Antes de 21/11 o extra
+        # gravava o "tocou no botão final" no episódio por engano.
+        self.chave = numero if chave is None else chave
+        self.carrossel = False   # True: post de imagens no feed (rodar_carrossel)
         self.capa, self.capa_feita = capa, False
         self.t = IG if rede == "instagram" else TT
         self.tocou_final = False
@@ -471,6 +523,100 @@ class Postagem:
                         "Ele tem permissão de Fotos e vídeos? Rode celular.py --checar")
         return self._navegar()
 
+    def rodar_carrossel(self, imagens: list[Path]) -> str:
+        """Carrossel do Instagram (post no feed com várias imagens), pelo próprio app: Criar → POST →
+        Selecionar vários → toca nas imagens em ordem → Avançar → legenda → Compartilhar.
+        (O Compartilhar múltiplo do Android não funciona aqui: o 'am start' do Android 12 não aceita lista de URIs.)
+        As imagens vão para a galeria em ordem INVERSA, 1,5 s entre elas: a capa fica a mais recente e o
+        Instagram já a marca como nº 1; as outras são tocadas na sequência e cada número é conferido."""
+        cel = self.cel
+        pacote = cel.pacote_de("instagram")
+        if not pacote:
+            raise Falha("Instagram não está instalado no celular")
+        self.carrossel = True
+        cel.acordar()
+        self.log(f"[Instagram] enviando {len(imagens)} imagens do carrossel para a galeria (da última para a primeira)…")
+        # relógio do CELULAR (a galeria mostra a hora dele, que pode não bater com a do PC)
+        inicio = datetime.strptime(cel.sh("date +%Y-%m-%dT%H:%M").strip()[:16], "%Y-%m-%dT%H:%M") - timedelta(minutes=1)
+        for i in reversed(imagens):
+            cel.enviar_imagem(i, f"ep{self.n:03d}_{self.stamp}_{i.name}")
+            time.sleep(1.5)
+        self.log("  copiando a legenda aprovada para a área de transferência…")
+        cel.copiar_texto(self.legenda.rstrip() + " ")
+        cel.sh(f"monkey -p {pacote} -c android.intent.category.LAUNCHER 1")
+        time.sleep(5)
+        # tela inicial → "Criar"
+        for _ in range(5):
+            nos = cel.tela()
+            if (d := achar(nos, DESCARTAR)):        # rascunho de um ensaio anterior: descarta (nunca salva)
+                cel.tocar(d, "instagram")
+                time.sleep(2)
+                continue
+            if any(n.rid.endswith("/new_post_title") for n in nos):   # o app já abriu no "Novo post"
+                criar = None
+                break
+            if (criar := next((n for n in nos if n.rid.endswith("/action_bar_left_button") and n.rotulo == "Criar"), None)):
+                break
+            if (inicio_tab := next((n for n in cel.tela() if n.rid.endswith("/feed_tab")), None)):
+                cel.tocar(inicio_tab, "instagram")
+            else:
+                cel.sh("input keyevent KEYCODE_BACK")
+            time.sleep(2)
+        else:
+            raise Falha("não achei o botão 'Criar' na tela inicial do Instagram")
+        if criar:
+            cel.tocar(criar, "instagram")
+        self._esperar(rx(r"^novo post$"), 10)
+        nos = cel.tela()
+        # trava: tem que ser o "Novo post" do FEED (Story/Reel têm outro título); as abas POST/STORY/REEL
+        # nem sempre aparecem quando o app reabre direto nesta tela
+        if not any(n.rid.endswith("/new_post_title") and n.text.strip().lower() == "novo post" for n in nos):
+            raise Falha("a tela de criação não é 'Novo post' (feed): não sigo")
+        multi = next((n for n in nos if n.rid.endswith("/multi_select_slide_button_alt")), None)
+        if multi is None:
+            raise Falha("não achei 'Selecionar vários'")
+        cel.tocar(multi, "instagram")
+        time.sleep(2)
+
+        def fotos() -> list[No]:
+            return sorted((n for n in cel.tela() if n.rid.endswith("/gallery_grid_item_thumbnail") and "foto" in n.desc.lower()),
+                          key=lambda n: (n.caixa[1], n.caixa[0]))
+
+        def numero(n: No) -> int | None:
+            m = re.search(r"selecionada (\d+)", n.desc)
+            return int(m.group(1)) if m else None
+
+        f = fotos()
+        if len(f) < len(imagens):
+            raise Falha(f"a galeria mostrou {len(f)} fotos, preciso de {len(imagens)}")
+        for k in range(len(imagens)):
+            f = fotos()
+            if numero(f[k]) == k + 1:
+                continue
+            if numero(f[k]) is not None:
+                raise Falha(f"a foto {k + 1} da galeria já estava selecionada com outro número: {f[k].desc[:80]}")
+            repetir = 0
+            while numero(fotos()[k]) != k + 1:
+                if repetir == 2:
+                    raise Falha(f"não consegui selecionar a imagem {k + 1} do carrossel")
+                cel.tocar(fotos()[k], "instagram")
+                time.sleep(1.2)
+                repetir += 1
+        # conferência final: exatamente as N mais recentes, numeradas 1..N, criadas agora
+        f = fotos()
+        sel = [numero(n) for n in f]
+        if sel[:len(imagens)] != list(range(1, len(imagens) + 1)) or any(x for x in sel[len(imagens):]):
+            raise Falha(f"seleção diferente do esperado: {sel[:8]}")
+        for n in f[:len(imagens)]:
+            m = re.search(r"em (\d+) de (\w+) de (\d{4}) (\d+):(\d+)", n.desc)
+            meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro",
+                     "outubro", "novembro", "dezembro"]
+            if not m or m.group(2) not in meses or datetime(int(m.group(3)), meses.index(m.group(2)) + 1, int(m.group(1)),
+                                                            int(m.group(4)), int(m.group(5))) < inicio.replace(second=0, microsecond=0):
+                raise Falha(f"uma das imagens selecionadas não é do carrossel enviado agora: {n.desc[:90]}")
+        self.log(f"  {len(imagens)} imagens selecionadas em ordem (1 = capa) e conferidas")
+        return self._navegar()
+
     def _navegar(self) -> str:
         cel, t = self.cel, self.t
         colou, ultimos, toques = False, [], []
@@ -489,7 +635,7 @@ class Postagem:
                     self.na_publicacao = True
                 if not self.tocou_final and t["sucesso"].search(tela) and not achar_campo(nos, t["campo"]):
                     self.evidencia("publicacao_inesperada")
-                    pub.marcar(self.n, self.rede, "conferir", origem="celular",
+                    pub.marcar(self.chave, self.rede, "conferir", origem="celular",
                                detalhe=f"apareceu confirmação de publicação SEM toque final ({'ensaio' if self.ensaio else 'postagem'}): "
                                        f"{tela[:150]}")
                     raise Falha("PARADO: a tela mostrou confirmação de publicação sem o toque final. "
@@ -505,7 +651,7 @@ class Postagem:
                 #    Só vale se for MESMO a escolha (2+ opções escritas na tela), nunca o ícone Reels da barra de baixo.
                 opcoes = [n for n in nos if n.ativo and n.text and ESCOLHA_DESTINO.search(n.text.strip())
                           and "tab" not in n.rid.lower()]
-                r = next((n for n in opcoes if t["escolher_reels"].search(n.text.strip())), None)
+                r = next((n for n in opcoes if (FEED if self.carrossel else t["escolher_reels"]).search(n.text.strip())), None)
                 if self.rede == "instagram" and not colou and not achar_campo(nos, t["campo"]) \
                         and len(opcoes) >= 2 and r and not achar(nos, AVANCAR):
                     repetido(r)
@@ -524,6 +670,10 @@ class Postagem:
                 final = achar(nos, t["final"])
                 if not colou and (campo := achar_campo(nos, t["campo"])):
                     cel.tocar(campo, self.rede)
+                    if self.carrossel:
+                        self._colar_no_editor_de_legenda()
+                        colou = True
+                        continue
                     # espera o teclado/campo ficar pronto (colar cedo demais não faz nada)
                     for _ in range(10):
                         time.sleep(0.5)
@@ -591,6 +741,39 @@ class Postagem:
                 time.sleep(1.5)
                 continue
         raise Falha("passos demais sem chegar na tela final")
+
+    def _colar_no_editor_de_legenda(self) -> None:
+        """Post no feed: tocar no campo abre o editor 'Legenda' (tela própria, com OK no topo). Espera ele ficar
+        pronto, cola UMA vez, confere e toca em OK. Nunca usa o Voltar aqui (ele fecha o editor)."""
+        cel = self.cel
+        fim = time.time() + 10
+        while time.time() < fim:
+            nos = cel.tela()
+            campo = next((n for n in nos if n.rid.endswith("/caption_input_text_view") and n.focado), None)
+            titulo = any(n.rid.endswith("/action_bar_textview_title") and n.text.strip().lower() == "legenda" for n in nos)
+            if campo and titulo:
+                break
+            time.sleep(0.8)
+        else:
+            raise Falha("o editor de legenda não abriu")
+        time.sleep(1.5)                       # colar cedo demais não faz nada
+        alvo = assinatura_legenda(self.legenda).lower()
+        cel.sh("input keyevent 279")          # KEYCODE_PASTE
+        for _ in range(10):
+            time.sleep(0.8)
+            if alvo in simplificar(texto_da_tela(cel.tela())).lower():
+                break
+        else:
+            c = next((n for n in cel.tela() if n.rid.endswith("/caption_input_text_view")), None)
+            if c and c.text and not self.t["campo"].search(c.text):
+                raise Falha(f"o campo ficou com um texto diferente da legenda: {c.text[:80]!r}")
+            raise Falha("a legenda não colou no campo (confira se o Clipper copiou)")
+        self.log("  legenda colada e conferida")
+        ok = next((n for n in cel.tela() if n.rid.endswith("/next_button_textview") and n.rotulo.lower() == "ok"), None)
+        if not ok:
+            raise Falha("não achei o OK do editor de legenda")
+        cel.tocar(ok, self.rede)
+        time.sleep(2.0)
 
     # ---------------------------------------------------------------- capa
     def _esperar(self, padrao: re.Pattern, segundos: float = 12, rid: str | None = None) -> No:
@@ -661,7 +844,7 @@ class Postagem:
             self.log(f"  ENSAIO: tudo pronto. Tocaria em '{rotulo}' ({x},{y}). Nada foi publicado.")
             self._sair_sem_publicar()
             return f"ensaio ok (botão final '{rotulo}')" + (f" · print: {foto}" if foto else "")
-        pub.marcar(self.n, self.rede, "enviando", origem="celular", detalhe=f"tocou em '{rotulo}'", tocado_em=pub.agora())
+        pub.marcar(self.chave, self.rede, "enviando", origem="celular", detalhe=f"tocou em '{rotulo}'", tocado_em=pub.agora())
         self.tocou_final = True
         self.cel.tocar(botao, self.rede, final=True)
         return self._confirmar()
@@ -750,7 +933,8 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
         for rede in redes:
             rot = pub.ROTULOS[rede]
             try:
-                lib = (pub.exigir_liberado_extra(numero, extra, rede, ensaio=ensaio) if extra
+                lib = (pub.exigir_liberado_carrossel(numero, rede, ensaio=ensaio) if extra == "carrossel"
+                       else pub.exigir_liberado_extra(numero, extra, rede, ensaio=ensaio) if extra
                        else pub.exigir_liberado(numero, rede, ensaio=ensaio))
             except pub.Recusado as e:
                 log(f"[{rot}] não executado: {e}")
@@ -759,15 +943,17 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
             legenda = lib["copy"]["legenda"]
             capa = config.pasta_episodio(numero) / "imagens" / "capa_vertical.png"
             p = Postagem(cel, rede, numero, legenda, ensaio, log=log,
-                         capa=capa if (com_capa and not extra and capa.exists()) else None)
+                         capa=capa if (com_capa and not extra and capa.exists()) else None, chave=chave)
             try:
-                resultado = p.rodar(lib["video"])
+                resultado = p.rodar_carrossel(lib["imagens"]) if extra == "carrossel" else p.rodar(lib["video"])
                 if ensaio:
                     pub.anotar(chave, rede, ultimo_ensaio=pub.agora(), ultimo_ensaio_resultado=resultado)
                     log(f"[{rot}] {resultado}")
                 else:
                     pub.marcar(chave, rede, "publicado", origem="celular", detalhe="confirmado no app")
                     log(f"[{rot}] ✅ publicado")
+                    if extra == "carrossel":
+                        atualizar_link_comentar(cel, log)
             except Exception as e:  # noqa: BLE001
                 tudo_ok = False
                 if p.tocou_final or (p.na_publicacao and not ensaio):
@@ -788,6 +974,23 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
     return tudo_ok
 
 
+def atualizar_link_comentar(cel: Celular, log=print, salvar: bool = True) -> str | None:
+    """Pega o link do post mais recente (o carrossel que acabou de sair) e grava em links.ig-comentar: o botão
+    "Comente no Instagram" do site passa a levar para ele. Falhar aqui não desfaz nada (o post já está no ar)."""
+    try:
+        link = cel.link_do_ultimo_post()
+        if "/p/" not in link:
+            raise Falha(f"o post mais recente não é um carrossel ({link}): o link do site não foi trocado")
+        if salvar:
+            from episodio import Supabase
+            Supabase().escrever("PATCH", "links", {"slug": "eq.ig-comentar"}, {"destino": link}, prefer="return=minimal")
+            log(f"  🔗 botão 'Comente no Instagram' do site agora leva para {link}")
+        return link
+    except Exception as e:  # noqa: BLE001
+        log(f"  ⚠ não atualizei o link do 'Comente no Instagram' ({e}). Rode: python celular.py --link-comentar")
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--episodio", type=int)
@@ -797,6 +1000,9 @@ def main() -> int:
     ap.add_argument("--serial", help="serial do aparelho (se tiver mais de um)")
     ap.add_argument("--extra", help="posta um vídeo extra do episódio (ex.: pov_obra) em vez do episódio")
     ap.add_argument("--sem-capa", action="store_true", help="não troca a capa pela capa do episódio")
+    ap.add_argument("--link-comentar", action="store_true",
+                    help="copia o link do post mais recente do Instagram (tem que ser um carrossel) para o botão do site")
+    ap.add_argument("--testar-link", action="store_true", help="só mostra o link do post mais recente (não grava)")
     a = ap.parse_args()
 
     if a.checar:
@@ -804,6 +1010,13 @@ def main() -> int:
         for nome, ok, det in itens:
             print(f"{'✅' if ok else '❌'} {nome}: {det}")
         return 0 if all(ok for _, ok, _ in itens) else 1
+    if a.link_comentar or a.testar_link:
+        cel = Celular(a.serial)
+        cel.escolher_aparelho()
+        if a.testar_link:
+            print(cel.link_do_ultimo_post())
+            return 0
+        return 0 if atualizar_link_comentar(cel) else 1
     if not a.episodio:
         ap.error("informe --episodio N (ou use --checar)")
     redes = [a.so] if a.so else ["instagram", "tiktok"]

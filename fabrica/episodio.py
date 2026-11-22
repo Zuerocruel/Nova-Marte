@@ -107,6 +107,76 @@ def colono_publico(p: dict) -> dict:
     }
 
 
+def nome_da_cratera(texto: str) -> str:
+    """"BuracoNegrote" → "Cratera BuracoNegrote" (quem já escreveu "Cratera ..." fica como escreveu)."""
+    t = " ".join((texto or "").split())
+    return t if t.lower().startswith("cratera") else f"Cratera {t}"
+
+
+def crateras(db: Supabase, campos: str, ultimo: dict | None) -> list[dict]:
+    """Crateras batizadas (resgates aprovados de "Nomeie sua Cratera"). Ficam no mapa para sempre; 'nova' = ainda
+    não apareceu no episódio anterior (comparando com o dados.json dele), e ganha a cena de batismo."""
+    try:
+        linhas = db.get("resgates", {
+            "select": f"id,texto,revisado_em,produto:produtos!inner(slug),personagem:personagens({campos},oculto)",
+            "status": "eq.aprovado", "produto.slug": "eq.nomeie-sua-cratera", "order": "id.asc",
+        })
+    except requests.HTTPError as e:   # sem a tabela resgates (falta a 002): segue sem crateras
+        print(f"aviso: não li as crateras batizadas ({e})")
+        return []
+    vistas: set[int] = set()
+    if ultimo:
+        anterior = config.SAIDA / f"ep{ultimo['numero']:03d}" / "dados.json"
+        if anterior.exists():
+            vistas = {c["id"] for c in config.ler_json(anterior).get("crateras", [])}
+    saida = []
+    for r in linhas:
+        p = r.get("personagem")
+        if not p or p.get("oculto") or not (r.get("texto") or "").strip():
+            continue
+        dono = colono_publico(p)
+        saida.append({"id": r["id"], "nome": nome_da_cratera(r["texto"]), **bairro.pos_cratera(r["id"]),
+                      "codigo": dono["codigo"], "dono": dono["nome"], "dono_falado": dono["falado"],
+                      "nova": r["id"] not in vistas})
+    return saida
+
+
+# Produtos que não são objeto na casa: cada compra vira um momento num próximo episódio (um "serviço").
+FURIA, DESTAQUE = "eventos-furia-marte", "destaque-proximo-ep"
+SERVICOS = (FURIA, DESTAQUE)
+
+
+def ja_usados(numero: int) -> dict[str, set[int]]:
+    """Pedidos de Fúria/Destaque já usados nos episódios ANTERIORES a `numero` (lidos dos roteiro.json)."""
+    usados = {FURIA: set(), DESTAQUE: set()}
+    for arq in config.SAIDA.glob("ep[0-9][0-9][0-9]/roteiro.json"):
+        if int(arq.parent.name[2:]) >= numero:
+            continue
+        r = config.ler_json(arq)
+        if (r.get("problema") or {}).get("furia"):
+            usados[FURIA].add(r["problema"]["furia"]["pedido"])
+        usados[DESTAQUE] |= {x["pedido"] for x in r.get("destaques", [])}
+    return usados
+
+
+def fila_de_servicos(db: Supabase, campos: str, numero: int) -> dict[str, list[dict]]:
+    """Compras pagas de Fúria de Marte e Destaque que ainda não apareceram (em ordem de compra), de QUALQUER
+    data: quem comprou na véspera e ficou de fora por fila continua esperando a vez."""
+    linhas = db.get("pedidos", {
+        "select": f"id,opcao,produto:produtos!inner(slug),personagem:personagens({campos},oculto)",
+        "status": f"in.({','.join(STATUS_PAGOS)})", "produto.slug": f"in.({','.join(SERVICOS)})",
+        "order": "id.asc",
+    })
+    usados = ja_usados(numero)
+    fila = {FURIA: [], DESTAQUE: []}
+    for c in linhas:
+        p, slug = c.get("personagem"), c["produto"]["slug"]
+        if not p or p.get("oculto") or c["id"] in usados[slug]:
+            continue
+        fila[slug].append({"pedido": c["id"], "opcao": c.get("opcao"), **colono_publico(p)})
+    return fila
+
+
 # ---------- coleta ----------
 def ultimo_episodio(db: Supabase, numero: int) -> dict | None:
     linhas = db.get("episodios", {
@@ -186,6 +256,8 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
         p = c.get("personagem")
         if not p or p.get("oculto") or not c.get("produto"):
             continue  # venda sem personagem ligado só entra na contagem
+        if c["produto"]["slug"] in SERVICOS:
+            continue  # Fúria e Destaque não viram objeto na casa: têm o momento deles (fila_de_servicos)
         compras.append({**colono_publico(p), "produto": c["produto"]["nome"], "produto_slug": c["produto"]["slug"]})
 
     lista_obras, fonte_obras = obras(db, col["obras"])
@@ -205,6 +277,8 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
         "praca": col.get("praca"),
         "obras": lista_obras,
         "fonte_obras": fonte_obras,
+        "crateras": [] if so_fundadores else crateras(db, campos, ultimo),
+        "servicos": {FURIA: [], DESTAQUE: []} if so_fundadores else fila_de_servicos(db, campos, numero),
         "no_banco": {  # sempre registrado, mesmo quando o episódio ignora (modo só fundadores)
             "colonos": total_colonos, "novos": novos_total, "compras_pagas": len(compras_linhas),
         },
@@ -292,6 +366,10 @@ def resumo(d: dict) -> str:
         f"População: {d['populacao']} ({len(d['fundadores'])} fundadores + {d['colonos_total']} colonos)",
         f"Novos colonos: {d['novos_total']}" + (f" → {', '.join(n['nome'] for n in d['novos'])}" if d["novos"] else ""),
         f"Compras pagas: {d['compras_total']}" + (f" → {', '.join(c['nome'] + ': ' + c['produto'] for c in d['compras'])}" if d["compras"] else ""),
+        f"Fúria de Marte na fila: {len(d.get('servicos', {}).get(FURIA, []))} · "
+        f"Destaques na fila: {len(d.get('servicos', {}).get(DESTAQUE, []))}",
+        f"Crateras batizadas: {len(d.get('crateras', []))}" + "".join(
+            f" · {c['nome']} ({c['dono']}{', NOVA' if c['nova'] else ''})" for c in d.get("crateras", [])),
         f"Obras ({d['fonte_obras']}): " + ", ".join(f"{o['nome']} {o['status']} {o['progresso']}%" for o in d["obras"]),
     ]
     if d["so_fundadores"]:

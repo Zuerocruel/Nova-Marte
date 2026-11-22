@@ -91,6 +91,58 @@ class Fala:
         return self
 
 
+# como cada item é dito quando várias pessoas compram o mesmo ("três colonos compraram uma cápsula")
+PRODUTO_FALADO = {
+    "capsula-habitacional": "uma cápsula", "capsula-comercio": "uma cápsula de comércio", "pet-do-colono": "um pet",
+    "seu-foguete": "um foguete", "rover": "um rover", "outdoor-holografico": "um outdoor", "traje-espacial": "um traje espacial",
+    "monumento-dourado": "um monumento dourado", "bandeira": "uma bandeira",
+}
+
+
+def produto_falado(slug: str, nome: str) -> str:
+    if slug in PRODUTO_FALADO:
+        return PRODUTO_FALADO[slug]
+    curto = produto_curto(nome)
+    return ("uma " if curto.split()[0].lower().endswith("a") else "um ") + curto[0].lower() + curto[1:]
+
+
+def fala_das_compras(compras: list[dict], max_nomes: int = 6) -> Fala:
+    """Compras agrupadas por produto: quem comprou sozinho aparece como "Na casa de Ana: Rover."; produto com
+    várias compras vira "Três colonos compraram uma cápsula: Ana, Bia e Caio." (até max_nomes nomes no total,
+    cada nome com foco para a câmera ir até a casa)."""
+    grupos: dict[str, list[dict]] = {}
+    for c in compras:
+        grupos.setdefault(c["produto_slug"], []).append(c)
+    f = Fala().add("Novidades na vizinhança! ")
+    sobra = max_nomes
+    calados = 0
+    for slug, g in sorted(grupos.items(), key=lambda kv: -len(kv[1])):
+        if sobra <= 0:
+            calados += len(g)
+            continue
+        if len(g) == 1:
+            c = g[0]
+            f.add("Na casa de ").add(c["falado"], f"compra:{c['codigo']}:{slug}").add(f": {produto_curto(c['produto'])}. ")
+            sobra -= 1
+            continue
+        frase = plural(len(g), "colono comprou", "colonos compraram")
+        f.add(f"{frase[0].upper()}{frase[1:]} {produto_falado(slug, g[0]['produto'])}: ")
+        ditos = g[:min(sobra, 3)]
+        f.lista([(c["falado"], f"compra:{c['codigo']}:{slug}") for c in ditos])
+        if len(g) > len(ditos):
+            f.add(f" e mais {extenso(len(g) - len(ditos))}")
+        f.add(". ")
+        sobra -= len(ditos)
+    if calados:
+        f.add(f"E mais {plural(calados, 'item chegou', 'itens chegaram')} na colônia. ")
+    return f.add("Obrigado por apoiar a Operação Marte Zero!")
+
+
+def nome_falado(nome: str) -> str:
+    """Para a narração: separa palavras grudadas ("BuracoNegrote" → "Buraco Negrote")."""
+    return re.sub(r"(?<=[a-zà-ÿ])(?=[A-ZÀ-Þ])", " ", nome)
+
+
 def com_equipe(c: dict) -> str:
     """Nome falado + profissão, para as boas-vindas: "ZéGotinha da equipe de Engenharia"."""
     return f"{c['falado']} {c['equipe']}" if c.get("equipe") else c["falado"]
@@ -260,25 +312,43 @@ def montar(d: dict) -> dict:
 
     # 4. compras pagas (o item aparece na casa de quem comprou)
     if d["compras"]:
-        mostradas = d["compras"][:4]
-        f = Fala().add("Novidades na vizinhança! ")
-        for c in mostradas:
-            f.add("Na casa de ").add(c["falado"], f"compra:{c['codigo']}:{c['produto_slug']}")
-            f.add(f": {produto_curto(c['produto'])}. ")
-        extra = d["compras_total"] - len(mostradas)
-        if extra > 0:
-            f.add(f"E mais {plural(extra, 'item chegou', 'itens chegaram')} na colônia. ")
-        f.add("Obrigado por apoiar a Operação Marte Zero!")
-        cenas.append(cena("compras", "compras", f, camera={"alvo": "colonia", "zoom": 5}))
+        cenas.append(cena("compras", "compras", fala_das_compras(d["compras"]), camera={"alvo": "colonia", "zoom": 5}))
+
+    # 4a. crateras batizadas desde o último episódio (a câmera vai até a cratera quando o nome é dito)
+    novas = [c for c in d.get("crateras", []) if c.get("nova")][:3]
+    if novas:
+        f = Fala().add(rnd.choice(["Tem nome novo no mapa de Marte! ", "O mapa da colônia ganhou um nome novo! "]))
+        for i, c in enumerate(novas):
+            if i:
+                f.add(" E ")
+            f.add(f"{c['dono_falado']} batizou a ").add(nome_falado(c["nome"]), f"cratera:{c['id']}").add(".")
+        f.add(rnd.choice([" Procure no Mundo ao vivo!", " Agora ela é parte da história da colônia."]))
+        cenas.append(cena("cratera", "cratera", f, camera={"alvo": f"cratera:{novas[0]['id']}", "zoom": 3.2},
+                          crateras=[c["id"] for c in novas]))
+
+    # 4a'. Destaque no Próximo EP (produto): até 2 por episódio, na ordem da compra; os outros ficam para amanhã
+    destaques = (d.get("servicos") or {}).get("destaque-proximo-ep", [])[:2]
+    if destaques:
+        itens = [(com_equipe(c), f"colono:{c['codigo']}") for c in destaques]
+        if len(destaques) == 1:
+            f = Fala().add(rnd.choice(["Destaque do dia: ", "Hoje o destaque da colônia é "])).add(itens[0][0], itens[0][1]).add("! ")
+        else:
+            f = Fala().add("Os destaques do dia são ").lista(itens).add("! ")
+        f.add(rnd.choice(["Obrigado por fazer parte da Operação Marte Zero.", "A colônia inteira agradece!"]))
+        cenas.append(cena("destaque", "destaque", f, camera={"alvo": "colonia", "zoom": 5},
+                          colonos=[c["codigo"] for c in destaques]))
 
     # 4b. ALERTA do Problema do Dia (resolvido depois da missão, em paralelo à obra)
     if problema:
         alerta = problema["alerta"].format(**campos)
         # "Alerta de clima! Alerta de radiação!" soa repetido: o rótulo só entra se a fala não começar com "Alerta"
         f = Fala() if alerta.lower().startswith("alerta") else Fala().add(f"{problema['rotulo'].capitalize()}! ")
+        if problema.get("furia"):   # comprado: quem chamou a Fúria de Marte é dito antes do alerta
+            f = Fala().add(f"{problema['furia']['falado']} despertou a Fúria de Marte! ")
         f.add(alerta)
         cenas.append(cena("problema", "problema", f, camera=camera_do_problema(problema["alvo"]),
-                          problema={k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")}))
+                          problema={k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")}
+                          | ({"furia": problema["furia"]["nome"]} if problema.get("furia") else {})))
 
     # 5. Missão do Dia (5 cenas, da primeira obra não concluída)
     obra = next((o for o in d["obras"] if o["status"] != "concluida"), None)
@@ -302,7 +372,8 @@ def montar(d: dict) -> dict:
     if problema:
         f = fala_com_heroi("E o problema do dia? " + problema["solucao"], problema["heroi"], **campos)
         cenas.append(cena("solucao", "solucao", f, camera=camera_do_problema(problema["alvo"]),
-                          problema={k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")},
+                          problema={k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")}
+                          | ({"furia": problema["furia"]["nome"]} if problema.get("furia") else {}),
                           heroi=problema["heroi"]["nome"],
                           # como a colônia reage no vídeo: abrigar (todos entram no módulo), recolher (cada um
                           # corre para casa) ou heroi (só quem resolve vai até o lugar do problema)
@@ -330,8 +401,11 @@ def montar(d: dict) -> dict:
         "obra_concluida": concluida,
         "estacao": {"id": est["id"], "nome": est["nome"], "falado": est["falado"], "dia": dia_est, "temp": temp, "efeito": est["efeito"]},
         "problema": ({k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")}
-                     | {"heroi": problema["heroi"]["nome"], "heroi_codigo": problema["heroi"].get("colono")})
+                     | {"heroi": problema["heroi"]["nome"], "heroi_codigo": problema["heroi"].get("colono")}
+                     | ({"furia": problema["furia"]} if problema.get("furia") else {}))
                     if problema else None,
+        # pedidos de Destaque usados aqui (episodio.ja_usados lê isto para não repetir)
+        "destaques": [{"pedido": c["pedido"], "codigo": c["codigo"], "nome": c["nome"]} for c in destaques],
         "cenas": cenas,
     }
 
@@ -358,6 +432,12 @@ def legenda_post(d: dict, r: dict) -> str:
         linhas.append(f"{e['falado'].capitalize()}, dia {e['dia']}: {e['temp']}°C.")
     if r.get("problema"):
         linhas.append(f"Problema do dia: {r['problema']['titulo']}, resolvido por {r['problema']['heroi']}.")
+        if r["problema"].get("furia"):
+            linhas.append(f"Fúria de Marte chamada por {r['problema']['furia']['nome']}.")
+    if r.get("destaques"):
+        linhas.append("Destaque do dia: " + ", ".join(x["nome"] for x in r["destaques"]) + ".")
+    for c in [c for c in d.get("crateras", []) if c.get("nova")][:3]:
+        linhas.append(f"Nome novo no mapa: {c['nome']}, batizada por {c['dono']}.")
     if r["numero"] >= 2:
         linhas.append("Episódio novo todo dia.")
     linhas += ["", f"Vire personagem e procure seu nome no mapa: {config.SITE_TELA}", "",

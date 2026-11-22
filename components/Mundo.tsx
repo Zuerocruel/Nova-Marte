@@ -6,13 +6,15 @@ import {
   type PersonagemPublico,
 } from '@/lib/mundo';
 import {
-  BLOCO, CASA, COR, blocoDeTerreno, desenharBase, desenharClima, desenharObra, desenharPraca, desenharTrilha,
+  BLOCO, CASA, COR, blocoDeTerreno, crateraBatizada, desenharBase, desenharClima, desenharObra, desenharPraca, desenharTrilha,
   disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
 } from '@/lib/colonia-arte';
 import { situacao, type Situacao } from '@/lib/vida';
 import { descricaoPet, situacaoPet } from '@/lib/pet';
 import { cargoDe } from '@/lib/cargos';
 import type { EstadoColonia } from '@/lib/colonia';
+import LojaModal from './LojaModal';
+import BotaoComentar from './BotaoComentar';
 import type { MensagemChat } from '@/app/api/chat/route';
 
 /**
@@ -265,6 +267,10 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       for (let by = Math.floor(vy0 / BLOCO); by <= Math.floor(vy1 / BLOCO); by++)
         for (let bx = Math.floor(vx0 / BLOCO); bx <= Math.floor(vx1 / BLOCO); bx++)
           ctx.drawImage(blocoTerreno(bx, by), bx * TB, by * TB, TB + 0.5, TB + 0.5);
+      if (e) for (const cr of e.crateras ?? []) {   // crateras batizadas pelos colonos
+        if (cr.x < vx0 - 4 || cr.x > vx1 + 4 || cr.y < vy0 - 4 || cr.y > vy1 + 4) continue;
+        crateraBatizada(ctx, cr.x * CASA + 8, cr.y * CASA + 8, cr.r, cr.id);
+      }
 
       const obraAtual = e?.obras.find((o) => o.status !== 'concluida') ?? null;
       const cantina = e?.obras.find((o) => o.slug === 'cantina' && o.status === 'concluida') ?? null;
@@ -432,6 +438,20 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
           const s = tela(pe.s.x, pe.s.y + 6);
           const cg = cargoDe(pe.p.cargo);
           if (s.x > -50 && s.x < w + 50 && s.y > -20 && s.y < h + 20) ctx.fillText(cg ? `${cg.emoji} ${pe.p.nome}` : pe.p.nome, s.x, s.y, CASA * zoom * 1.6);
+        }
+      }
+      if (e && zoom >= 1.2) {   // placa com o nome das crateras batizadas
+        ctx.textAlign = 'center';
+        for (const cr of e.crateras ?? []) {
+          const s = tela(cr.x * CASA + 8, cr.y * CASA + 8 - cr.r * 0.62 - 24);   // acima da bandeirinha
+          if (s.x < -150 || s.x > w + 150 || s.y < -40 || s.y > h + 60) continue;
+          ctx.font = 'bold 12px system-ui, sans-serif';
+          const lw = Math.max(ctx.measureText(cr.nome).width, 0) + 14;
+          ctx.fillStyle = '#140f26dd'; ctx.fillRect(s.x - lw / 2, s.y - 36, lw, 30);
+          ctx.fillStyle = COR.ouro; ctx.fillRect(s.x - lw / 2, s.y - 36, lw, 2);
+          ctx.fillText(cr.nome, s.x, s.y - 22);
+          ctx.font = '10px system-ui, sans-serif'; ctx.fillStyle = COR.areia;
+          ctx.fillText(`batizada por ${cr.dono}`, s.x, s.y - 10);
         }
       }
       if (zoom >= 2) {
@@ -613,6 +633,11 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
       )}
 
       {novo && selecionado && <p className="pixel" style={{ fontSize: 12, color: 'var(--areia)' }}>Bem-vindo à Operação Marte Zero! Essa é a sua casa.</p>}
+
+      <div className="acoes-mundo">
+        <LojaModal />
+        <BotaoComentar />
+      </div>
 
       <div className="mundo-palco">
         <canvas ref={canvasRef} aria-label="Mapa ao vivo da colônia Operação Marte Zero. Arraste para andar, role para dar zoom." />

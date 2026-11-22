@@ -117,6 +117,13 @@ export async function processarEventoCakto(payload: unknown): Promise<string> {
     atualizado_em: new Date().toISOString(),
   };
 
+  // Webhooks podem chegar fora de ordem: um "aguardando pagamento" atrasado não pode rebaixar um pedido
+  // que já está pago (ele sumiria da colônia). Reembolso/chargeback/recusa continuam valendo por cima.
+  if (status === 'pendente') {
+    const { data: atual } = await db().from('pedidos').select('status').eq('cakto_order_id', pedidoId).maybeSingle();
+    if (atual?.status === 'aprovado') linha.status = 'aprovado';
+  }
+
   const { error } = await db().from('pedidos').upsert(linha, { onConflict: 'cakto_order_id' });
   if (error) throw new Error(error.message);
 
@@ -125,17 +132,20 @@ export async function processarEventoCakto(payload: unknown): Promise<string> {
 }
 
 /**
- * Produto com opções: descobre o que a pessoa escolheu na loja procurando o
- * último clique em "comprar" desse produto feito pelo mesmo visitante
- * (o `src` devolvido pela Cakto, ou o visitante do personagem comprador).
- * Se não achar, o comprador escolhe depois em /meus-itens.
+ * O que a pessoa escolheu/escreveu na loja ou no pop-up do Mundo ao vivo (opção e texto, ex.: evento da Fúria
+ * ou texto do outdoor): procura o último clique em "comprar" desse produto feito pelo mesmo visitante
+ * (o `src` devolvido pela Cakto, ou o visitante do personagem comprador) e copia para o pedido.
+ * Nunca sobrescreve o que já está no pedido. Se não achar, o comprador escolhe depois em /meus-itens.
  */
 async function ligarOpcao(pedidoId: string, produtoId: number, src: string | undefined, personagemId: number | null) {
-  const { data: produto } = await db().from('produtos').select('slug, opcoes').eq('id', produtoId).maybeSingle();
-  if (!produto || !Array.isArray(produto.opcoes) || !produto.opcoes.length) return null;
+  const { data: produto } = await db().from('produtos').select('slug, opcoes, pergunta_texto').eq('id', produtoId).maybeSingle();
+  const temOpcoes = !!produto && Array.isArray(produto.opcoes) && produto.opcoes.length > 0;
+  if (!produto || (!temOpcoes && !produto.pergunta_texto)) return null;
 
-  const { data: pedido } = await db().from('pedidos').select('opcao').eq('cakto_order_id', pedidoId).maybeSingle();
-  if (pedido?.opcao) return pedido.opcao; // já definida (ex.: pelo comprador) — não sobrescreve
+  const { data: pedido } = await db().from('pedidos').select('opcao, texto_personalizado').eq('cakto_order_id', pedidoId).maybeSingle();
+  const faltaOpcao = temOpcoes && !pedido?.opcao;
+  const faltaTexto = !!produto.pergunta_texto && !pedido?.texto_personalizado;
+  if (!faltaOpcao && !faltaTexto) return pedido?.opcao ?? null;
 
   const visitantes = new Set<string>();
   if (src && /^[0-9a-f-]{36}$/i.test(src)) visitantes.add(src);
@@ -143,15 +153,22 @@ async function ligarOpcao(pedidoId: string, produtoId: number, src: string | und
     const { data: p } = await db().from('personagens').select('visitante_id').eq('id', personagemId).maybeSingle();
     if (p?.visitante_id) visitantes.add(p.visitante_id);
   }
-  if (!visitantes.size) return null;
+  if (!visitantes.size) return pedido?.opcao ?? null;
 
-  const { data: clique } = await db()
-    .from('cliques').select('opcao')
+  const busca = (campos: string) => db()
+    .from('cliques').select(campos)
     .eq('tipo', 'checkout').eq('alvo', produto.slug).in('visitante_id', [...visitantes])
-    .not('opcao', 'is', null)
     .order('created_at', { ascending: false }).limit(1).maybeSingle();
-  if (!clique?.opcao) return null;
+  let { data: clique, error } = await busca('opcao, texto');
+  if (error) ({ data: clique } = await busca('opcao'));   // sem a coluna texto (falta a migração 010)
+  const c = (clique ?? {}) as { opcao?: string | null; texto?: string | null };
 
-  await db().from('pedidos').update({ opcao: clique.opcao }).eq('cakto_order_id', pedidoId).is('opcao', null);
-  return clique.opcao;
+  if (faltaOpcao && c.opcao) {
+    await db().from('pedidos').update({ opcao: c.opcao }).eq('cakto_order_id', pedidoId).is('opcao', null);
+  }
+  if (faltaTexto && c.texto) {
+    await db().from('pedidos').update({ texto_personalizado: c.texto, personalizado_em: new Date().toISOString() })
+      .eq('cakto_order_id', pedidoId).is('texto_personalizado', null);
+  }
+  return c.opcao ?? pedido?.opcao ?? null;
 }

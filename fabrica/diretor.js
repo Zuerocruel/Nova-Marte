@@ -333,8 +333,10 @@ function prepararTerreno() {
     t.fillRect((b.x + Math.floor(b.w / 2) - tx0) * CASA - 6, (y - ty0) * CASA, 12, CASA);
   }
   // crateras e pedras
+  const batizadas = m.crateras || [];
+  const longeDasBatizadas = (x, y) => !batizadas.some((c) => Math.hypot(x - c.x, y - c.y) * CASA < c.r + 34);
   for (let y = ty0; y < ty1; y++) for (let x = tx0; x < tx1; x++) {
-    if (!livre(x, y)) continue;
+    if (!livre(x, y) || !longeDasBatizadas(x, y)) continue;
     const h = hash(x, y, 7), px = (x - tx0) * CASA + 8, py = (y - ty0) * CASA + 8;
     if (h < 0.012) {
       const r = 6 + Math.floor(hash(x, y, 8) * 16);
@@ -346,6 +348,29 @@ function prepararTerreno() {
       t.fillStyle = '#c9805c'; t.fillRect(px - 2, py - 2, 3, 1);
     }
   }
+  for (const c of batizadas) crateraBatizada(t, (c.x - tx0) * CASA + 8, (c.y - ty0) * CASA + 8, c.r, c.id);
+}
+
+// Cratera batizada (item "Nomeie sua Cratera"): maior e mais funda que as do terreno, com borda clara, pedras em
+// volta e um marco com bandeirinha na borda. A mesma arte está em lib/colonia-arte.ts (crateraBatizada).
+function crateraBatizada(t, px, py, r, id) {
+  discoEm(t, px, py + 3, r + 4, '#d98a62', 0.62);
+  discoEm(t, px, py + 2, r + 1, '#e7a17a', 0.6);
+  discoEm(t, px, py, r, '#7d3722', 0.6);
+  discoEm(t, px + 2, py + 3, r - 4, '#8f4129', 0.55);
+  discoEm(t, px + 4, py + 5, Math.floor(r * 0.55), '#a14b2f', 0.5);
+  discoEm(t, px - Math.floor(r * 0.35), py - 2, Math.floor(r * 0.18), '#6b2f1d', 0.5);
+  for (let k = 0; k < 9; k++) {   // pedras na borda
+    const a = k * 0.7 + hash(id, k, 3) * 0.5, d = r + 3 + hash(id, k, 4) * 6;
+    const x = Math.round(px + Math.cos(a) * d), y = Math.round(py + Math.sin(a) * d * 0.62 + 2);
+    t.fillStyle = '#7a3a24'; t.fillRect(x - 2, y - 1, 4 + (k % 2) * 2, 3);
+    t.fillStyle = '#c9805c'; t.fillRect(x - 1, y - 2, 2, 1);
+  }
+  const mx = px + Math.round(r * 0.72), my = py - Math.round(r * 0.62) - 2;   // marco com bandeirinha
+  t.fillStyle = 'rgba(0,0,0,0.25)'; t.fillRect(mx - 2, my + 1, 6, 2);
+  t.fillStyle = '#d8dbe8'; t.fillRect(mx, my - 14, 2, 15);
+  t.fillStyle = '#ffc83d'; t.fillRect(mx + 2, my - 14, 8, 5);
+  t.fillStyle = '#e2a82a'; t.fillRect(mx + 2, my - 10, 8, 1);
 }
 
 function prepararVinheta() {
@@ -404,7 +429,7 @@ function agendaFundador(f, i, c) {
     case 'populacao':   // a comandante passa pelo bairro; a doutora vai para a praça contar todo mundo
       return vega ? [[[bairro[0] + 1.5, bairro[1]], 0.05], [[bairro[0] - 1.5, bairro[1] + 0.4], 0.55]]
                   : [[praca ? [praca.x + praca.w / 2 + 1, praca.y - 0.4] : [porta[0] + 2, porta[1] + 3], 0.1]];
-    case 'boas_vindas': {   // cada uma recebe um dos novos na porta de casa
+    case 'boas_vindas': case 'destaque': {   // cada uma recebe um dos novos (ou o destaque do dia) na porta de casa
       const cods = c.focos.filter((x) => x.alvo.startsWith('colono:')).map((x) => x.alvo.split(':')[1]);
       const alvo = casaDe(cods[vega ? 1 : 0] || cods[0], vega ? 1 : -1);
       return alvo ? [[alvo, 0]] : [];
@@ -425,7 +450,7 @@ function agendaFundador(f, i, c) {
 
 function prepararCamera() {
   cameraKeys = [];
-  const zoomFoco = { colono: 7, fundador: 6.5, compra: 7, ator: 7 };
+  const zoomFoco = { colono: 7, fundador: 6.5, compra: 7, ator: 7, cratera: 3.4 };
   for (const c of EP.cenas) {
     if (c.tipo === 'abertura') {
       cameraKeys.push({ t: 0, alvo: c.camera.alvo, zoom: 1.0, D: 0 });
@@ -714,6 +739,10 @@ function posAlvo(alvo, t) {
   if (tipo === 'obra') return centro((id && EP.mundo.obras.find((o) => o.slug === id)) || obraDaMissao());
   if (tipo === 'praca' && EP.mundo.praca) return centro(EP.mundo.praca);
   if (tipo === 'colonia' || tipo === 'panorama') return caixaColonia();
+  if (tipo === 'cratera') {
+    const c = (EP.mundo.crateras || []).find((x) => String(x.id) === id);
+    if (c) return { x: c.x * CASA + 8, y: c.y * CASA + 8 };
+  }
   if (tipo === 'ator' || tipo === 'fundador') {
     const f = EP.mundo.fundadores.find((x) => x.id === id);
     const p = posFundador(f, t);
@@ -1337,6 +1366,22 @@ function anel(cam, wx, wy, t) {
   ctx.globalAlpha = 1;
 }
 
+// nome das crateras batizadas: sempre que a cratera está na tela e a câmera está perto. A cratera nova do
+// episódio só ganha a placa quando o nome é dito na narração (antes disso ela já existe, mas sem nome).
+function desenharCrateras(cam, t) {
+  if (cam.z < 2.2) return;
+  for (const c of EP.mundo.crateras || []) {
+    const p = aTela(cam, c.x * CASA + 8, c.y * CASA + 8);
+    if (p.x < 230 || p.x > W - 230 || p.y < 260 || p.y > H - 80) continue;   // só com a placa inteira na tela
+    let t0 = -1;
+    if (c.nova) {
+      t0 = Infinity;
+      for (const cena of EP.cenas) for (const f of cena.focos) if (f.alvo === `cratera:${c.id}`) t0 = Math.min(t0, f.t);
+    }
+    etiqueta(cam, c.x * CASA + 8, c.y * CASA + 8 - c.r * 0.62 - 24, c.nome, COR.ouro, t, t0);
+  }
+}
+
 function desenharFocos(cam, t, cena) {
   // nome dos fundadores sempre visível de perto
   for (const f of EP.mundo.fundadores) {
@@ -1382,6 +1427,43 @@ function poeira(t) {
     if (c.grande) { const s = 6 + Math.floor(hash(i, 5) * 3) * 2; ret(x, y, s, s, c.cor); continue; }
     const w = c.risco ? 12 + Math.floor(hash(i, 5) * 4) * 4 : 4 + Math.floor(hash(i, 5) * 3) * 2;
     ret(x, y, w, c.risco ? 2 : 4, c.cor);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Eventos que só a Fúria de Marte traz: chuva de meteoros (riscos caindo na diagonal) e a nave desconhecida
+// (disco com luzes atravessando o céu devagar). Aparecem do alerta até o fim da solução.
+function eventoNoCeu(t) {
+  const id = EP.problema && EP.problema.id;
+  if (id !== 'chuva-meteoros' && id !== 'nave-alienigena') return;
+  const ini = EP.cenas.find((c) => c.tipo === 'problema'), fim = EP.cenas.find((c) => c.tipo === 'solucao');
+  if (!ini) return;
+  const naCena = (c) => (c ? clamp((t - c.inicio) / 0.6) * clamp((c.fim - t) / 0.8) : 0);
+  const a = Math.max(naCena(ini), naCena(fim));   // só no alerta e na solução (na missão a obra segue normal)
+  if (a <= 0) return;
+  // na solução o perigo passa: os meteoros rareiam e a nave vai embora
+  const calma = fim && t > fim.fala_inicio ? clamp((t - fim.fala_inicio) / Math.max(1, fim.fim - fim.fala_inicio)) : 0;
+  ctx.globalAlpha = a;
+  if (id === 'chuva-meteoros') {
+    const n = Math.round(11 * (1 - 0.8 * calma));
+    for (let i = 0; i < n; i++) {
+      const per = 1.3 + hash(i, 11) * 1.4, k = ((t + hash(i, 12) * per) % per) / per;
+      const x0 = hash(i, 13) * (W + 600) - 50, y0 = -200 + hash(i, 14) * 500;
+      const x = x0 - k * 700, y = y0 + k * 1500, L = 200 + hash(i, 15) * 140, tam = 12 + Math.floor(hash(i, 16) * 6);
+      for (let j = 0; j < 12; j++) {   // rastro: do branco quente ao laranja, afinando
+        ctx.globalAlpha = a * (1 - j / 12);
+        const q = Math.max(4, tam - j);
+        ret(x + j * L / 12 * 0.47 - q / 2, y - j * L / 12 - q / 2, q, q, j < 2 ? '#fff6d0' : j < 6 ? '#ffc83d' : '#e2603b');
+      }
+      ctx.globalAlpha = a * 0.35; ret(x - tam, y - tam, tam * 2, tam * 2, '#fff6d0');   // brilho em volta da pedra
+    }
+  } else {
+    const vai = calma > 0 ? saida(calma) : 0;
+    const x = W / 2 + Math.sin(t * 0.7) * 160 + vai * (W + 300), y = 640 + Math.sin(t * 1.7) * 18 - vai * 500;   // abaixo do cartão do alerta
+    ctx.globalAlpha = a * 0.25; ret(x - 70, y + 30, 140, Math.max(0, 560 - vai * 560), '#9ff7ff');   // feixe de luz
+    ctx.globalAlpha = a;
+    disco(x, y + 6, 70, '#6b6f86', 0.28); disco(x, y, 66, '#b8bcd4', 0.26); disco(x, y - 14, 30, '#9ff7ff', 0.7);
+    for (let i = 0; i < 6; i++) { const on = Math.floor(t * 6 + i) % 3 === 0; ret(x - 55 + i * 21, y + 3, 9, 6, on ? '#ffe58a' : '#4ed37a'); }
   }
   ctx.globalAlpha = 1;
 }
@@ -1436,8 +1518,13 @@ function cartao(cena, t, cam) {
     texto('POPULAÇÃO', W / 2, 315 - sobe, 30, COR.agua, { contorno: false });
     const pulso = 1 + 0.08 * Math.max(0, Math.sin((k * Math.max(1, para - de)) * Math.PI)) * (k < 1);
     texto(n.toLocaleString('pt-BR'), W / 2, 418 - sobe, Math.round(92 * pulso), COR.ouro);
-  } else if (cena.tipo === 'boas_vindas' || cena.tipo === 'compras') {
-    texto(cena.tipo === 'compras' ? 'NOVIDADES NA VIZINHANÇA' : 'BEM-VINDOS!', W / 2, 290 - sobe, cena.tipo === 'compras' ? 32 : 48, COR.ouro);
+  } else if (cena.tipo === 'boas_vindas' || cena.tipo === 'compras' || cena.tipo === 'destaque') {
+    const tit = { compras: 'NOVIDADES NA VIZINHANÇA', destaque: 'DESTAQUE DO DIA' }[cena.tipo] || 'BEM-VINDOS!';
+    if (cena.tipo === 'destaque') for (let i = 0; i < 2; i++) {   // estrelinhas douradas em volta do título
+      const x = W / 2 + (i ? 1 : -1) * (300 + 8 * Math.sin(t * 5)), y = 282 - sobe;
+      ret(x - 3, y - 12, 6, 24, COR.ouro); ret(x - 12, y - 3, 24, 6, COR.ouro);
+    }
+    texto(tit, W / 2, 290 - sobe, cena.tipo === 'boas_vindas' ? 48 : 32, COR.ouro);
     const ativos = cena.focos.filter((f) => t >= f.t);
     ativos.slice(-4).forEach((f, i) => {
       const [, id, slug] = f.alvo.split(':');
@@ -1448,10 +1535,20 @@ function cartao(cena, t, cam) {
       const k = clamp((t - f.t) / 0.3);
       ctx.globalAlpha = a * k;
       // boas-vindas com profissão: nome + cargo embaixo (linhas mais espaçadas)
-      const comCargo = cena.tipo === 'boas_vindas' && cena.focos.some((x) => (colonoPorCodigo.get(x.alvo.split(':')[1]) || {}).cargo_nome);
+      const comCargo = cena.tipo !== 'compras' && cena.focos.some((x) => (colonoPorCodigo.get(x.alvo.split(':')[1]) || {}).cargo_nome);
       const passo = comCargo ? 92 : 64;
       texto(rot, W / 2, 380 + i * passo - sobe, 30, COR.texto, { maxW: W - 160 });
       if (comCargo && c.cargo_nome) texto(c.cargo_nome.toUpperCase(), W / 2, 380 + i * passo + 36 - sobe, 18, COR.agua, { contorno: false, maxW: W - 160 });
+    });
+  } else if (cena.tipo === 'cratera') {
+    texto('NOME NOVO NO MAPA', W / 2, 290 - sobe, 32, COR.ouro);
+    const ativos = cena.focos.filter((f) => t >= f.t);
+    ativos.slice(-3).forEach((f, i) => {
+      const c = (EP.mundo.crateras || []).find((x) => `cratera:${x.id}` === f.alvo);
+      if (!c) return;
+      ctx.globalAlpha = a * clamp((t - f.t) / 0.3);
+      texto(c.nome.toUpperCase(), W / 2, 380 + i * 92 - sobe, 30, COR.texto, { maxW: W - 160 });
+      texto(`BATIZADA POR ${c.dono.toUpperCase()}`, W / 2, 416 + i * 92 - sobe, 18, COR.agua, { contorno: false, maxW: W - 160 });
     });
   } else if (cena.tipo === 'missao') {
     caixa(70, 236 - sobe, W - 140, 286);
@@ -1474,7 +1571,8 @@ function cartao(cena, t, cam) {
     const pisca = ok || desc || Math.floor(t * 3) % 3 !== 0;   // aceso 2/3 do tempo
     const titulo = desc ? (ok ? 'REGISTRADO!' : 'DESCOBERTA!') : (ok ? 'RESOLVIDO!' : 'ALERTA!');
     if (pisca) texto(titulo, W / 2, 296 - sobe, 40, ok ? COR.ok : (desc ? COR.agua : COR.alerta));
-    texto((p.rotulo || '').toUpperCase(), W / 2, 356 - sobe, 22, COR.areia, { contorno: false, maxW: W - 220 });
+    texto(p.furia ? 'FÚRIA DE MARTE' : (p.rotulo || '').toUpperCase(), W / 2, 356 - sobe, 22, p.furia ? COR.ouro : COR.areia, { contorno: false, maxW: W - 220 });
+    if (!ok && p.furia) texto(`CHAMADA POR ${p.furia.toUpperCase()}`, W / 2, 452 - sobe, 20, COR.ouro, { contorno: false, maxW: W - 220 });
     texto((p.titulo || '').toUpperCase(), W / 2, 408 - sobe, 26, COR.texto, { contorno: false, maxW: W - 200 });
     if (ok && cena.heroi) texto(`POR ${cena.heroi.toUpperCase()}`, W / 2, 452 - sobe, 20, COR.ouro, { contorno: false });
   } else if (cena.tipo === 'gancho') {
@@ -1529,7 +1627,9 @@ function desenhar(t) {
     ctx.globalAlpha = 1;
   }
   ctx.drawImage(vinheta, 0, 0);
+  eventoNoCeu(t);
   alarme(t, cena);
+  desenharCrateras(cam, t);
   desenharFocos(cam, t, cena);
   hudTopo(t);
   cartao(cena, t, cam);

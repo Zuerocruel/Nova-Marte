@@ -123,5 +123,16 @@ export function limitesDoBairro(total: number) {
   return { x0: CENTRO.x - r, x1: CENTRO.x + r, y0: CENTRO.y - r, y1: CENTRO.y + r };
 }
 
+/**
+ * Crateras batizadas (item "Nomeie sua Cratera"): num anel FORA da colônia, cada uma num ângulo (ângulo áureo).
+ * Centro em casas e raio em pixels do mundo. A mesma conta está em fabrica/bairro.py (pos_cratera).
+ */
+export const CRATERA_RAIO = 20;
+export function posCratera(id: number): { x: number; y: number; r: number } {
+  const i = Math.max(1, Math.floor(id));
+  const ang = 0.9 + (i - 1) * 2.399963, dist = CRATERA_RAIO + (i * 3) % 4;
+  return { x: CENTRO.x + Math.round(dist * Math.cos(ang)), y: CENTRO.y + Math.round(dist * Math.sin(ang)), r: 38 + (i * 5) % 8 };
+}
+
 /** Número do colono a partir do código (NM000123 → 123). */
 export const idDoCodigo = (codigo: string) => Number(codigo.replace(/\D/g, '')) || 0;

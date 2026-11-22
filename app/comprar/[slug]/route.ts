@@ -38,7 +38,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   const res = NextResponse.redirect(url, 302);
   gravarToque(req, res, null, visitante);
 
-  await db().from('cliques').insert({
+  // texto digitado no pop-up antes de pagar (ex.: outdoor). Vai para o pedido quando o pagamento for aprovado.
+  const texto = (req.nextUrl.searchParams.get('texto') ?? '').replace(/\s+/g, ' ').trim().slice(0, 120) || null;
+  const clique: Record<string, string | null> = {
     tipo: 'checkout',
     alvo: produto.slug,
     visitante_id: visitante.vid,
@@ -46,7 +48,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     campaign: toque?.c ?? null,
     opcao: opcoes.length ? opcao : null,
     user_agent: req.headers.get('user-agent')?.slice(0, 300) ?? null,
-  });
+  };
+  const { error } = await db().from('cliques').insert(texto ? { ...clique, texto } : clique);
+  if (error && texto) await db().from('cliques').insert(clique);   // sem a coluna texto (falta a migração 010)
 
   return res;
 }
