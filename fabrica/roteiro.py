@@ -255,7 +255,7 @@ def cenas_da_missao(d: dict, obra: dict, missao: dict, p0: int, p1: int, rnd: ra
 
     def original(i: int, prog=None) -> dict:
         mc = base[i]
-        return {"fala": mc["fala"], "acao": mc["acao"], "camera": mc["camera"],
+        return {"fala": mc["fala"], "acao": mc["acao"], "camera": mc["camera"], "extra": mc.get("extra", 0),
                 "progresso": prog if prog is not None else mc.get("progresso", [0, 0]), "atores": mc.get("atores", {})}
 
     def generica(fala: str, acao: str, alvo: str, zoom: float, prog) -> dict:
@@ -389,13 +389,13 @@ def montar(d: dict) -> dict:
     concluida = p1 >= 100
     for i, mc in enumerate(cenas_da_missao(d, obra, missao, p0, p1, rnd), 1):
         cenas.append(cena(f"missao_{i}", "missao", Fala().add(mc["fala"]),
-                          passo=i, acao=mc["acao"], camera=mc["camera"],
+                          passo=i, acao=mc["acao"], camera=mc["camera"], extra=mc.get("extra", 0),
                           progresso=mc["progresso"], atores=mc["atores"]))
     proxima = missao["proxima"] if concluida else f"a obra da {obra['nome']} continua"
 
     # 5b. problema RESOLVIDO (quem resolve é um colono de verdade, chamado pelo nome)
     if problema:
-        f = fala_com_heroi("E o problema do dia? " + problema["solucao"], problema["heroi"], **campos)
+        f = fala_com_heroi("Antes de começar a obra, vamos resolver o problema do dia! " + problema["solucao"], problema["heroi"], **campos)
         cenas.append(cena("solucao", "solucao", f, camera=camera_do_problema(problema["alvo"]),
                           problema={k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")}
                           | ({"furia": problema["furia"]["nome"]} if problema.get("furia") else {}),
@@ -411,16 +411,34 @@ def montar(d: dict) -> dict:
                        f"colono premium: quem entra pelo site concorre a líder da colônia! No próximo episódio: {proxima}.")
     else:
         f = Fala().add(rnd.choice(GANCHOS).format(site=config.SITE_FALADO, proxima=proxima))
-    cenas.append(cena("gancho", "gancho", f, camera={"alvo": "panorama", "zoom": 2.2}))
+    prox = (next((o["slug"] for o in d["obras"] if o["status"] != "concluida" and o["slug"] != obra["slug"]), None)
+            if concluida else None)
+    # obra terminou: o gancho mostra o terreno JÁ DEMARCADO da próxima obra (estacas + placa "PRÓXIMA OBRA")
+    cam_gancho = {"alvo": f"obra:{prox}", "zoom": 5} if prox else {"alvo": "panorama", "zoom": 2.2}
+    cenas.append(cena("gancho", "gancho", f, camera=cam_gancho))
 
+    # ordem da história: o problema estoura logo no começo (depois da abertura) e é resolvido logo ANTES da obra
+    ids = [c["id"] for c in cenas]
+    if "problema" in ids:
+        cenas.insert(1, cenas.pop(ids.index("problema")))
+    ids = [c["id"] for c in cenas]
+    if "solucao" in ids:
+        sol = cenas.pop(ids.index("solucao"))
+        cenas.insert(next(i for i, c in enumerate(cenas) if c["tipo"] == "missao"), sol)
     titulo = f"Episódio {n} · {obra['nome']}"
+    if concluida:   # dia em que a obra fica pronta: o episódio é a INAUGURAÇÃO
+        titulo = f"Episódio {n} · Inauguração d{'a' if obra['nome'].split()[0].lower().endswith('a') else 'o'} {obra['nome']}"
     return {
         "numero": n,
         "titulo": titulo,
         "missao_obra": obra["slug"],
         # "Construindo a Estufa Hidropônica" (a obra leva vários episódios); a partir do 2º dia "… · dia 2"
-        "missao_titulo": titulo_da_missao(obra, dia),
+        "missao_titulo": (f"Inauguração d{'a' if obra['nome'].split()[0].lower().endswith('a') else 'o'} {obra['nome']}"
+                          if concluida else titulo_da_missao(obra, dia)),
         "proxima": proxima,
+        # obra terminou hoje? a PRÓXIMA já aparece demarcada no chão no fim do episódio (estacas + placa)
+        "proxima_obra": (next((o["slug"] for o in d["obras"] if o["status"] != "concluida" and o["slug"] != obra["slug"]), None)
+                         if concluida else None),
         "obra_progresso": [p0, p1],     # % de ontem → % ao fim deste episódio (gravado ao publicar)
         "obra_dia": dia,
         "obra_concluida": concluida,
@@ -477,7 +495,7 @@ def linha_do_tempo(roteiro: dict, falas: dict) -> dict:
     cenas = []
     for c in roteiro["cenas"]:
         v = falas[c["id"]]
-        dur = max(config.CENA_MINIMA, config.PAUSA_ANTES + v["duracao"] + config.PAUSA_DEPOIS)
+        dur = max(config.CENA_MINIMA, config.PAUSA_ANTES + v["duracao"] + config.PAUSA_DEPOIS) + float(c.get("extra") or 0)
         fala_ini = t + config.PAUSA_ANTES
         focos = [{"t": round(fala_ini + tempo_do_caractere(v, m["pos"]), 3), "alvo": m["foco"]} for m in c["marcas"]]
         palavras = [{"p": w["p"], "i": round(fala_ini + w["i"], 3), "f": round(fala_ini + w["f"], 3)} for w in v["palavras"]]

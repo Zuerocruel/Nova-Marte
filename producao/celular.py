@@ -558,11 +558,14 @@ class Postagem:
                 break
             if (criar := next((n for n in nos if n.rid.endswith("/action_bar_left_button") and n.rotulo == "Criar"), None)):
                 break
-            if (inicio_tab := next((n for n in cel.tela() if n.rid.endswith("/feed_tab")), None)):
+            if (inicio_tab := next((n for n in nos if n.rid.endswith("/feed_tab")), None)):
                 cel.tocar(inicio_tab, "instagram")
             else:
-                cel.sh("input keyevent KEYCODE_BACK")
-            time.sleep(2)
+                # o app voltou na aba de Reels (vídeo tocando atrapalha a leitura da tela): toca na "Página inicial",
+                # o 1º ícone da barra de baixo. Nunca o Voltar (ele sai do Instagram).
+                larg, alt = cel.tamanho_tela() if hasattr(cel, "tamanho_tela") else (1080, 2340)
+                cel.sh(f"input tap {int(larg * 0.1)} {int(alt * 0.947)}")
+            time.sleep(2.5)
         else:
             raise Falha("não achei o botão 'Criar' na tela inicial do Instagram")
         if criar:

@@ -74,7 +74,7 @@ POV_AJUSTES = {"stability": 0.45, "similarity_boost": 0.75, "style": 0.0, "use_s
 POV_VOZES = {
     "m": [("Liam", "TX3LPaxmHKxFdv7VOQHJ"), ("Brian", "nPczCjzI2devNBz1zQrb"), ("Will", "bIHbv24MWmeRgasZH58o"),
           ("Eric", "cjVigY5qzO86Huf0OWal"), ("Chris", "iP95p4xoKVk53GoZ742B"), ("Daniel", "onwK4e9ZLuTAKqWW03F9"),
-          ("Callum", "N2lVS1w4EtoT3dr4eOWO"), ("Roger", "CwhRBWXzGAHq8TxYjLs2")],
+          ("Callum", "N2lVS1w4EtoT3dr4eOWO")],   # "Roger" saiu da biblioteca da ElevenLabs (404)
     "f": [("Laura", "FGY2WhTYpPnrIDTdsKH5"), ("Sarah", "EXAVITQu4vr4xnSDxMaL"), ("Jessica", "cgSgspJ2msm6clMCkdW9"),
           ("Alice", "Xb7hH8MSUJpSbSDYk0k2"), ("Matilda", "XrExE9yKIg1WjnnlVkGX"), ("Lily", "pFZP5JQG7iMjIs1ITVd8")],
 }

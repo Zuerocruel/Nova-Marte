@@ -1199,6 +1199,22 @@ const TRABALHOS = {
     vizinho: (i) => [`Que cheiro bom, ${i.prota.nome}! Guarda um prato pra mim.`, `${i.prota.nome}, isso é sopa ou mágica?`, `Repete pra mim amanhã, ${i.prota.nome}!`],
   },
 };
+// R-2, o robô de carga da cena de robótica: caído e soltando fumaça → faíscas da solda → de pé, olhos acesos
+function spriteR2(estado, t) {
+  const g = Array.from({ length: 16 }, () => Array(16).fill(null));
+  const r = (x, y, w, h, c) => { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (j >= 0 && j < 16 && i >= 0 && i < 16) g[j][i] = c; };
+  const quebrado = estado === 'quebrado' || estado === 'soldando';
+  const dy = quebrado ? 3 : 0, olho = quebrado ? '#2b2350' : (Math.floor(t * 3) % 4 ? '#3fd0c9' : '#dff3ff');
+  r(7, 1 + dy, 1, 2, '#9aa0b5'); r(7, 0 + dy, 1, 1, quebrado ? '#5a5f84' : '#ff4d4d');   // antena
+  r(4, 3 + dy, 8, 4, '#c9ced9'); r(4, 3 + dy, 8, 1, '#eef0f8'); r(5, 4 + dy, 2, 2, olho); r(9, 4 + dy, 2, 2, olho);   // cabeça
+  r(3, 7 + dy, 10, 5 - (quebrado ? 2 : 0), '#9aa0b5'); r(4, 8 + dy, 8, 2, '#6b6f86'); r(6, 8 + dy, 4, 1, '#ffc83d');   // corpo
+  if (quebrado) { r(1, 13, 4, 2, '#5a5f84'); r(11, 12, 4, 3, '#3a3f5c'); }                 // rodas soltas, tombado
+  else { r(3, 12, 3, 3, '#3a3f5c'); r(10, 12, 3, 3, '#3a3f5c'); r(2, 8, 1, 3, '#9aa0b5'); r(13, 8, 1, 3, '#9aa0b5'); }
+  if (estado === 'quebrado' && Math.floor(t * 4) % 2) r(12, 2 + dy - 2, 2, 2, '#c9ced999');   // fumacinha
+  if (estado === 'soldando') { const k = Math.floor(t * 12) % 3; r(12 - k, 9 + k % 2, 2, 2, '#fff6d0'); r(13, 8 - k, 1, 1, '#ffc83d'); r(11, 11, 1, 1, '#8fe6ff'); }
+  return canvasDeMatriz(g, (v) => v);
+}
+
 function cenaTrabalho(info, id) {
   const T = TRABALHOS[id], prota = info.prota;
   const L = T.fora ? campoFora(info) : lugarDe(T.lugar);
@@ -1210,6 +1226,7 @@ function cenaTrabalho(info, id) {
   const fim = [{ texto: f[4], atraso: 0.4 }];
   if (T.vizinho && info.vizinho) fim.push({ texto: FALA(...[].concat(T.vizinho(info))), quem: info.vizinho.nome, atraso: 3 });
   const vizinhoPerto = T.vizinho && info.vizinho;
+  let r2Visto = false;   // já começou a soldar? (depois disso o R-2 fica de pé)
   return {
     titulo: T.titulo, noite: !!T.noite,
     caminho: montarCaminho(casa, -Math.PI / 2, [
@@ -1229,6 +1246,13 @@ function cenaTrabalho(info, id) {
         x: c.x * CASA + 8, y: c.y * CASA + 18, larg: 12, alt: 12, img: spritePOV(c), nome: c.nome, pessoa: true,
         voo: Math.floor(t * 2 + k) % 3 === 0 ? 1 : 0, virar: Math.sin(t * 0.7 + k) > 0,
       }));
+      if (id === 'robotica') {   // o R-2 na bancada, na frente de quem vai consertar
+        const st = POV ? POV.estado(t) : null;
+        if (st && st.trabalhando) r2Visto = true;
+        const estado = st && st.trabalhando ? 'soldando' : r2Visto ? 'consertado' : 'quebrado';
+        const pulo = estado === 'consertado' && Math.floor(t * 2) % 3 === 0 ? 1 : 0;
+        lista.push({ x: chegada.x, y: chegada.y - 22, larg: 16, alt: 16, img: spriteR2(estado, t), nome: 'R-2', pessoa: true, voo: pulo });
+      }
       if (vizinhoPerto) {   // quem fala com o protagonista fica do lado dele no trabalho
         const v = info.vizinho;
         lista.push({ x: chegada.x + 26, y: chegada.y - 30, larg: 12, alt: 12, img: spritePOV(v), nome: v.nome, pessoa: true,

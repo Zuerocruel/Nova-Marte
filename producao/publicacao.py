@@ -267,7 +267,7 @@ def exigir_liberado_carrossel(numero: int, rede: str, ensaio: bool = False) -> d
 # copies (sem_link), na aprovação, na liberação para postar e de novo no celular, na hora de colar.
 RE_URL = re.compile(
     r"(https?://\S+|www\.\S+"
-    r"|\b[\w-]+(\.[\w-]+)*\s?\.\s?(app|com|br|net|org|io|link|me|ly|gg|xyz|site|online|store|shop|tv|co|info|dev|page|bio)\b(/\S*)?"
+    r"|\b[\w-]+(\.[\w-]+)*\.(app|com|br|net|org|io|link|me|ly|gg|xyz|site|online|store|shop|tv|co|info|dev|page|bio)\b(/\S*)?"
     r"|\b(ponto|dot)\s?(com|br|app|net)\b)", re.I)
 
 

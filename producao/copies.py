@@ -11,6 +11,7 @@ esses links na tabela `links`.
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -64,7 +65,8 @@ def capitulos(lt: dict) -> list[str]:
 
 
 def _obra(r: dict) -> str:
-    return r["titulo"].split(" · ", 1)[-1]
+    """Nome da obra do episódio (sem o "Inauguração da" do título do dia em que ela fica pronta)."""
+    return re.sub(r"^Inauguração d[ao] ", "", r["titulo"].split(" · ", 1)[-1])
 
 
 # ---------------------------------------------------------------- pauta: o que vai no episódio

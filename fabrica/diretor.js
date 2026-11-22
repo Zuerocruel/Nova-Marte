@@ -463,6 +463,11 @@ function prepararCamera() {
       const tipo = f.alvo.split(':')[0];
       cameraKeys.push({ t: Math.max(c.inicio + 0.05, f.t - 0.35), alvo: f.alvo, zoom: zoomFoco[tipo] || 6, D: 0.8 });
     }
+    // plantio das sementes: depois de dizer o nome, a câmera chega BEM perto (terceira pessoa)
+    if (c.acao === 'plantar') {
+      const tf = c.focos.length ? c.focos[c.focos.length - 1].t + 0.6 : c.inicio + 1;
+      cameraKeys.push({ t: Math.min(tf, c.fim - 1.5), alvo: c.camera.alvo, zoom: 11, D: 1.1 });
+    }
   }
   cameraKeys.sort((a, b) => a.t - b.t);
 }
@@ -477,6 +482,9 @@ window.carregarEpisodio = async function (ep) {
   prepararNoite();
   prepararFios();
   planejarVida();
+  planejarDemarcacao();
+  encadearTrechos();
+  planejarAtaque();
   planejarNoite();
   prepararCamera();
   await document.fonts.load(`40px ${FONTE}`);
@@ -1046,8 +1054,68 @@ const PINTORES = {
   enfermaria: pintarEnfermaria, abrigo: pintarAbrigo, laboratorio: pintarLaboratorio,
 };
 
+// Obra do dia pronta → quatro colonos vão até o terreno da PRÓXIMA obra e cravam uma estaca em cada canto (a fita
+// aparece quando as quatro estão de pé) e dois começam a cavar a fundação no meio. Depois sobe a placa.
+let DEMARCA = null;
+function planejarDemarcacao() {
+  DEMARCA = null;
+  const o = EP.proxima_obra && EP.mundo.obras.find((x) => x.slug === EP.proxima_obra);
+  const lig = EP.cenas.filter((c) => c.tipo === 'missao').pop();
+  if (!o || !lig) return;
+  const quem = EP.mundo.colonos.filter((c) => c.ajudante != null && c.ajudante >= 0).slice(0, 6);
+  if (!quem.length) return;
+  const cantos = [[o.x - 0.3, o.y + 0.2], [o.x + o.w + 0.3, o.y + 0.2], [o.x - 0.3, o.y + o.h + 0.5], [o.x + o.w + 0.3, o.y + o.h + 0.5]];
+  const meio = [[o.x + o.w / 2 - 0.7, o.y + o.h / 2 + 0.6], [o.x + o.w / 2 + 0.7, o.y + o.h / 2 + 0.8]];
+  const estacas = [];
+  quem.forEach((c, i) => {
+    const alvo = i < 4 ? cantos[i] : meio[i - 4];
+    const t0 = lig.inicio + 0.6 + i * 0.35;
+    const de = c.trechos.length ? c.trechos[c.trechos.length - 1].para : c.casaPe;
+    const para = { x: alvo[0] * CASA, y: alvo[1] * CASA };
+    const dur = clamp(Math.hypot(para.x - de.x, para.y - de.y) / CASA * 0.22, 1.2, 3.2);
+    c.trechos.push({ t0, t1: t0 + dur, de, para });
+    c.demarca = { chega: t0 + dur, tipo: i < 4 ? 'estaca' : 'cava' };
+    if (i < 4) estacas.push({ x: cantos[i][0] * CASA + (i % 2 ? -2 : 2), y: (cantos[i][1] - 0.2) * CASA, t: t0 + dur + 0.9 });
+  });
+  const fita = Math.max(...estacas.map((e) => e.t), 0) + 0.4;
+  DEMARCA = { o, estacas, fita, cava: lig.inicio + 3, placa: fita + 1.2 };
+}
+
+function desenharProximaObra(o, t) {
+  if (!DEMARCA) return;
+  const r = retanguloDe(o);
+  for (const e of DEMARCA.estacas) if (t >= e.t) {   // estaca cravada (cai do alto e para)
+    const k = clamp((t - e.t) / 0.25);
+    ret(e.x - 1, e.y - 7 * k, 2, 7 * k, '#6b4a2e'); ret(e.x - 2, e.y - 8 * k, 4, 2, COR.ouro);
+  }
+  if (t >= DEMARCA.fita) {                           // a fita entre as estacas
+    ctx.globalAlpha = clamp((t - DEMARCA.fita) / 0.5) * (0.75 + 0.25 * Math.sin(t * 5));
+    ctx.fillStyle = COR.areia;
+    for (let x = r.x0; x < r.x1; x += 8) { ctx.fillRect(x, r.y0, 4, 1); ctx.fillRect(x, r.y1 - 1, 4, 1); }
+    for (let y = r.y0; y < r.y1; y += 8) { ctx.fillRect(r.x0, y, 1, 4); ctx.fillRect(r.x1 - 1, y, 1, 4); }
+    ctx.globalAlpha = 1;
+  }
+  if (t >= DEMARCA.cava) {                           // buraco da fundação crescendo no meio
+    const k = clamp((t - DEMARCA.cava) / 8), cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2 + 6;
+    const w = 6 + k * 20, h = 3 + k * 7;
+    ret(cx - w / 2, cy - h / 2, w, h, '#5a2a18'); ret(cx - w / 2 + 1, cy - h / 2 + 1, w - 2, h - 2, '#2a120a');
+    for (let i = 0; i < 5; i++) ret(cx + w / 2 + 2 + i * 2, cy + 2 - (i % 3) * 2 - k * 3, 3, 2 + k * 3, '#8f4129');
+  }
+  if (t < DEMARCA.placa) return;
+  const k = clamp((t - DEMARCA.placa) / 0.8);
+  ctx.globalAlpha = k;
+  const px = (r.x0 + r.x1) / 2, py = r.y1 + 30;   // placa na frente do terreno (abaixo de quem cava)
+  ret(px - 1.5, py, 3, 16, '#6b4a2e');
+  ret(px - 64, py - 22, 128, 24, '#140f26'); ret(px - 64, py - 22, 128, 3, COR.ouro);
+  ctx.fillStyle = COR.ouro; ctx.textAlign = 'center'; ctx.font = `7px ${FONTE}`;
+  ctx.fillText('PRÓXIMA OBRA', px, py - 12);
+  ctx.fillStyle = '#f3eefe'; ctx.font = `5px ${FONTE}`; ctx.fillText((o.nome || '').toUpperCase().slice(0, 24), px, py - 3);
+  ctx.globalAlpha = 1;
+}
+
 function desenharObras(t) {
   for (const o of EP.mundo.obras) {
+    if (o.slug === EP.proxima_obra && o.status === 'planejada') { desenharProximaObra(o, t); continue; }
     if (o.status === 'planejada' && o.slug !== EP.missao_obra) continue;
     const st = progressoObra(o, t);
     if (o.tipo === 'solar') desenharSolar(o, st, t);
@@ -1151,7 +1219,8 @@ function desenharColonos(view, t) {
     if (!p.visivel) continue;
     const h = hash(c.x, c.y, 9);
     const chamado = chamadoEm(c, t);
-    const pose = p.trabalhando ? poseDeTrabalho(c, p, t) : null;
+    let pose = p.trabalhando ? poseDeTrabalho(c, p, t) : null;
+    if (!pose && c.demarca && t >= c.demarca.chega && !p.andando) pose = { fase: c.demarca.tipo === 'cava' ? 'cavar' : 'martelo', x: p.x, y: p.y, dir: p.dir };
     if (pose) { p.x = pose.x; p.y = pose.y; p.dir = pose.dir; if (pose.anda) p.andando = true; }
     let pulo = p.andando && Math.floor(t * 8 + h * 4) % 2 ? -1 : 0;
     if (chamado >= 0) pulo = -Math.abs(Math.sin(chamado * 7)) * 4;                      // pula de alegria
@@ -1423,7 +1492,8 @@ function desenharFundadores(t) {
   for (const f of EP.mundo.fundadores) {
     const p = posFundador(f, t);
     if (!p.visivel) continue;
-    const pulo = p.andando && Math.floor(t * 8) % 2 ? -1 : 0;
+    const plantando = cena && cena.tipo === 'missao' && cena.acao === 'plantar' && cena.camera.alvo === `ator:${f.id}` && !p.andando;
+    const pulo = plantando ? 2 + (Math.floor(t * 5) % 2) : p.andando && Math.floor(t * 8) % 2 ? -1 : 0;
     ret(p.x - 4, p.y - 1, 8, 2, 'rgba(0,0,0,0.25)');
     const spr = spriteMapa(f.sprite);
     ctx.save();
@@ -1431,7 +1501,31 @@ function desenharFundadores(t) {
     if (p.dir < 0) ctx.scale(-1, 1);
     ctx.drawImage(spr, -6, -12, 12, 12);
     ctx.restore();
-    if (!p.andando && cena.tipo !== 'abertura' && cena.tipo !== 'gancho') gestoDeComando(f, p, t, cena);
+    const naCenaDoPlantio = cena && cena.acao === 'plantar' && cena.camera.alvo === `ator:${f.id}`;
+    if (!p.andando && !naCenaDoPlantio && cena.tipo !== 'abertura' && cena.tipo !== 'gancho') gestoDeComando(f, p, t, cena);
+    // plantio das primeiras sementes (cena "plantar"): ajoelhada, a mão sobe e desce, as sementes caem na terra
+    // e os brotos nascem um a um numa fileira na frente dela (câmera bem perto, em terceira pessoa)
+    if (cena.tipo === 'missao' && cena.acao === 'plantar' && cena.camera.alvo === `ator:${f.id}` && !p.andando) {
+      const k = clamp((t - cena.inicio - 0.8) / Math.max(1, cena.fim - cena.inicio - 1.2));
+      const covas = 6, x0 = p.x - 11, y0 = p.y - 9;   // canteiro DENTRO da estufa, atrás dela (ninguém tampa)
+      for (let i = 0; i < covas; i++) {
+        const xi = x0 + i * 4.5, ki = clamp(k * covas - i);
+        ret(xi - 1, y0, 3, 1.5, '#5a2a18');                       // cova
+        if (ki > 0.35) ret(xi, y0 - 0.5, 1, 1, '#c8a26b');        // semente
+        if (ki > 0.55) {                                           // broto crescendo
+          const alt = Math.round(1 + (ki - 0.55) / 0.45 * 4);
+          ret(xi, y0 - alt, 1, alt, '#2bb673');
+          if (alt >= 3) { ret(xi - 1, y0 - alt, 1, 1, '#4ed37a'); ret(xi + 1, y0 - alt + 1, 1, 1, '#4ed37a'); }
+        }
+      }
+      const atual = Math.min(covas - 1, Math.floor(k * covas)), fase = (t * 2.4) % 1;
+      const mx = x0 + atual * 4.5, my = y0 - 6 + Math.abs(Math.sin(t * 7.5)) * 4;
+      ret(mx - 1, my, 3, 2, '#f2c9a0');                            // a mão
+      if (fase < 0.45) ret(mx, my + 2 + fase * 10, 1, 1, '#c8a26b'); // semente caindo
+      ret(p.x - 9, p.y - 2, 4, 3, '#9aa0b5'); ret(p.x - 10, p.y - 3, 2, 1, '#9aa0b5');   // regador ao lado
+      if (Math.floor(t * 3) % 4 === 0) ret(x0 + atual * 4.5 + 1, y0 - 8, 2, 2, '#ffd84a');   // brilho
+      ret(x0 - 2, y0 + 1.5, covas * 4.5 + 2, 1, '#3a1a10');                                       // borda do canteiro
+    }
     // holograma da Dra. Lia quando ela confere os cálculos
     if (cena.tipo === 'missao' && cena.camera.alvo === `ator:${f.id}` && cena.acao === 'construir' && !p.andando) {
       ctx.globalAlpha = 0.55 + 0.25 * Math.sin(t * 9);
@@ -1588,6 +1682,263 @@ function poeira(t) {
 
 // Eventos que só a Fúria de Marte traz: chuva de meteoros (riscos caindo na diagonal) e a nave desconhecida
 // (disco com luzes atravessando o céu devagar). Aparecem do alerta até o fim da solução.
+// Os passeios de cada colono são planejados por assunto (obra, problema do dia, abrigo...). Com o problema
+// resolvido ANTES da obra, a ordem no tempo muda: aqui eles ficam em ordem e cada trecho sai de onde o anterior
+// terminou (e nunca antes de o anterior acabar).
+function encadearTrechos() {
+  for (const c of EP.mundo.colonos) {
+    if (!c.trechos || c.trechos.length < 2) continue;
+    c.trechos.sort((a, b) => a.t0 - b.t0);
+    for (let i = 1; i < c.trechos.length; i++) {
+      const ant = c.trechos[i - 1], tr = c.trechos[i];
+      tr.de = ant.para;
+      if (tr.t0 < ant.t1) { const d = tr.t1 - tr.t0; tr.t0 = ant.t1; tr.t1 = tr.t0 + d; }
+    }
+    if (c.trabalho && c.trechos.length) {   // começa a trabalhar quando chega de fato na obra
+      const ida = c.trechos.find((tr) => Math.abs(tr.t1 - c.trabalho[0]) < 0.01 || tr.t0 >= c.trabalho[0] - 5);
+      if (ida && ida.t1 > c.trabalho[0]) c.trabalho[0] = ida.t1;
+    }
+  }
+}
+
+// ------------------------------------------------------------------ ataque de criaturas (problema do dia)
+// Besouros, vermes, ácaros ou o lagarto VÊM de fora e cercam a base durante o alerta (roendo os cabos). Na
+// solução, conforme a fala: "isca/sucata" → a heroína vai longe da base, larga o ferro-velho e o enxame corre
+// para lá; "cerca" → anel de faíscas em volta dos cabos e as criaturas dão meia-volta; senão, fogem.
+let ATAQUE = null;
+const CRIATURAS = {
+  'besouros-ferrugem': { n: 46, tipo: 'besouro' }, 'vermes-areia': { n: 5, tipo: 'verme' },
+  'acaros-gelo': { n: 70, tipo: 'acaro' }, 'lagarto-duna': { n: 1, tipo: 'lagarto' },
+};
+function planejarAtaque() {
+  ATAQUE = null;
+  const pr = EP.problema, cfg = pr && CRIATURAS[pr.id];
+  const ini = EP.cenas.find((c) => c.tipo === 'problema'), sol = EP.cenas.find((c) => c.tipo === 'solucao');
+  if (!cfg || !ini || !sol) return;
+  const b = EP.mundo.base, bc = { x: b.x + b.w / 2, y: b.y + b.h / 2 };   // centro da base (casas)
+  const fala = (sol.fala || '').toLowerCase();
+  const modo = /isca|sucata|ferro velho/.test(fala) ? 'isca' : /cerca|volt/.test(fala) ? 'cerca' : 'fuga';
+  const isca = { x: bc.x - 9, y: bc.y + 5 };                                  // longe da base, longe das casas
+  const heroi = EP.mundo.fundadores.find((f) => (sol.heroi || '').toLowerCase().includes((f.curto || f.id).toLowerCase()));
+  const pal = sol.palavras || [];
+  const w = pal.find((x) => /espalh|isca|liga|cerca|joga|larg/i.test(x.p) && x.i >= sol.fala_inicio);
+  let tAcao = w ? w.i + 0.8 : sol.fala_inicio + 0.45 * (sol.fim - sol.fala_inicio);
+  if (heroi && modo === 'isca') {   // a heroína (fundadora) caminha até o ponto da isca e fica lá
+    const ult = heroi.trechos.filter((tr) => tr.t0 < sol.inicio);
+    const de = ult.length ? ult[ult.length - 1].para.slice() : heroi.casa.slice();
+    const t0 = Math.max(sol.inicio + 0.2, tAcao - 2.6);
+    const dur = clamp(Math.hypot(isca.x + 0.8 - de[0], isca.y - 0.3 - de[1]) * 0.28, 1.2, 2.6);
+    // depois da solução ela segue a agenda (ex.: plantar as sementes na estufa): volta de onde estava a isca
+    const depois = heroi.trechos.filter((tr) => tr.t0 >= sol.fim);
+    const naIsca = [isca.x + 0.8, isca.y - 0.3], volta = sol.fim + 0.2;
+    const proximo = depois.length ? depois[0].para : de;
+    const dv = clamp(Math.hypot(proximo[0] - naIsca[0], proximo[1] - naIsca[1]) * 0.3, 1.2, 3.5);
+    heroi.trechos = [...ult, { t0, t1: t0 + dur, de, para: naIsca }, { t0: volta, t1: volta + dv, de: naIsca, para: proximo },
+                     ...depois.slice(1).map((tr, i, arr) => ({ ...tr, de: i ? arr[i - 1].para : proximo,
+                                                               t0: Math.max(tr.t0, volta + dv), t1: Math.max(tr.t1, volta + dv + (tr.t1 - tr.t0)) }))];
+    tAcao = t0 + dur + 0.3;
+  }
+  if (!heroi && modo === 'isca') {   // herói colono: a isca fica onde ele trabalha
+    const h = EP.mundo.colonos.find((c) => c.conserto);
+    if (h) { const q = pontoDoConserto(sol.alvo || 'base'); isca.x = q.x / CASA - 1; isca.y = q.y / CASA; }
+  }
+  const bichos = Array.from({ length: cfg.n }, (_, i) => {
+    const a = -0.9 + (i / Math.max(1, cfg.n - 1)) * 2.6 + (hash(i, 31) - 0.5) * 0.3;   // chegam pelo leste/sul
+    const r0 = 15 + hash(i, 32) * 5, r1 = 2.2 + hash(i, 33) * 1.6;
+    return { de: { x: bc.x + Math.cos(a) * r0, y: bc.y + Math.sin(a) * r0 * 0.8 },
+             cabo: { x: bc.x + Math.cos(a) * r1 * 1.3, y: bc.y + 0.6 + Math.sin(a) * r1 },
+             fim: modo === 'isca' ? { x: isca.x + (hash(i, 34) - 0.5) * 3, y: isca.y + 0.4 + (hash(i, 35) - 0.5) * 1.6 }
+                : { x: bc.x + Math.cos(a) * (r0 + 6), y: bc.y + Math.sin(a) * (r0 + 6) * 0.8 },
+             atraso: hash(i, 36) * 0.35, fase: hash(i, 37) * 6.28 };
+  });
+  const tCome = tAcao + 3.2, tVai = tCome + 4.5, tSome = tVai + 7;   // comem o ferro e depois vão embora devagar
+  bichos.forEach((bi, i) => {   // destino da saída: para longe da base, do lado oposto à colônia
+    const ang = Math.atan2(bi.fim.y - bc.y, bi.fim.x - bc.x) + (hash(i, 38) - 0.5) * 0.5;
+    bi.sai = { x: bi.fim.x + Math.cos(ang) * 22, y: bi.fim.y + Math.sin(ang) * 22 * 0.8 };
+  });
+  ATAQUE = { cfg, ini, sol, modo, isca, bc, tAcao, bichos, tCome, tVai, tSome };
+}
+
+function posBicho(bi, t) {
+  const A = ATAQUE;
+  const durA = A.ini.fim - A.ini.inicio;
+  if (t < A.ini.inicio + 0.5) return null;
+  if (t > A.tSome) return null;
+  let p, anda = true;
+  const kA = clamp((t - A.ini.inicio - 0.5 - bi.atraso * durA * 0.4) / (durA * 0.75));
+  if (t < A.tAcao) { p = { x: lerp(bi.de.x, bi.cabo.x, suave(kA)), y: lerp(bi.de.y, bi.cabo.y, suave(kA)) }; anda = kA < 1; }
+  else if (t < A.tVai + bi.atraso * 2) {
+    const kB = clamp((t - A.tAcao - bi.atraso * 1.2) / 2.4);
+    p = { x: lerp(bi.cabo.x, bi.fim.x, suave(kB)), y: lerp(bi.cabo.y, bi.fim.y, suave(kB)) };
+    anda = kB < 1;   // parados na isca = comendo o ferro (tremidinha)
+  } else {   // barriga cheia: vão embora em fila, para longe da colônia
+    const kC = clamp((t - A.tVai - bi.atraso * 2) / 5.5);
+    p = { x: lerp(bi.fim.x, bi.sai.x, kC), y: lerp(bi.fim.y, bi.sai.y, kC) };
+  }
+  const tremo = anda ? 0.18 : 0.07;   // roendo: tremidinha no lugar
+  return { x: p.x * CASA + Math.sin(t * 9 + bi.fase) * tremo * CASA, y: p.y * CASA + Math.cos(t * 7 + bi.fase) * tremo * CASA * 0.6,
+           anda, dir: Math.cos(t * 3 + bi.fase) >= 0 ? 1 : -1 };
+}
+
+function desenharAtaque(t) {
+  const A = ATAQUE;
+  if (!A) return;
+  const vis = t >= A.ini.inicio && t <= A.tSome;
+  if (!vis) return;
+  // a isca de ferro-velho (aparece quando a heroína larga)
+  if (A.modo === 'isca' && t >= A.tAcao - 0.2 && t <= A.tVai + 0.5) {
+    const x = A.isca.x * CASA, y = A.isca.y * CASA;
+    const k = clamp((t - A.tAcao + 0.2) / 0.4) * (1 - clamp((t - A.tCome) / (A.tVai - A.tCome)));   // comida acabando
+    ctx.globalAlpha = k;
+    ret(x - 14, y + 6, 28, 3, 'rgba(0,0,0,0.25)');
+    [[-10, 2, '#8f4129'], [-4, -1, '#9aa0b5'], [3, 1, '#a14b2f'], [8, -2, '#6b6f86'], [-1, 4, '#c1673e'], [5, 5, '#9aa0b5']]
+      .forEach(([dx, dy, cor]) => ret(x + dx, y + dy, 7, 4, cor));
+    ret(x - 2, y - 6, 2, 8, '#6b6f86'); ret(x + 4, y - 4, 6, 2, '#a14b2f');
+    if (Math.floor(t * 6) % 2) ret(x + 6, y - 7, 2, 2, '#fff6d0');
+    ctx.globalAlpha = 1;
+  }
+  // cerca de baixa voltagem: anel de faíscas em volta dos cabos
+  if (A.modo === 'cerca' && t >= A.tAcao) {
+    const cx = A.bc.x * CASA, cy = (A.bc.y + 0.6) * CASA;
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * 6.283, r = 5.2 * CASA;
+      if ((Math.floor(t * 10) + i) % 3) continue;
+      ret(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.8, 2, 2, i % 2 ? '#8fe6ff' : '#fff6d0');
+    }
+  }
+  const fadeFim = clamp((A.tSome - t) / 1.5);   // somem só lá longe, já fora da colônia
+  for (const bi of A.bichos) {
+    const p = posBicho(bi, t);
+    if (!p) continue;
+    ctx.globalAlpha = fadeFim * clamp((t - A.ini.inicio - 0.5) / 0.5);
+    const x = Math.round(p.x), y = Math.round(p.y), pata = p.anda && Math.floor(t * 14 + bi.fase) % 2;
+    const tipo = A.cfg.tipo;
+    if (tipo === 'besouro') {
+      ret(x - 2, y - 1, 5, 3, '#5a2a18'); ret(x - 1, y - 2, 3, 1, '#a14b2f'); ret(x + (p.dir > 0 ? 3 : -2), y - 1, 1, 1, '#ffc83d');
+      ret(x - 2 + pata, y + 2, 1, 1, '#2a120a'); ret(x + 2 - pata, y + 2, 1, 1, '#2a120a');
+    } else if (tipo === 'acaro') {
+      ret(x, y, 2, 2, '#dff3ff'); ret(x + (pata ? 1 : 0), y + 2, 1, 1, '#8fe6ff');
+    } else if (tipo === 'verme') {
+      for (let k = 0; k < 6; k++) { const ox = -p.dir * k * 3, oy = Math.sin(t * 6 + k + bi.fase) * 1.5; ret(x + ox, y + oy, 4, 4, k ? '#c8a26b' : '#e8c872'); }
+      ret(x + p.dir * 2, y + 1, 1, 1, '#2a120a');
+    } else {   // lagarto
+      ret(x - 9, y - 3, 18, 6, '#4e7a3a'); ret(x + p.dir * 9, y - 4, 6, 5, '#5f9147'); ret(x - p.dir * 16, y - 1, 8, 2, '#4e7a3a');
+      ret(x - 6, y + 3 + pata, 2, 3, '#3a5a2a'); ret(x + 5, y + 3 - pata, 2, 3, '#3a5a2a'); ret(x + p.dir * 11, y - 3, 1, 1, '#ffc83d');
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Na cena "plantar", depois de dizer o nome, a tela vira uma CENA ESPECIAL em 2,5D (perspectiva isométrica) dentro da
+// estufa: a Vega ajoelhada no canteiro cava cada cova com a pazinha (terra voando), tira uma semente da bolsinha,
+// solta na cova, cobre com terra e o broto nasce. Cova por cova, andando de lado no canteiro.
+function desenharPlantio25D(t) {
+  const c = EP.cenas.find((x) => x.acao === 'plantar');
+  if (!c) return;
+  const ini = (c.focos.length ? c.focos[c.focos.length - 1].t : c.fala_inicio) + 0.9, fim = c.fim - 0.6;
+  if (t < ini - 0.01 || t > fim + 0.6) return;
+  const a = clamp((t - ini) / 0.5) * clamp((fim + 0.6 - t) / 0.6);
+  const vega = EP.mundo.fundadores.find((f) => f.id === 'vega') || EP.mundo.fundadores[0];
+  ctx.save();
+  ctx.globalAlpha = a;
+  const u = 84, ox = W / 2 - 40, oy = 900;
+  const iso = (x, y, z) => ({ x: ox + (x - y) * u, y: oy + (x + y) * u * 0.5 - z * u });
+  const poli = (pts, cor) => { ctx.fillStyle = cor; ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath(); ctx.fill(); };
+  const caixa = (x0, y0, x1, y1, z0, z1, topo, frente, lado) => {
+    poli([iso(x0, y1, z0), iso(x1, y1, z0), iso(x1, y1, z1), iso(x0, y1, z1)], frente);   // face da frente (y = y1)
+    poli([iso(x1, y0, z0), iso(x1, y1, z0), iso(x1, y1, z1), iso(x1, y0, z1)], lado);     // face do lado (x = x1)
+    poli([iso(x0, y0, z1), iso(x1, y0, z1), iso(x1, y1, z1), iso(x0, y1, z1)], topo);     // tampo
+  };
+  // fundo: luz quente da estufa, vidro com reflexo
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#1d3b3a'); g.addColorStop(0.45, '#2f5e4b'); g.addColorStop(1, '#2a1a14');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  for (let i = -4; i < 14; i++) {   // vidraças da parede de trás (em perspectiva)
+    const p0 = iso(i * 0.9, -3.2, 0), p1 = iso(i * 0.9, -3.2, 4.2);
+    ctx.fillStyle = '#9fe7ff22'; ctx.fillRect(p1.x, p1.y, u * 0.82, p0.y - p1.y);
+    ctx.fillStyle = '#eef0f855'; ctx.fillRect(p1.x, p1.y, 3, p0.y - p1.y);
+  }
+  ctx.globalAlpha = a * 0.18;   // fachos de luz
+  for (let i = 0; i < 5; i++) poli([{ x: 120 + i * 230, y: 0 }, { x: 220 + i * 230, y: 0 }, { x: -60 + i * 230 + 420, y: H }, { x: -160 + i * 230 + 420, y: H }], '#fff6d0');
+  ctx.globalAlpha = a;
+  // câmera da cena: 2,1x de perto, acompanhando a cova da vez (a Vega anda de lado no canteiro)
+  const kk0 = clamp((t - ini) / (fim - ini - 0.4)), foco = iso(Math.min(4, kk0 * 5) * 1.15 - 0.3, 1.1, 0.4);
+  ctx.save();
+  ctx.translate(W / 2, H * 0.6); ctx.scale(2.1, 2.1); ctx.translate(-foco.x, -foco.y);
+  for (let x = -7; x < 13; x++) for (let y = -6; y < 8; y++) {   // piso em ladrilhos
+    poli([iso(x, y, 0), iso(x + 1, y, 0), iso(x + 1, y + 1, 0), iso(x, y + 1, 0)], (x + y) % 2 ? '#5d6177' : '#53566b');
+  }
+  // canteiros de trás já com plantas
+  for (const yb of [-2.6, -1.3]) {
+    caixa(-1.5, yb, 6.5, yb + 0.9, 0, 0.45, '#5a2a18', '#7a7f96', '#6b6f86');
+    for (let i = 0; i < 9; i++) { const p = iso(-1.1 + i * 0.85, yb + 0.45, 0.45); ctx.fillStyle = '#2bb673'; ctx.fillRect(p.x - 6, p.y - 26, 12, 26); ctx.fillStyle = '#4ed37a'; ctx.fillRect(p.x - 14, p.y - 30, 12, 8); ctx.fillRect(p.x + 2, p.y - 36, 12, 8); }
+  }
+  // o canteiro da frente (onde ela planta)
+  const N = 5, x0b = -0.5, x1b = 5.5, y0b = 0, y1b = 1.2, zb = 0.55;
+  caixa(x0b, y0b, x1b, y1b, 0, zb, '#6b3a22', '#9aa0b5', '#7a7f96');
+  for (let i = 0; i < 40; i++) { const p = iso(x0b + hash(i, 41) * (x1b - x0b), y0b + hash(i, 42) * (y1b - y0b), zb); ctx.fillStyle = i % 3 ? '#5a2a18' : '#8f4129'; ctx.fillRect(p.x, p.y, 6, 4); }
+  const dur = (fim - ini - 0.4) / N, kk = clamp((t - ini) / (fim - ini - 0.4));
+  const idx = Math.min(N - 1, Math.floor(kk * N)), fase = clamp(kk * N - idx);
+  const cova = (i) => iso(0 + i * 1.15, 0.6, zb);
+  for (let i = 0; i < N; i++) {   // covas: abertas, com semente, cobertas, broto
+    const p = cova(i), done = i < idx || (i === idx && fase >= 0.999);
+    const f = i < idx ? 1 : i === idx ? fase : 0;
+    if (f <= 0) continue;
+    const prof = f < 0.35 ? f / 0.35 : f < 0.6 ? 1 : 1 - clamp((f - 0.6) / 0.15);
+    ctx.fillStyle = '#2a120a'; ctx.beginPath(); ctx.ellipse(p.x, p.y, 22 * Math.max(0.3, prof), 10 * Math.max(0.3, prof), 0, 0, 7); ctx.fill();
+    if (f >= 0.6) { ctx.fillStyle = '#8f4129'; ctx.beginPath(); ctx.ellipse(p.x, p.y - 4, 20, 9, 0, 3.14, 6.28); ctx.fill(); }   // montinho
+    if (f >= 0.75 || done) {   // broto
+      const k = done ? 1 : clamp((f - 0.75) / 0.25), alt = 10 + k * 46;
+      ctx.fillStyle = '#2bb673'; ctx.fillRect(p.x - 3, p.y - 6 - alt, 6, alt);
+      ctx.fillStyle = '#4ed37a'; ctx.fillRect(p.x - 3 - 20 * k, p.y - 6 - alt, 20 * k, 10); ctx.fillRect(p.x + 3, p.y - 14 - alt, 20 * k, 10);
+    }
+  }
+  // a Vega ajoelhada na frente do canteiro, andando de lado até a cova da vez
+  const andando = fase < 0.08 && idx > 0, alvoX = 0 + idx * 1.15 + (andando ? -1.15 * (1 - fase / 0.08) : 0);
+  const pv = iso(alvoX - 0.55, 1.75, 0), esc = 13;
+  const spr = spriteMapa(vega.sprite);
+  ctx.globalAlpha = a * 0.35; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(pv.x, pv.y + 6, 70, 18, 0, 0, 7); ctx.fill(); ctx.globalAlpha = a;
+  const sh = spr.height, swd = spr.width, corpo = Math.round(sh * 0.72);
+  ctx.drawImage(spr, 0, 0, swd, corpo, pv.x - swd * esc / 2, pv.y - sh * esc + (sh - corpo) * esc * 0.55, swd * esc, corpo * esc);   // tronco
+  ctx.drawImage(spr, 0, corpo, swd, sh - corpo, pv.x - swd * esc / 2, pv.y - (sh - corpo) * esc * 0.45, swd * esc, (sh - corpo) * esc * 0.45);   // pernas dobradas
+  const topoB = pv.y - sh * esc + (sh - corpo) * esc * 0.55;
+  ret(pv.x - 3.6 * esc, topoB + 8.2 * esc, 22, 18, '#c8a26b'); ret(pv.x - 3.6 * esc + 2, topoB + 8.2 * esc - 6, 18, 6, '#a07a4a');   // bolsinha na cintura
+  // braço + pazinha / semente, conforme a fase da cova
+  // ombro = onde o braço do próprio boneco fica (linha 7 do sprite, lado direito do corpo), não na cabeça
+  const topo = pv.y - sh * esc + (sh - corpo) * esc * 0.55;
+  const pc = cova(idx), ombro = { x: pv.x + 2.6 * esc, y: topo + 7.2 * esc };
+  let mao;
+  if (fase < 0.35) {   // cavando: três golpes
+    const g3 = (fase / 0.35 * 3) % 1, desce = g3 < 0.5 ? g3 * 2 : 2 - g3 * 2;
+    mao = { x: lerp(ombro.x + 20, pc.x, desce), y: lerp(pc.y - 70, pc.y - 8, desce) };
+    ctx.strokeStyle = '#6b4a2e'; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(mao.x, mao.y); ctx.lineTo(mao.x + 18, mao.y - 30); ctx.stroke();   // cabo
+    poli([{ x: mao.x - 10, y: mao.y }, { x: mao.x + 10, y: mao.y }, { x: mao.x, y: mao.y + 26 }], '#c9ced9');   // lâmina
+    if (g3 > 0.5) for (let j = 0; j < 6; j++) {   // terra voando
+      const q = (g3 - 0.5) / 0.5;
+      ret(pc.x + 10 + j * 14 * q, pc.y - 10 - Math.sin(q * Math.PI) * (40 + j * 10), 8, 8, j % 2 ? '#8f4129' : '#5a2a18');
+    }
+  } else if (fase < 0.6) {   // pega a semente na bolsinha e solta na cova
+    const q = (fase - 0.35) / 0.25;
+    const bolsa = { x: pv.x - 3.6 * esc + 11, y: pv.y - sh * esc + (sh - corpo) * esc * 0.55 + 8.2 * esc };
+    mao = q < 0.4 ? { x: lerp(ombro.x, bolsa.x, q / 0.4), y: lerp(ombro.y, bolsa.y, q / 0.4) }
+                  : { x: lerp(bolsa.x, pc.x, (q - 0.4) / 0.6), y: lerp(bolsa.y, pc.y - 50, (q - 0.4) / 0.6) };
+    if (q > 0.4 && q < 0.95) ret(mao.x - 4, mao.y + 8, 8, 10, '#e8c872');
+    if (q >= 0.95) { const qq = (fase - 0.585) / 0.015; ret(pc.x - 4, lerp(pc.y - 40, pc.y - 4, clamp(qq)), 8, 10, '#e8c872'); }
+  } else if (fase < 0.75) {   // cobre com terra (tapinhas)
+    const bate = Math.abs(Math.sin((fase - 0.6) / 0.15 * Math.PI * 3));
+    mao = { x: pc.x, y: pc.y - 10 - bate * 26 };
+  } else mao = { x: lerp(pc.x, ombro.x + 10, (fase - 0.75) / 0.25), y: lerp(pc.y - 20, ombro.y + 10, (fase - 0.75) / 0.25) };
+  ctx.lineCap = 'round';   // braço na cor do traje, com contorno escuro (como o resto do boneco)
+  ctx.strokeStyle = '#1b1530'; ctx.lineWidth = 17; ctx.beginPath(); ctx.moveTo(ombro.x, ombro.y); ctx.lineTo(mao.x, mao.y); ctx.stroke();
+  ctx.strokeStyle = '#e2603b'; ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(ombro.x, ombro.y); ctx.lineTo(mao.x, mao.y); ctx.stroke();
+  ret(mao.x - 9, mao.y - 9, 18, 18, '#f2c9a0');
+  ctx.restore();   // fim da câmera de perto
+  // título e contador
+  texto('PLANTANDO AS PRIMEIRAS SEMENTES', W / 2, 330, 34, COR.ouro, { maxW: W - 120 });
+  texto(`SEMENTE ${Math.min(N, idx + 1)} DE ${N}`, W / 2, 390, 26, '#f3eefe', { contorno: false });
+  ctx.restore();
+}
+
 function eventoNoCeu(t) {
   const id = EP.problema && EP.problema.id;
   if (id !== 'chuva-meteoros' && id !== 'nave-alienigena') return;
@@ -1771,6 +2122,7 @@ function desenhar(t) {
   desenharBase(t, energia);
   desenharPortaAbrigo(t);
   desenharFundadores(t);
+  desenharAtaque(t);
   desenharNoite(cam, t, view, tx, ty, energia);
   ctx.setTransform(cam.z, 0, 0, cam.z, tx, ty);
   desenharHudConserto(t);
@@ -1790,6 +2142,7 @@ function desenhar(t) {
   desenharFocos(cam, t, cena);
   hudTopo(t);
   cartao(cena, t, cam);
+  desenharPlantio25D(t);   // cena especial em 2,5D por cima de tudo
 
   // entra e sai do preto
   const preto = Math.max(1 - clamp(t / 0.6), clamp((t - (EP.duracao - 0.9)) / 0.9));
