@@ -36,6 +36,7 @@ export type PersonagemPublico = {
   seed: number;
   sprite_url: string | null;
   cargo?: string | null;          // id em fabrica/cargos.json (migração 008)
+  lideranca?: string | null;      // id em fabrica/liderancas.json (migração 012)
 };
 
 /** Lote → casa: entra uma rua a cada 3 lotes. */
@@ -136,3 +137,10 @@ export function posCratera(id: number): { x: number; y: number; r: number } {
 
 /** Número do colono a partir do código (NM000123 → 123). */
 export const idDoCodigo = (codigo: string) => Number(codigo.replace(/\D/g, '')) || 0;
+
+/** Variantes da cápsula habitacional (a casa do colono). Mesma lista de fabrica/episodio.py → VARIANTES_CAPSULA.
+ * Pedido sem opção (comprado antes das variantes) = clássica. */
+export const VARIANTES_CAPSULA = ['classica', 'estufa', 'observatorio', 'dupla'] as const;
+export type VarianteCapsula = (typeof VARIANTES_CAPSULA)[number];
+export const varianteDaCapsula = (opcao: string | null | undefined): VarianteCapsula =>
+  (VARIANTES_CAPSULA as readonly string[]).includes(opcao ?? '') ? (opcao as VarianteCapsula) : 'classica';

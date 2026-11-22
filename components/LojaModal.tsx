@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { Opcao } from '@/lib/opcoes';
+import { desenharCapsula } from '@/lib/colonia-arte';
 
 /**
  * Botão chamativo "Comprar para a colônia" do Mundo ao vivo + pop-up centralizado.
@@ -18,6 +19,19 @@ type Produto = {
 const reais = (c: number) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const LIMITE_TEXTO: Record<string, number> = { 'outdoor-holografico': 40 };
 const TEXTO_OBRIGATORIO = new Set(['outdoor-holografico']);
+
+/** A cápsula escolhida, grande, com a MESMA arte da casa no mapa (lib/colonia-arte.ts → desenharCapsula). */
+function CapsulaPrevia({ variante }: { variante: string }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current?.getContext('2d');
+    if (!c) return;
+    c.fillStyle = '#c1673e'; c.fillRect(0, 0, 24, 20);
+    c.fillStyle = '#b05c37'; for (const [x, y] of [[2, 3], [19, 15], [4, 17], [20, 4]]) c.fillRect(x, y, 2, 1);
+    desenharCapsula(c, 4, 4, variante, '#3f8efc', true);
+  }, [variante]);
+  return <canvas ref={ref} width={24} height={20} className="capsula-previa" aria-label={`Prévia da cápsula ${variante}`} />;
+}
 
 export default function LojaModal() {
   const [aberto, setAberto] = useState(false);
@@ -95,13 +109,15 @@ export default function LojaModal() {
                     <img src="/itens/outdoor-holografico-vazio.png" alt="" />
                     <div className="outdoor-tela"><span>{texto.trim() || 'SEU TEXTO AQUI'}</span></div>
                   </div>
+                ) : item.slug === 'capsula-habitacional' && item.opcoes.length > 0 ? (
+                  <CapsulaPrevia variante={opcao || item.opcoes[0].valor} />
                 ) : item.imagem_url && <img className="modal-img" src={item.imagem_url} alt="" />}
 
                 {item.descricao && <p style={{ fontSize: 14 }}>{item.descricao}</p>}
 
                 {item.opcoes.length > 0 && (
                   <>
-                    <label htmlFor="modal-opcao">{item.slug === 'eventos-furia-marte' ? 'Qual evento?' : 'Escolha:'}</label>
+                    <label htmlFor="modal-opcao">{item.slug === 'eventos-furia-marte' ? 'Qual evento?' : item.slug === 'capsula-habitacional' ? 'Qual cápsula?' : 'Escolha:'}</label>
                     <div className="modal-opcoes" id="modal-opcao" role="radiogroup">
                       {item.opcoes.map((o) => (
                         <button type="button" key={o.valor} role="radio" aria-checked={opcao === o.valor}

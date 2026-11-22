@@ -99,11 +99,23 @@ PRODUTO_FALADO = {
 }
 
 
-def produto_falado(slug: str, nome: str) -> str:
+CAPSULA_FALADA = {"estufa": "uma cápsula estufa", "observatorio": "uma cápsula observatório", "dupla": "uma cápsula dupla"}
+
+
+def produto_falado(slug: str, nome: str, opcao: str | None = None) -> str:
+    if slug == "capsula-habitacional" and opcao in CAPSULA_FALADA:
+        return CAPSULA_FALADA[opcao]
     if slug in PRODUTO_FALADO:
         return PRODUTO_FALADO[slug]
     curto = produto_curto(nome)
     return ("uma " if curto.split()[0].lower().endswith("a") else "um ") + curto[0].lower() + curto[1:]
+
+
+def curto_com_variante(c: dict, slug: str) -> str:
+    """"Rover", "Cápsula Habitacional" ou, com a variante escolhida, "Cápsula Estufa"."""
+    if slug == "capsula-habitacional" and c.get("opcao") in CAPSULA_FALADA:
+        return CAPSULA_FALADA[c["opcao"]].removeprefix("uma ").title()   # "Cápsula Estufa"
+    return produto_curto(c["produto"])
 
 
 def fala_das_compras(compras: list[dict], max_nomes: int = 6) -> Fala:
@@ -122,11 +134,11 @@ def fala_das_compras(compras: list[dict], max_nomes: int = 6) -> Fala:
             continue
         if len(g) == 1:
             c = g[0]
-            f.add("Na casa de ").add(c["falado"], f"compra:{c['codigo']}:{slug}").add(f": {produto_curto(c['produto'])}. ")
+            f.add("Na casa de ").add(c["falado"], f"compra:{c['codigo']}:{slug}").add(f": {curto_com_variante(c, slug)}. ")
             sobra -= 1
             continue
         frase = plural(len(g), "colono comprou", "colonos compraram")
-        f.add(f"{frase[0].upper()}{frase[1:]} {produto_falado(slug, g[0]['produto'])}: ")
+        f.add(f"{frase[0].upper()}{frase[1:]} {produto_falado(slug, g[0]['produto'], g[0].get('opcao') if len({c.get('opcao') for c in g}) == 1 else None)}: ")
         ditos = g[:min(sobra, 3)]
         f.lista([(c["falado"], f"compra:{c['codigo']}:{slug}") for c in ditos])
         if len(g) > len(ditos):
@@ -182,10 +194,10 @@ BOAS_VINDAS_1 = ["Boas-vindas a {nome}! Tem casa nova na colônia.",
                  "Chegou gente nova: {nome}! A casa já está de pé."]
 BOAS_VINDAS_N = ["Bem-vindos, ", "Chegaram à colônia: "]
 # Episódio 1 tem gancho próprio. Do 2 em diante a série é diária: "amanhã tem episódio novo".
-GANCHOS = [
-    "Será que a sua casa já está no mapa? Procure seu nome em {site}. Amanhã tem episódio novo: {proxima}.",
-    "Quer fazer parte da Operação Marte Zero? Entre em {site} e procure seu nome no mapa. Amanhã: {proxima}.",
-    "Cada colono novo é mais uma mão na obra. Cadastre-se em {site} e procure seu nome no mapa. Amanhã: {proxima}.",
+GANCHOS = [   # fim de TODO episódio: chamada para o site + "concorre a líder da colônia" (cargos de liderança)
+    "Quer aparecer no próximo episódio? Entre em {site} e vire colono premium: quem entra pelo site concorre a líder da colônia! Amanhã: {proxima}.",
+    "Entre em {site}, vire colono premium e procure seu nome no mapa. Quem entra pelo site concorre a líder da colônia! Amanhã: {proxima}.",
+    "A colônia precisa de líderes. Entre em {site} e vire colono premium: quem entra pelo site concorre a líder da colônia! Amanhã: {proxima}.",
 ]
 
 # Missão do Dia quando a obra NÃO termina e/ou NÃO começa no episódio (a obra leva vários dias)
@@ -245,11 +257,11 @@ def cenas_da_missao(d: dict, obra: dict, missao: dict, p0: int, p1: int, rnd: ra
                 generica(gen(FIM_DO_DIA), "construir", "colonia", 3.2, [b, b])]
     if p1 >= 100:                      # dia da conclusão: fecha com as cenas originais (ligar)
         return [generica(gen(RETOMAR), "apresentar", "obra", 4.5, [a, a]),
-                generica(mao, "construir", "colonia", 3.2, [a, a]),
+                generica(mao, "construir", "obra", 5, [a, a]),
                 generica(gen(CONSTRUIR), "construir", "obra", 6, [a, meio]),
                 original(3, [meio, 1]), original(4, [1, 1])]
     return [generica(gen(RETOMAR), "apresentar", "obra", 4.5, [a, a]),   # dia do meio
-            generica(mao, "construir", "colonia", 3.2, [a, a]),
+            generica(mao, "construir", "obra", 5, [a, a]),
             generica(gen(CONSTRUIR), "construir", "obra", 6, [a, meio]),
             generica(gen(AVANCO), "construir", "obra", 6, [meio, b]),
             generica(gen(FIM_DO_DIA), "construir", "colonia", 3.2, [b, b])]
@@ -382,8 +394,8 @@ def montar(d: dict) -> dict:
 
     # 6. gancho final
     if n == 1:
-        f = Fala().add(f"Quer ser um dos primeiros colonos da Operação Marte Zero? Entre em {config.SITE_FALADO}, "
-                       f"faça seu cadastro e procure seu nome no mapa. No próximo episódio: {proxima}.")
+        f = Fala().add(f"Quer ser um dos primeiros colonos da Operação Marte Zero? Entre em {config.SITE_FALADO} e vire "
+                       f"colono premium: quem entra pelo site concorre a líder da colônia! No próximo episódio: {proxima}.")
     else:
         f = Fala().add(rnd.choice(GANCHOS).format(site=config.SITE_FALADO, proxima=proxima))
     cenas.append(cena("gancho", "gancho", f, camera={"alvo": "panorama", "zoom": 2.2}))

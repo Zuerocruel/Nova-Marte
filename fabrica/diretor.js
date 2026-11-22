@@ -186,9 +186,10 @@ function canvasDeMatriz(linhas, cor) {
   }
   return c;
 }
-function spriteColono(seed) {
-  if (!spriteCache.has(seed)) spriteCache.set(seed, canvasDeMatriz(gerarSprite(seed), (v) => v));
-  return spriteCache.get(seed);
+function spriteColono(seed, lideranca) {
+  const lid = lideranca && EP.liderancas ? EP.liderancas[lideranca] : null, k = lid ? `${seed}:${lid.id}` : seed;
+  if (!spriteCache.has(k)) spriteCache.set(k, canvasDeMatriz(lid ? vestirTraje(gerarSprite(seed), lid) : gerarSprite(seed), (v) => v));
+  return spriteCache.get(k);
 }
 function spriteMapa(nome) {
   const k = 'mapa:' + nome;
@@ -535,6 +536,7 @@ function planejarVida() {
     };
     c.casaPe = casa; c.dentro = null; c.trabalho = null;
     const i = ajudantes.indexOf(c);
+    c.ajudante = i;
     if (i >= 0) {   // mutirão: cada colono é mais uma mão na obra
       const chega = ir(miss[0].inicio + 0.4 + i * 0.35, pontoNaObra(r, i));
       c.trabalho = [chega, miss[miss.length - 1].fim];
@@ -887,18 +889,19 @@ function desenharCabo(r, t, energia) {
   }
 }
 
-function desenharEstufa(o, st, t) {
+function desenharEstufa(o, st, t) {   // sobe de baixo para cima: vidro e canteiros fileira por fileira
   const r = retanguloDe(o);
   if (st.dem && st.p < 1) desenharDemarcacao(r, t);
   if (st.p <= 0) return;
-  const colunas = o.w * 2, vis = Math.ceil(st.p * colunas);
+  const colunas = o.w * 2, larg = (r.x1 - r.x0 - 4) / colunas, H = r.y1 - r.y0 - 12, alt = Math.max(2, st.p * H), topo = r.y1 - 6 - alt;
   ret(r.x0 + 2, r.y1 - 6, r.x1 - r.x0 - 4, 4, '#6b6f86');
-  for (let i = 0; i < vis; i++) {
-    const x = r.x0 + 2 + i * ((r.x1 - r.x0 - 4) / colunas);
-    ctx.globalAlpha = 0.55; ret(x, r.y0 + 6, (r.x1 - r.x0 - 4) / colunas - 1, r.y1 - r.y0 - 12, '#8fe6ff'); ctx.globalAlpha = 1;
-    ret(x, r.y0 + 6, 1, r.y1 - r.y0 - 12, '#eef0f8');
-    if (st.p > 0.6) for (let j = 0; j < 3; j++) ret(x + 3, r.y0 + 14 + j * 12, 4, 4, j % 2 ? '#2bb673' : '#4ed37a');
+  for (let i = 0; i < colunas; i++) {
+    const x = r.x0 + 2 + i * larg;
+    ctx.globalAlpha = 0.55; ret(x, topo, larg - 1, alt, '#8fe6ff'); ctx.globalAlpha = 1;
+    ret(x, topo, 1, alt, '#eef0f8');
+    for (let j = 0; j < 3; j++) { const y = r.y0 + 14 + j * 12; if (y >= topo) ret(x + 3, y, 4, 4, j % 2 ? '#2bb673' : '#4ed37a'); }
   }
+  if (st.p < 1) ret(r.x0 + 2, topo - 1, r.x1 - r.x0 - 4, 2, '#ffc83d');   // borda da obra subindo
 }
 
 function desenharAntena(o, st, t) {
@@ -1057,6 +1060,89 @@ function desenharObras(t) {
   }
 }
 
+// ------------------------------------------------------------------ mutirão da obra em fases
+// Toda Missão do Dia mostra as três etapas, uma por cena: 2ª cena CAVAR (buraco da fundação, terra voando),
+// 3ª LEVANTAR A ESTRUTURA (vigas no ombro, guindaste subindo viga) e 4ª/5ª MONTAR (gente no andaime soldando
+// no topo do que já subiu). O prédio sobe de baixo para cima (predioEmObra), com o esqueleto de vigas por cima.
+function faseDaObra(t) {
+  const o = obraDaMissao();
+  if (!o) return null;
+  const cena = EP.cenas.find((c) => c.tipo === 'missao' && t >= c.inicio && t < c.fim);
+  if (!cena || cena.acao === 'ligar' || cena.acao === 'apresentar') return null;
+  const fase = cena.passo <= 2 ? 'cavar' : cena.passo === 3 ? 'levantar' : 'montar';
+  const r = retanguloDe(o), st = progressoObra(o, t);
+  const topo = r.y1 - Math.max(4, st.p * (r.y1 - r.y0));
+  return { fase, r, p: st.p, topo, k: clamp((t - cena.inicio) / Math.max(0.1, cena.fim - cena.inicio)), solar: o.tipo === 'solar' };
+}
+
+// buraco da fundação (cavar), pilha de vigas e guindaste (levantar): desenhados ANTES dos colonos
+function desenharCanteiro(t) {
+  const f = faseDaObra(t);
+  if (!f) return;
+  const { r } = f, W = r.x1 - r.x0, cx = (r.x0 + r.x1) / 2;
+  if (f.fase === 'cavar') {
+    const larg = Math.max(12, (W - 6) * (0.3 + 0.7 * f.k)), x0 = cx - larg / 2;
+    ret(x0, r.y1 + 1, larg, 6, '#5a2a18'); ret(x0 + 1, r.y1 + 2, larg - 2, 4, '#2a120a');   // vala da fundação
+    for (let i = 0; i < 6; i++) ret(r.x1 + 2 + i * 2, r.y1 + 6 - (i % 3) * 2 - f.k * 5, 3, 2 + f.k * 5, '#8f4129');   // monte de terra
+  }
+  if (f.fase !== 'cavar') {   // pilha de vigas ao lado da obra
+    for (let i = 0; i < 4; i++) ret(r.x0 - 16, r.y1 - 2 - i * 2, 12, 1.5, i % 2 ? '#9aa0b5' : '#c9ced9');
+  }
+  if (f.fase === 'levantar' && !f.solar) {   // guindaste: torre, braço e a viga subindo no cabo
+    const gx = r.x1 + 4, alto = r.y0 - 12;
+    ret(gx, alto, 2, r.y1 - alto, '#ffc83d');
+    for (let y = alto + 3; y < r.y1; y += 4) ret(gx - 1, y, 4, 1, '#c99a1f');
+    ret(gx - W * 0.55, alto, W * 0.55 + 6, 2, '#ffc83d');
+    const ciclo = (t * 0.35) % 1, bx = gx - W * 0.4, by = r.y1 - 4 - (r.y1 - f.topo + 6) * Math.min(1, ciclo * 1.4);
+    ret(bx, alto + 2, 1, by - alto - 2, '#2b2350');
+    ret(bx - 6, by, 13, 2, '#9aa0b5');
+  }
+}
+
+// esqueleto de vigas da obra inteira, por cima do que ainda não subiu (some quando a obra termina)
+function desenharEsqueleto(t) {
+  const f = faseDaObra(t);
+  if (!f || f.solar || f.fase === 'cavar' || f.p >= 1) return;
+  const { r } = f;
+  ctx.globalAlpha = 0.5;
+  for (const x of [r.x0 + 2, (r.x0 + r.x1) / 2, r.x1 - 3]) ret(x, r.y0 + 4, 1, f.topo - r.y0 - 4, '#c9ced9');
+  for (let y = f.topo - 6; y > r.y0 + 4; y -= 7) ret(r.x0 + 2, y, r.x1 - r.x0 - 4, 1, '#c9ced9');
+  ctx.globalAlpha = 1;
+}
+
+// posição e ferramenta de cada ajudante na fase atual
+function poseDeTrabalho(c, p, t) {
+  const f = faseDaObra(t);
+  if (!f || c.ajudante == null || c.ajudante < 0) return null;
+  const i = c.ajudante, h = hash(c.x, c.y, 13);
+  if (f.fase === 'levantar' && i % 2 === 0) {   // carrega viga da pilha até a obra, e volta
+    const vai = 0.5 - 0.5 * Math.cos(t * 1.1 + h * 6);
+    return { fase: f.fase, x: lerp(f.r.x0 - 10, p.x, vai), y: p.y, dir: Math.sin(t * 1.1 + h * 6) >= 0 ? 1 : -1, anda: true, viga: true };
+  }
+  if (f.fase === 'montar' && i % 3 === 0 && !f.solar) {   // sobe no andaime e solda no topo
+    return { fase: f.fase, x: Math.min(f.r.x1 - 6, Math.max(f.r.x0 + 6, p.x)), y: f.topo + 1, dir: i % 2 ? 1 : -1, solda: true };
+  }
+  return { fase: f.fase, x: p.x, y: p.y, dir: p.dir };
+}
+
+function ferramenta(pose, x, y, t, h) {
+  if (pose.fase === 'cavar') {   // pá: cabo + lâmina, cavando no ritmo, com terra voando
+    const k = (t * 2.2 + h * 3) % 1, a = k < 0.5 ? k * 2 : 2 - k * 2;
+    ret(x + 4, y - 11 + a * 4, 1, 9, '#b07a3a'); ret(x + 3, y - 2 + a * 4, 3, 3, '#e4e6f0'); ret(x + 3, y - 12 + a * 4, 3, 1, '#b07a3a');
+    if (k > 0.55) for (let j = 0; j < 3; j++) {
+      const q = (k - 0.55) / 0.45;
+      ret(x + 6 + j * 3 * q * 2, y - 4 - Math.sin(q * Math.PI) * (6 + j * 2), 2, 2, j % 2 ? '#8f4129' : '#a14b2f');
+    }
+  } else if (pose.viga) {
+    ret(x - 7, y - 14, 14, 2, '#9aa0b5'); ret(x - 7, y - 14, 14, 1, '#e4e6f0');   // viga no ombro
+  } else if (pose.solda) {
+    if (Math.floor(t * 12 + h * 5) % 2) { ret(x + 5, y - 6, 2, 2, '#ffffff'); ret(x + 7, y - 8, 1, 1, '#ffe58a'); ret(x + 4, y - 9, 1, 1, '#8fe6ff'); }
+  } else {   // chave/martelo batendo
+    const bate = Math.floor(t * 4 + h * 4) % 2;
+    ret(x + 5, y - 8 + bate * 2, 1, 4, '#9aa0b5'); ret(x + 4, y - 9 + bate * 2, 3, 2, '#6b6f86');
+  }
+}
+
 function desenharColonos(view, t) {
   const alerta = VIDA.alerta && t >= VIDA.alerta[0] && t < VIDA.alerta[1];
   for (const c of EP.mundo.colonos) {
@@ -1065,6 +1151,8 @@ function desenharColonos(view, t) {
     if (!p.visivel) continue;
     const h = hash(c.x, c.y, 9);
     const chamado = chamadoEm(c, t);
+    const pose = p.trabalhando ? poseDeTrabalho(c, p, t) : null;
+    if (pose) { p.x = pose.x; p.y = pose.y; p.dir = pose.dir; if (pose.anda) p.andando = true; }
     let pulo = p.andando && Math.floor(t * 8 + h * 4) % 2 ? -1 : 0;
     if (chamado >= 0) pulo = -Math.abs(Math.sin(chamado * 7)) * 4;                      // pula de alegria
     else if (p.trabalhando) pulo = Math.floor(t * 4 + h * 4) % 2 ? -1 : 0;              // martelando
@@ -1075,10 +1163,11 @@ function desenharColonos(view, t) {
     const img = c.sprite_url && imagens.get(c.sprite_url);
     ctx.save(); ctx.translate(Math.round(p.x), Math.round(p.y + pulo));
     if (p.dir < 0) ctx.scale(-1, 1);
-    ctx.drawImage(img || spriteColono(c.seed), -6, -12, 12, 12); ctx.restore();
+    ctx.drawImage(img || spriteColono(c.seed, c.lideranca), -6, -12, 12, 12); ctx.restore();
     if (c.status === 'estreou') ret(p.x + 4.5, p.y - 13.5 + pulo, 2.5, 2.5, '#ffd84a');
     if (chamado >= 0 && Math.floor(chamado * 6) % 2) ret(p.x + 6, p.y - 12 + pulo, 2, 3, '#f2c9a0');   // mãozinha acenando
-    if (p.trabalhando && Math.floor(t * 4 + h * 4) % 3 === 0) ret(p.x + 6, p.y - 8, 2, 2, COR.ouro);   // faísca
+    if (pose) ferramenta(pose, p.x, p.y + pulo, t, h);
+    else if (p.trabalhando && Math.floor(t * 4 + h * 4) % 3 === 0) ret(p.x + 6, p.y - 8, 2, 2, COR.ouro);   // faísca
     const kc = c.conserto && !p.andando && t >= c.conserto[0] && t < c.conserto[1] ? (t - c.conserto[0]) / (c.conserto[1] - c.conserto[0]) : -1;
     if (kc >= 0) desenharConserto(p, t, kc);
     if (alerta && !p.andando) { ret(p.x - 0.5, p.y - 19, 1.5, 3.5, COR.alerta); ret(p.x - 0.5, p.y - 14.5, 1.5, 1.5, COR.alerta); }
@@ -1214,6 +1303,7 @@ function desenharCasas(view, t, energia) {
   for (const c of EP.mundo.colonos) {
     if (fora(c.x, c.y)) continue;
     const x = c.x * CASA, y = c.y * CASA;
+    if (c.capsula && t >= trocaDaCapsula(c)) { desenharCapsula(ctx, x, y, c.capsula, TELHADOS[c.seed % TELHADOS.length], energia); continue; }
     ret(x + 1, y + 12, 12, 2, 'rgba(0,0,0,0.22)');
     disco(x + 7, y + 8, 6, '#6b6f86');
     disco(x + 7, y + 8, 5, '#e4e6f0');
@@ -1221,6 +1311,45 @@ function desenharCasas(view, t, energia) {
     ret(x + 6, y + 9, 3, 4, '#3a2f63');
     ret(x + 4, y + 5, 2, 2, energia ? '#ffe58a' : '#2b2350');
   }
+}
+
+// Cápsulas compradas (variantes da casa): MESMA arte de lib/colonia-arte.ts → desenharCapsula. Mude as duas juntas.
+function desenharCapsula(c, x, y, variante, cor, luz) {
+  const R = (a, b, w, h, k) => { c.fillStyle = k; c.fillRect(x + a, y + b, w, h); };
+  const D = (a, b, r, k) => discoEm(c, x + a, y + b, r, k);
+  const janela = luz ? '#ffe58a' : '#2b2350';
+  R(0, 13, 15, 2, 'rgba(0,0,0,0.25)');
+  if (variante === 'estufa') {                     // cúpula de vidro cheia de plantas
+    D(7, 8, 6, '#2f6b7e'); D(7, 8, 5, '#9fe7ff');
+    D(4, 9, 2, '#2bb673'); D(10, 9, 2, '#2bb673'); D(7, 6, 2, '#5fd38a'); R(9, 5, 1, 1, '#ff7f50'); R(4, 7, 1, 1, '#ffd85a');
+    R(4, 4, 2, 1, '#ffffff'); R(3, 5, 1, 1, '#ffffff');
+    R(1, 11, 13, 2, '#6b6f86'); R(2, 11, 11, 1, cor); R(6, 10, 3, 3, '#3a2f63');
+  } else if (variante === 'observatorio') {        // cúpula escura com a fenda aberta e o telescópio
+    R(1, 10, 13, 3, '#6b6f86'); R(1, 10, 13, 1, cor);
+    D(7, 8, 6, '#3b3f5c'); D(7, 8, 5, '#5a5f84');
+    R(6, 2, 3, 7, '#22253a');
+    c.fillStyle = '#c9cde0'; for (let i = 0; i < 4; i++) c.fillRect(x + 7 + i, y + 6 - i * 1.5, 2, 2);   // tubo do telescópio
+    R(11, 0, 2, 2, '#ffe58a');
+    R(3, 9, 2, 2, janela); R(10, 9, 2, 2, janela); R(6, 10, 3, 3, '#22253a');
+  } else if (variante === 'dupla') {                // duas cúpulas ligadas por um túnel
+    R(4, 9, 7, 3, '#b9bccc'); R(4, 9, 7, 1, '#e4e6f0');
+    D(4, 9, 4, '#6b6f86'); D(4, 9, 3, '#e4e6f0'); D(11, 8, 4, '#6b6f86'); D(11, 8, 3, '#e4e6f0');
+    R(1, 9, 7, 1, cor); R(8, 8, 7, 1, cor);
+    R(3, 10, 2, 3, '#3a2f63'); R(10, 6, 2, 2, janela); R(3, 6, 1, 1, janela);
+    R(13, 2, 1, 3, '#9a9db0'); R(13, 1, 1, 1, '#e04f5f');
+  } else {                                          // clássica: cúpula maior, faixa dourada, antena e painel solar
+    D(7, 8, 7, '#6b6f86'); D(7, 8, 6, '#f2f3f8');
+    R(1, 8, 13, 2, cor); R(1, 10, 13, 1, '#ffd85a');
+    R(6, 9, 3, 4, '#3a2f63'); R(3, 5, 2, 2, janela); R(10, 5, 2, 2, janela);
+    R(7, -2, 1, 3, '#9a9db0'); R(7, -3, 1, 1, '#e04f5f');
+    R(12, 11, 4, 2, '#3f5fae'); R(12, 11, 4, 1, '#8fb3ff');
+  }
+}
+
+// cápsula comprada NESTE episódio: a casinha vira cápsula no momento em que a câmera chega (antes, a de sempre)
+function trocaDaCapsula(colono) {
+  const c = EP.mundo.compras.find((k) => k.codigo === colono.codigo && k.produto_slug === 'capsula-habitacional');
+  return c ? Math.max(0, aparicaoCompra(c)) : -1;
 }
 
 function aparicaoCompra(c) {
@@ -1236,7 +1365,8 @@ function desenharCompras(t) {
     const k = clamp((t - t0) / 0.45);
     const esc = k < 1 ? saida(k) * 1.3 - Math.max(0, k - 0.7) : 1;
     const x = c.x * CASA + 4, y = c.y * CASA + 14, s = 10 * esc;   // logo abaixo da casa do comprador
-    if (iconeDoProduto(c.produto_slug) === 'monumento') {   // estátua do próprio colono
+    if (c.produto_slug === 'capsula-habitacional') { /* a própria casa vira a cápsula (desenharCasas) */ }
+    else if (iconeDoProduto(c.produto_slug) === 'monumento') {   // estátua do próprio colono
       const seed = (colonoPorCodigo.get(c.codigo) || c).seed || 1, w = s * 1.1, h = w * 17 / 14;
       ctx.drawImage(spriteEstatua(seed), x + 4 - w / 2, y + 12 - h, w, h);
     } else ctx.drawImage(spriteContornado(iconeDoProduto(c.produto_slug)), x + 4 - s / 2, y + 10 - s, s * 1.25, s * 1.25);
@@ -1244,7 +1374,8 @@ function desenharCompras(t) {
     if (kb < 1) for (let i = 0; i < 6; i++) {
       const a = i / 6 * Math.PI * 2;
       ctx.globalAlpha = 1 - kb;
-      ret(x + 4 + Math.cos(a) * 14 * kb, y + 4 + Math.sin(a) * 14 * kb, 2, 2, COR.ouro);
+      const cy = c.produto_slug === 'capsula-habitacional' ? y - 6 : y + 4;   // cápsula: o brilho sai da casa
+      ret(x + 4 + Math.cos(a) * 14 * kb, cy + Math.sin(a) * 14 * kb, 2, 2, COR.ouro);
     }
     ctx.globalAlpha = 1;
   }
@@ -1390,6 +1521,30 @@ function desenharFocos(cam, t, cena) {
     if (!p.visivel) continue;
     const focado = cena.focos.some((x) => x.alvo === `fundador:${f.id}` && t >= x.t);
     etiqueta(cam, p.x, p.y - 13, f.curto, focado ? COR.ouro : COR.borda, t, focado ? cena.focos.find((x) => x.alvo === `fundador:${f.id}`).t : 0);
+  }
+  // tag dos cargos de liderança (LÍDER, VICE...) sempre visível de perto, na cor do cargo
+  // (a mais importante primeiro: ordem do liderancas.json; tag que encavalaria em outra vira só um pontinho)
+  const ocupadas = [];
+  const ordem = EP.liderancas ? Object.keys(EP.liderancas) : [];
+  const lideres = EP.mundo.colonos.filter((c) => c.lideranca && EP.liderancas && EP.liderancas[c.lideranca])
+    .sort((a, b) => ordem.indexOf(a.lideranca) - ordem.indexOf(b.lideranca));
+  if (cam.z >= 4.5) for (const c of lideres) {
+    const lid = EP.liderancas[c.lideranca];
+    let pc = c.casaPe ? posColono(c, t) : { x: c.x * CASA + 8, y: c.y * CASA + 14, visivel: true };
+    if (!pc.visivel) continue;
+    const pose = pc.trabalhando ? poseDeTrabalho(c, pc, t) : null;
+    if (pose) pc = { ...pc, x: pose.x, y: pose.y };
+    const s = aTela(cam, pc.x, pc.y - 13);
+    if (s.x < -50 || s.x > W + 50 || s.y < 0 || s.y > H) continue;
+    ctx.font = `20px ${FONTE}`;
+    const w = ctx.measureText(lid.tag).width + 20, caixaTag = { x0: s.x - w / 2, x1: s.x + w / 2, y0: s.y - 34, y1: s.y - 4 };
+    if (ocupadas.some((o) => o.x0 < caixaTag.x1 && caixaTag.x0 < o.x1 && o.y0 < caixaTag.y1 && caixaTag.y0 < o.y1)) {
+      ret(pc.x - 1, pc.y - 16, 2, 2, lid.cor);   // sem espaço: só o pontinho na cor do cargo
+      continue;
+    }
+    ocupadas.push(caixaTag);
+    caixa(caixaTag.x0, caixaTag.y0, w, 30, 0.9, lid.cor);
+    texto(lid.tag, s.x, s.y - 19, 20, lid.cor, { contorno: false });
   }
   const ativos = cena.focos.filter((f) => t >= f.t);
   for (const [i, f] of ativos.entries()) {
@@ -1607,7 +1762,9 @@ function desenhar(t) {
     y0: Math.floor(-ty / cam.z / CASA), y1: Math.ceil((H - ty) / cam.z / CASA),
   };
   const energia = t >= tempoEnergia || EP.mundo.obras.some((o) => o.tipo === 'solar' && o.status === 'concluida');
+  desenharCanteiro(t);
   desenharObras(t);
+  desenharEsqueleto(t);
   desenharCasas(view, t, energia);
   desenharColonos(view, t);
   desenharCompras(t);

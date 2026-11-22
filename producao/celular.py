@@ -484,6 +484,7 @@ class Postagem:
     def __init__(self, cel: Celular, rede: str, numero: int, legenda: str, ensaio: bool, log=print,
                  capa: Path | None = None, chave: int | str | None = None) -> None:
         self.cel, self.rede, self.n, self.legenda, self.ensaio, self.log = cel, rede, numero, legenda, ensaio, log
+        pub.exigir_sem_link(rede, legenda)   # Instagram/TikTok NUNCA com link: recusa antes de abrir o app
         # onde o status é gravado: o episódio (3) ou o vídeo extra ("3-pov_colonia"). Antes de 21/11 o extra
         # gravava o "tocou no botão final" no episódio por engano.
         self.chave = numero if chave is None else chave
@@ -924,7 +925,7 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
            extra: str | None = None, com_capa: bool = True) -> bool:
     """Devolve True se todas as redes pedidas terminaram bem (publicado / ensaio ok).
     extra="pov_obra" posta o vídeo extra do episódio (saida/epNNN/pov/) em vez do episódio."""
-    chave = pub.chave_extra(numero, extra) if extra else numero
+    chave = "apresentacao" if extra == "apresentacao" else pub.chave_extra(numero, extra) if extra else numero
     tudo_ok = True
     with pub.trava_postagem("celular.py"):
         cel = Celular(serial, log=log)
@@ -933,7 +934,8 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
         for rede in redes:
             rot = pub.ROTULOS[rede]
             try:
-                lib = (pub.exigir_liberado_carrossel(numero, rede, ensaio=ensaio) if extra == "carrossel"
+                lib = (pub.exigir_liberado_apresentacao(rede, ensaio=ensaio) if extra == "apresentacao"
+                       else pub.exigir_liberado_carrossel(numero, rede, ensaio=ensaio) if extra == "carrossel"
                        else pub.exigir_liberado_extra(numero, extra, rede, ensaio=ensaio) if extra
                        else pub.exigir_liberado(numero, rede, ensaio=ensaio))
             except pub.Recusado as e:
@@ -945,14 +947,15 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
             p = Postagem(cel, rede, numero, legenda, ensaio, log=log,
                          capa=capa if (com_capa and not extra and capa.exists()) else None, chave=chave)
             try:
-                resultado = p.rodar_carrossel(lib["imagens"]) if extra == "carrossel" else p.rodar(lib["video"])
+                resultado = (p.rodar_carrossel(lib["imagens"]) if extra in ("carrossel", "apresentacao")
+                             else p.rodar(lib["video"]))
                 if ensaio:
                     pub.anotar(chave, rede, ultimo_ensaio=pub.agora(), ultimo_ensaio_resultado=resultado)
                     log(f"[{rot}] {resultado}")
                 else:
                     pub.marcar(chave, rede, "publicado", origem="celular", detalhe="confirmado no app")
                     log(f"[{rot}] ✅ publicado")
-                    if extra == "carrossel":
+                    if extra in ("carrossel", "apresentacao"):
                         atualizar_link_comentar(cel, log)
             except Exception as e:  # noqa: BLE001
                 tudo_ok = False
@@ -972,6 +975,18 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
                     except Exception:  # noqa: BLE001
                         pass
     return tudo_ok
+
+
+def enviar_para_galeria(imagens: list[Path], prefixo: str, serial: str | None = None, log=print) -> list[str]:
+    """Só manda as imagens para a galeria do celular (ex.: stories aprovados). Não abre app nem publica nada."""
+    cel = Celular(serial, log=log)
+    cel.escolher_aparelho()
+    feitos = []
+    for i in imagens:
+        feitos.append(cel.enviar_imagem(i, f"{prefixo}_{i.name}"))
+        log(f"  📲 {i.name} → galeria do celular")
+        time.sleep(1.0)
+    return feitos
 
 
 def atualizar_link_comentar(cel: Celular, log=print, salvar: bool = True) -> str | None:
@@ -1000,6 +1015,9 @@ def main() -> int:
     ap.add_argument("--serial", help="serial do aparelho (se tiver mais de um)")
     ap.add_argument("--extra", help="posta um vídeo extra do episódio (ex.: pov_obra) em vez do episódio")
     ap.add_argument("--sem-capa", action="store_true", help="não troca a capa pela capa do episódio")
+    ap.add_argument("--apresentacao", action="store_true",
+                    help="posta o carrossel de apresentação (aprovado no painel) no feed do Instagram")
+    ap.add_argument("--galeria", nargs="+", metavar="PNG", help="só manda estas imagens para a galeria do celular")
     ap.add_argument("--link-comentar", action="store_true",
                     help="copia o link do post mais recente do Instagram (tem que ser um carrossel) para o botão do site")
     ap.add_argument("--testar-link", action="store_true", help="só mostra o link do post mais recente (não grava)")
@@ -1010,6 +1028,11 @@ def main() -> int:
         for nome, ok, det in itens:
             print(f"{'✅' if ok else '❌'} {nome}: {det}")
         return 0 if all(ok for _, ok, _ in itens) else 1
+    if a.galeria:
+        enviar_para_galeria([Path(x) for x in a.galeria], "omz", a.serial)
+        return 0
+    if a.apresentacao:
+        return 0 if postar(0, ["instagram"], a.ensaio, a.serial, extra="apresentacao") else 1
     if a.link_comentar or a.testar_link:
         cel = Celular(a.serial)
         cel.escolher_aparelho()

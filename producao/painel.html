@@ -84,28 +84,85 @@
   .cadastro.novo { border-color: var(--ouro, #ffc83d); box-shadow: 0 0 0 1px var(--ouro, #ffc83d); }
   .checklist { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 4px; font-size: 14px; }
   .checklist .ck-falta { color: #f2b25c; }
+
+  /* ===== visual do site (fonte pixel, caixas com borda grossa e sombra) + menu lateral por grupos ===== */
+  body { background-image: radial-gradient(#ffffff1c 1px, transparent 1px); background-size: 28px 28px; }
+  .layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100vh; }
+  #menu { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--ceu2); border-right: 4px solid var(--borda);
+          padding: 16px 10px 24px; scrollbar-width: thin; }
+  #menu h1 { font-size: 11px; line-height: 1.7; padding: 0 8px 12px; border-bottom: 2px solid var(--borda); }
+  #menu .vivo { padding: 10px 8px 0; }
+  #menu nav { display: block; padding: 0; overflow: visible; }
+  #menu .grupo { font-family: "Pixel", monospace; font-size: 8px; color: var(--texto2); letter-spacing: 1px; margin: 18px 8px 6px; text-transform: uppercase; }
+  #menu nav button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 10px; font-size: 14px;
+                     border: 0; border-left: 3px solid transparent; color: var(--texto2); }
+  #menu nav button:hover { background: var(--ceu3); color: var(--texto); }
+  #menu nav button.ativa { background: var(--ceu3); color: var(--texto); border-left-color: var(--agua); border-bottom: 0; }
+  #menu .badge { margin-left: auto; }
+  .coluna { min-width: 0; }
+  header.barra { position: sticky; top: 0; z-index: 5; background: #1e1838ee; border-bottom: 4px solid var(--borda);
+                 display: flex; align-items: center; gap: 16px; padding: 12px 22px; backdrop-filter: blur(4px); }
+  header.barra h2 { margin: 0; font-size: 12px; }
+  header.barra .fila-mini { max-width: 60%; }
+  main { padding: 22px; }
+  .card { border-width: 4px; box-shadow: 6px 6px 0 #0008; }
+  .kpi { border-width: 3px; box-shadow: 4px 4px 0 #0006; }
+  .kpi b { font-family: "Pixel", monospace; font-size: 18px; line-height: 1.6; }
+  h2 { font-size: 12px; }
+  /* botões discretos: contorno, fonte pixel pequena; só "Publicar" fica cheio */
+  .btn { font-family: "Pixel", monospace; font-size: 9px; font-weight: 400; letter-spacing: .3px; line-height: 1.5; color: var(--texto);
+         background: transparent; border: 2px solid var(--borda); padding: 8px 11px; box-shadow: 3px 3px 0 #0006; }
+  .btn:hover { filter: none; border-color: var(--texto2); background: #ffffff08; }
+  .btn:active { transform: translate(2px, 2px); box-shadow: none; }
+  .btn.aprovar { background: transparent; border-color: #2b8a52; color: var(--ok); box-shadow: 3px 3px 0 #0006; }
+  .btn.publicar { background: var(--marte); border-color: var(--marte); color: #fff; box-shadow: inset -3px -3px 0 var(--marte2), 3px 3px 0 #0006; }
+  .btn.perigo { background: transparent; border-color: #8a2b2b; color: var(--erro); box-shadow: 3px 3px 0 #0006; }
+  .btn.peq { padding: 5px 8px; font-size: 8px; }
+  .st { font-family: "Pixel", monospace; font-size: 8px; font-weight: 400; padding: 3px 6px; }
+  /* Cargos de Nova Marte */
+  .grade-lid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .lid { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: start; }
+  .lid > div { min-width: 0; }
+  .lid select { width: 100%; }
+  .lid canvas { width: 96px; height: 96px; image-rendering: pixelated; background: #c1673e; border: 3px solid var(--borda); }
+  .tag-lid { display: inline-block; font-family: "Pixel", monospace; font-size: 8px; padding: 4px 6px; background: #140f26; border-top: 2px solid; margin-bottom: 6px; }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    #menu { position: static; height: auto; border-right: 0; border-bottom: 4px solid var(--borda); padding: 10px; }
+    #menu nav { display: flex; overflow-x: auto; gap: 2px; }
+    #menu nav button { width: auto; white-space: nowrap; border-left: 0; border-bottom: 3px solid transparent; }
+    #menu nav button.ativa { border-bottom-color: var(--agua); }
+    #menu .grupo { display: none; }
+  }
 </style>
+<script src="/traje.js"></script>
 </head>
 <body>
-<header>
-  <div class="topo">
-    <h1>OPERAÇÃO MARTE ZERO · PAINEL</h1>
+<div class="layout">
+  <aside id="menu">
+    <h1>OPERAÇÃO MARTE ZERO<br>PAINEL</h1>
     <span class="vivo" id="vivo"><i></i><span>conectando…</span></span>
-    <span class="fila-mini" id="filaMini"></span>
+    <nav id="abas"></nav>
+  </aside>
+  <div class="coluna">
+    <header class="barra"><h2 id="tituloAba"></h2><span class="fila-mini" id="filaMini"></span></header>
+    <main id="conteudo"></main>
   </div>
-  <nav id="abas"></nav>
-</header>
-<main id="conteudo"></main>
+</div>
 <div id="toast"></div>
 
 <script>
 'use strict';
 const TOKEN = '__TOKEN__', BOOT = '__BOOT__';
-const ABAS = [
-  ['aprovacoes', '✅ Aprovações'], ['cadastros', '🆕 Cadastros'], ['episodios', '🎬 Episódios'], ['divulgacao', '📢 Divulgação'],
-  ['colonos', '👥 Colonos'], ['visao', '📊 Visão geral'], ['compras', '🛒 Compras'], ['site', '🌐 Site'],
-  ['chat', '💬 Chat'], ['produtos', '🏪 Produtos'], ['cargos', '🏅 Cargos'], ['conexoes', '🔌 Conexões'],
+const GRUPOS = [
+  ['Hoje', [['aprovacoes', '✅ Aprovações'], ['episodios', '🎬 Episódios']]],
+  ['Conteúdo', [['divulgacao', '📢 Divulgação']]],
+  ['Colônia', [['cadastros', '🆕 Cadastros'], ['colonos', '👥 Colonos'], ['liderancas', '🎖️ Cargos de Nova Marte'],
+               ['cargos', '🏅 Profissões e distintivos'], ['chat', '💬 Chat']]],
+  ['Loja', [['compras', '🛒 Compras'], ['produtos', '🏪 Produtos']]],
+  ['Sistema', [['visao', '📊 Visão geral'], ['site', '🌐 Site'], ['conexoes', '🔌 Conexões']]],
 ];
+const ABAS = GRUPOS.flatMap(([, abas]) => abas);
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const reais = (c) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -173,8 +230,10 @@ function htmlFila() {
 
 // ---------------------------------------------------------------- abas
 function desenharAbas(badge = null) {
-  $('#abas').innerHTML = ABAS.map(([id, nome]) =>
-    `<button class="${id === aba ? 'ativa' : ''}" data-aba="${id}">${nome}${id === 'aprovacoes' && badge ? `<span class="badge">${badge}</span>` : ''}</button>`).join('');
+  $('#abas').innerHTML = GRUPOS.map(([grupo, abas]) => `<div class="grupo">${esc(grupo)}</div>` + abas.map(([id, nome]) =>
+    `<button class="${id === aba ? 'ativa' : ''}" data-aba="${id}">${nome}${id === 'aprovacoes' && badge ? `<span class="badge">${badge}</span>` : ''}</button>`).join('')).join('');
+  const atual = ABAS.find(([id]) => id === aba);
+  $('#tituloAba').textContent = atual ? atual[1] : '';
 }
 $('#abas').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-aba]');
@@ -237,6 +296,52 @@ document.addEventListener('click', async (e) => {
 const botao = (rotulo, acaoNome, dados = {}, cls = '', extra = '') =>
   `<button class="btn ${cls}" data-acao="${acaoNome}" data-dados='${esc(JSON.stringify(dados))}' ${extra}>${rotulo}</button>`;
 
+// postagem automática: aprovar = posta sozinho no horário da madrugada (IG + TikTok pelo celular, YouTube agendado)
+function autoPostar(e) {
+  const ag = e.agendamento;
+  if (ag) return `<div class="aviso" style="margin:10px 0">🤖 Postagem automática: <b>${esc(ag.estado)}</b>${ag.resumo ? ' · ' + esc(ag.resumo) : ''} <span class="mudo">(${quando(ag.em)})</span></div>`;
+  if (e.agendado_para && e.aprovado_em) return `<div class="aviso" style="margin:10px 0;border-left-color:var(--ok);background:#13291d">🕒 Posta sozinho <b>${quando(e.agendado_para)}</b> no Instagram e no TikTok (celular) e no YouTube (já agendado pelo n8n, 30 min antes). Deixe o PC ligado e o celular no cabo.
+    <div class="linha" style="margin-top:8px"><input type="time" id="adiar-${e.numero}" value="${esc((e.agendado_para || '').slice(11, 16))}"><button class="btn peq" onclick="acao('adiar_agendamento',{numero:${e.numero},horario:$('#adiar-${e.numero}').value})">Trocar horário</button></div></div>`;
+  return '';
+}
+function blocoAuto(a) {
+  return `<div class="card linha"><b class="pixel" style="font-size:10px">🤖 Aprovar = postar sozinho</b>
+    <label class="chk"><input type="checkbox" id="autoLigado" ${a.ligado ? 'checked' : ''}> ligado</label>
+    <span class="mudo">horário (madrugada):</span><input type="time" id="autoHora" value="${esc(a.horario)}">
+    <button class="btn peq" onclick="acao('auto_postar',{ligado:$('#autoLigado').checked,horario:$('#autoHora').value},'Postagem automática salva')">Salvar</button>
+    <span class="mudo">Legenda do Instagram e do TikTok nunca leva link (o código recusa); link só no YouTube.</span></div>`;
+}
+
+// ---- peças de divulgação: apresentação (carrossel), stories e vídeo institucional
+async function htmlPecas() {
+  const d = await get('/api/pecas');
+  const ap = d.apresentacao, st = d.stories, inst = d.institucional;
+  const miniaturas = (urls, w) => `<div class="linha" style="align-items:flex-start">${urls.map((u) => `<a href="${u}" target="_blank"><img src="${u}" style="width:${w}px;border:3px solid var(--borda)"></a>`).join('')}</div>`;
+  const cardAp = `<div class="card"><h3>🖼️ Post de apresentação (carrossel do feed)</h3>
+    <p class="mudo">Explica como funciona: acesse o site, insira seu nome, vire colono e apareça nos próximos episódios. O endereço vai escrito na imagem; a legenda não leva link.</p>
+    ${ap.imagens.length ? miniaturas(ap.imagens, 150) : '<p class="mudo">Ainda não gerado.</p>'}
+    ${ap.imagens.length ? `<textarea id="legApresentacao" style="margin-top:10px">${esc(ap.legenda)}</textarea>` : ''}
+    <div class="linha" style="margin-top:10px">
+      ${ap.aprovado_em ? `<span class="st aprovado">aprovado</span>${botao('Desaprovar', 'desaprovar_apresentacao')}` : (ap.imagens.length ? `<button class="btn aprovar" onclick="acao('aprovar_apresentacao',{legenda:$('#legApresentacao').value},'Apresentação aprovada')">✅ Aprovar</button>` : '')}
+      ${botao('↻ Gerar de novo', 'gerar_apresentacao', {}, '', ap.gerando ? 'disabled' : '')}
+      ${ap.aprovado_em ? botao('🧪 Ensaio', 'postar_apresentacao', { ensaio: true }, '', 'title="Vai até a tela final no celular sem publicar"') + botao('📤 Publicar no Instagram', 'postar_apresentacao', {}, 'publicar', 'data-confirma="Postar o carrossel de apresentação no feed do Instagram pelo celular?"') : ''}
+      <span class="st ${esc(ap.instagram.status)}">${esc(ap.instagram.status)}</span></div></div>`;
+  const cardSt = `<div class="card"><h3>📱 Stories do episódio ${st.episodio ?? ''} (Instagram e TikTok)</h3>
+    <p class="mudo">3 stories chamando para assistir o episódio e entrar no site, com o endereço escrito. Ao aprovar, os 3 vão para a galeria do celular.</p>
+    ${st.imagens.length ? miniaturas(st.imagens, 120) : '<p class="mudo">Ainda não gerados.</p>'}
+    <div class="linha" style="margin-top:10px">
+      ${st.aprovado_em ? `<span class="st aprovado">aprovado</span>${st.enviado_em ? `<span class="mudo">no celular desde ${quando(st.enviado_em)}</span>` : '<span class="mudo">mandando para o celular…</span>'}` : (st.imagens.length ? botao('✅ Aprovar e mandar para o celular', 'aprovar_stories', { numero: st.episodio }, 'aprovar') : '')}
+      ${st.episodio ? botao('↻ Gerar de novo', 'gerar_stories', { numero: st.episodio }, '', st.gerando ? 'disabled' : '') : ''}</div></div>`;
+  const cardInst = `<div class="card"><h3>🎥 Vídeo institucional (~1min30)</h3>
+    <p class="mudo">Explica o projeto com partes reais do site: colônia ao vivo, loja e produtos. Você só aprova; nada é postado sozinho.</p>
+    ${inst.video ? `<video controls preload="metadata" src="${inst.video}" style="max-width:270px"></video>` : '<p class="mudo">Ainda não gerado.</p>'}
+    ${inst.roteiro ? `<details><summary>Roteiro</summary><pre class="log">${esc(inst.roteiro)}</pre></details>` : ''}
+    <div class="linha" style="margin-top:10px">
+      ${inst.aprovado_em ? `<span class="st aprovado">aprovado</span>${botao('Desaprovar', 'desaprovar_institucional')}` : (inst.video ? botao('✅ Aprovar', 'aprovar_institucional', {}, 'aprovar') : '')}
+      ${botao('↻ Gerar', 'gerar_institucional', {}, '', inst.gerando ? 'disabled' : '')}</div></div>`;
+  return `<h2>Divulgação para aprovar</h2>${cardAp}${cardSt}${cardInst}`;
+}
+
 // ================================================================ APROVAÇÕES
 async function rAprovacoes() {
   const a = await get('/api/aprovacoes');
@@ -262,7 +367,8 @@ async function rAprovacoes() {
     `<div class="item"><div class="txt"><b>${esc(i.titulo)}</b><small>${esc(i.detalhe)}</small></div><div class="linha">${fn(i)}</div></div>`).join('') : `<p class="mudo">${vazio}</p>`;
   remendar(
     bloco('pend', `<h2>Aguardando sua aprovação (${a.pendentes.length})</h2><div class="card">${lista(a.pendentes, botoesPend, 'Nada para aprovar. 🎉')}</div>`) +
-    bloco('pub', `<h2>Aprovados, aguardando publicar (${a.prontos.length})</h2><div class="card"><p class="mudo">Nada publica sozinho: cada item só vai ao ar quando você clica em Publicar.</p>${lista(a.prontos, botoesPub, 'Nenhum item aprovado esperando.')}</div>`) +
+    bloco('pub', `<h2>Aprovados, aguardando publicar (${a.prontos.length})</h2><div class="card"><p class="mudo">Episódio aprovado posta sozinho no horário da madrugada (aba Episódios). O resto só vai ao ar quando você clica em Publicar.</p>${lista(a.prontos, botoesPub, 'Nenhum item aprovado esperando.')}</div>`) +
+    bloco('pecas', await htmlPecas()) +
     bloco('fila', `<h2>Fila de produção</h2><div class="card" id="logsFila">${htmlFila()}</div>`)
   );
 }
@@ -335,7 +441,7 @@ async function rEpisodios() {
       <label class="chk"><input id="epSemVoz" type="checkbox"> prévia sem voz (não gasta créditos)</label>
       <button class="btn publicar" onclick="gerarEp()">▶ Gerar episódio</button></div>
       <p class="mudo">Roda a fábrica inteira (coleta no Supabase → roteiro → voz → filmagem → montagem) em segundo plano, uns 5 minutos. Ao terminar, gera as copies e o vídeo aparece aqui para aprovar.</p></div>`;
-  const cards = d.episodios.map((e) => {
+  const cards = bloco('auto', blocoAuto(d.auto)) + d.episodios.map((e) => {
     const estado = e.publicado_em ? '<span class="st publicado">publicado</span>' : e.aprovado_em ? '<span class="st aprovado">aprovado</span>' : e.video ? '<span class="st aguardando">aguardando aprovação</span>' : '<span class="st neutro">sem vídeo</span>';
     return bloco('ep' + e.numero, `<div class="card"><div class="ep">
       <div>${e.video ? `<video controls preload="metadata" src="${e.video}"></video>` : '<p class="mudo">Ainda sem vídeo.</p>'}</div>
@@ -351,6 +457,7 @@ async function rEpisodios() {
           <button class="btn" onclick="irPara('divulgacao',{ep:${e.numero}})">📢 Copies</button>
           ${botao('↻ Regerar', 'gerar_episodio', { numero: e.numero, sem_voz: e.sem_voz }, '', `data-confirma="Gerar o episódio ${e.numero} de novo? A aprovação atual é desfeita."` + (e.gerando ? ' disabled' : ''))}
         </div>
+        ${autoPostar(e)}
         ${e.publicado_em ? `<p class="mudo">Registrado como publicado em ${quando(e.publicado_em)}</p>` : ''}
         ${!e.aprovado_em || e.sem_voz ? '<p class="mudo">Publicar só libera depois de Aprovar (e com voz).</p>' : ''}
         ${e.video ? blocoRedes(e) : ''}
@@ -656,6 +763,42 @@ async function rCargos() {
     bloco('n', `<h2>Novo distintivo</h2><div class="card linha"><input id="cargoEmoji" value="🏅" style="width:60px"><input id="cargoNome" placeholder="Nome do distintivo (ex.: Destaque do mês)" style="min-width:260px"><button class="btn aprovar" onclick="acao('cargo_criar',{emoji:$('#cargoEmoji').value,nome:$('#cargoNome').value},'Distintivo criado')">Criar distintivo</button></div>`));
 }
 
+// ================================================================ CARGOS DE NOVA MARTE (liderança)
+// prévia: o MESMO boneco do vídeo (gerarSprite) com o traje do cargo (vestirTraje), carregados de /traje.js
+function desenharPrevias() {
+  document.querySelectorAll('canvas[data-seed]').forEach((cv) => {
+    if (typeof gerarSprite !== 'function') return;
+    const lid = JSON.parse(cv.dataset.lid || 'null'), g = cv.getContext('2d');
+    g.clearRect(0, 0, 16, 16);
+    vestirTraje(gerarSprite(+cv.dataset.seed), lid).forEach((l, j) => l.forEach((c, i) => { if (c) { g.fillStyle = c; g.fillRect(i + 2, j + 3, 1, 1); } }));
+  });
+}
+async function rLiderancas() {
+  const d = await get('/api/liderancas');
+  const opcoes = d.colonos.map((c) => `<option value="${esc(c.codigo)}">${esc(c.nome)} · ${esc(c.codigo)}${c.pelo_site ? ' · 🌐 pelo site' : ''}${c.lideranca ? ' · (já é ' + esc(c.lideranca) + ')' : ''}</option>`).join('');
+  const card = (c) => {
+    const o = c.ocupante, lid = JSON.stringify({ id: c.id, cor: c.cor, traje: c.traje, acessorios: c.acessorios });
+    return `<div class="card lid"><canvas width="16" height="16" data-seed="${o ? o.seed : 11 + c.id.length * 7}" data-lid='${esc(lid)}'></canvas><div>
+      <span class="tag-lid" style="color:${esc(c.cor)};border-color:${esc(c.cor)}">${esc(c.tag)}</span>
+      <h3 style="color:${esc(c.cor)}">${esc(c.nome)}</h3><p class="mudo" style="margin:0 0 8px">${esc(c.descricao)}</p>
+      ${o ? `<p style="margin:0 0 8px"><b style="color:${esc(c.cor)}">${esc(c.titulo)} ${esc(o.nome)}</b> <span class="mudo">${esc(o.codigo)} · ${esc(o.origem)}</span></p>` : '<p class="mudo" style="margin:0 0 8px">Vago</p>'}
+      <div class="linha"><select id="lid-${esc(c.id)}" style="max-width:100%"><option value="">Nomear…</option>${opcoes}</select>
+      <button class="btn aprovar peq" onclick="nomearLider('${esc(c.id)}')">Nomear</button>
+      ${o ? botao('Tirar', 'lideranca_remover', { cargo: c.id }, 'peq perigo', `data-confirma="Tirar ${esc(o.nome)} do cargo?"`) : ''}</div></div></div>`;
+  };
+  remendar(
+    (d.falta ? bloco('falta', `<div class="aviso">⚠ Falta a coluna no banco: ${esc(d.falta)}</div>`) : '') +
+    bloco('topo', `<p class="mudo">Quem é nomeado muda <b>na hora</b>: o nome ganha o título na cor do cargo (ex.: “Líder Ana”), o boneco veste o traje e a tag aparece em cima da cabeça no site e no próximo episódio. Cada cargo tem uma pessoa só. 🌐 = entrou pelo site (concorre a líder, como diz o gancho do episódio).</p>`) +
+    bloco('g', `<div class="grade-lid">${d.cargos.map(card).join('')}</div>`));
+  desenharPrevias();
+}
+async function nomearLider(cargo) {
+  const codigo = $('#lid-' + cargo).value;
+  if (!codigo) return toast('Escolha um colono na lista', true);
+  await acao('lideranca_nomear', { cargo, codigo });
+}
+window.nomearLider = nomearLider;
+
 // ================================================================ CONEXÕES
 async function rConexoes() {
   const d = await get('/api/conexoes');
@@ -665,7 +808,7 @@ async function rConexoes() {
     Object.entries(grupos).map(([g, itens]) => bloco(g, `<h2>${esc(g)}</h2><div class="card">${itens.map((i) => `<div class="item"><div class="txt"><b>${esc(i.nome)}</b><small>${esc(i.detalhe)}</small></div><span class="st ${esc(i.status)}">${esc(i.status)}</span></div>`).join('')}</div>`)).join(''));
 }
 
-const RENDER = { aprovacoes: rAprovacoes, cadastros: rCadastros, episodios: rEpisodios, divulgacao: rDivulgacao, colonos: rColonos, visao: rVisao, compras: rCompras, site: rSite, chat: rChat, produtos: rProdutos, cargos: rCargos, conexoes: rConexoes };
+const RENDER = { aprovacoes: rAprovacoes, cadastros: rCadastros, episodios: rEpisodios, divulgacao: rDivulgacao, colonos: rColonos, visao: rVisao, compras: rCompras, site: rSite, chat: rChat, produtos: rProdutos, cargos: rCargos, liderancas: rLiderancas, conexoes: rConexoes };
 window.irPara = irPara; window.acao = acao; window.atualizar = atualizar; window.lembrar = lembrar; window.$ = $;
 
 desenharAbas();

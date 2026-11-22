@@ -2,7 +2,7 @@ import 'server-only';
 import { db } from '@/lib/supabase';
 import colonia from '@/fabrica/colonia.json';
 import marte from '@/fabrica/marte.json';
-import { posCratera } from '@/lib/mundo';
+import { posCratera, varianteDaCapsula } from '@/lib/mundo';
 
 /**
  * Estado da colônia para o "Mundo ao vivo": a MESMA geometria do vídeo (fabrica/colonia.json),
@@ -15,6 +15,7 @@ export type Estacao = { id: string; nome: string; dia: number; temp: number | nu
 export type ProblemaDoDia = { titulo: string; rotulo: string; categoria: string; heroi: string | null; heroi_codigo: string | null };
 export type CompraNoMapa = { pos_x: number; pos_y: number; produto_slug: string; seed: number };
 /** Pet do Colono: vive no quintal do dono (lib/pet.ts) em vez de ficar parado como ícone. */
+export type CapsulaNoMapa = { pos_x: number; pos_y: number; variante: string };
 export type PetNoMapa = { codigo: string; pos_x: number; pos_y: number };
 /** Cratera batizada por um colono (resgate aprovado de "Nomeie sua Cratera"). */
 export type CrateraNoMapa = { id: number; nome: string; dono: string; codigo: string; x: number; y: number; r: number };
@@ -30,6 +31,7 @@ export type EstadoColonia = {
   compras: CompraNoMapa[];
   pets: PetNoMapa[];
   crateras: CrateraNoMapa[];
+  capsulas: CapsulaNoMapa[];   // casas trocadas pela cápsula comprada (só pedido pago)
 };
 
 /** "BuracoNegrote" → "Cratera BuracoNegrote" (quem já escreveu "Cratera ..." fica como escreveu). Igual a fabrica/episodio.py. */
@@ -61,7 +63,7 @@ export async function estadoColonia(): Promise<EstadoColonia> {
       .not('publicado_em', 'is', null).order('numero', { ascending: false }).limit(1).maybeSingle()
       .then((r) => (r.error ? db().from('episodios').select('numero, titulo, publicado_em')   // sem a coluna resumo (falta a 006)
         .not('publicado_em', 'is', null).order('numero', { ascending: false }).limit(1).maybeSingle() : r)),
-    db().from('pedidos').select('produtos(slug), personagens!inner(codigo, pos_x, pos_y, seed, oculto)')
+    db().from('pedidos').select('opcao, produtos(slug), personagens!inner(codigo, pos_x, pos_y, seed, oculto)')
       .eq('status', 'aprovado').eq('personagens.oculto', false).order('id', { ascending: false }).limit(400),
     db().from('resgates').select('id, texto, produtos!inner(slug), personagens!inner(codigo, nome, apelido, oculto)')
       .eq('status', 'aprovado').eq('produtos.slug', 'nomeie-sua-cratera').eq('personagens.oculto', false)
@@ -90,13 +92,19 @@ export async function estadoColonia(): Promise<EstadoColonia> {
         heroi: resumo.problema.heroi ?? null, heroi_codigo: resumo.problema.heroi_codigo ?? null }
     : null;
 
-  type LinhaCompra = { produtos: { slug: string } | null; personagens: { codigo: string; pos_x: number; pos_y: number; seed: number } | null };
+  type LinhaCompra = { opcao: string | null; produtos: { slug: string } | null; personagens: { codigo: string; pos_x: number; pos_y: number; seed: number } | null };
   const compras: CompraNoMapa[] = [];
   const pets: PetNoMapa[] = [];
+  const capsulas: CapsulaNoMapa[] = [];
   const vistos = new Set<string>();
   for (const c of (comprasDb.data ?? []) as unknown as LinhaCompra[]) {
     if (!c.produtos || !c.personagens) continue;
     if (c.produtos.slug === 'eventos-furia-marte' || c.produtos.slug === 'destaque-proximo-ep') continue;   // não são objeto na casa
+    if (c.produtos.slug === 'capsula-habitacional') {   // a casa vira a cápsula (a compra mais recente vale)
+      if (!capsulas.some((k) => k.pos_x === c.personagens!.pos_x && k.pos_y === c.personagens!.pos_y))
+        capsulas.push({ pos_x: c.personagens.pos_x, pos_y: c.personagens.pos_y, variante: varianteDaCapsula(c.opcao) });
+      continue;
+    }
     if (/pet/i.test(c.produtos.slug)) {        // um pet por dono
       if (!pets.some((p) => p.codigo === c.personagens!.codigo)) pets.push({ codigo: c.personagens.codigo, pos_x: c.personagens.pos_x, pos_y: c.personagens.pos_y });
       continue;
@@ -128,5 +136,6 @@ export async function estadoColonia(): Promise<EstadoColonia> {
     compras,
     pets,
     crateras,
+    capsulas,
   };
 }

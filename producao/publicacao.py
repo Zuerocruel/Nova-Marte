@@ -195,6 +195,39 @@ def exigir_liberado_extra(numero: int, item: str, rede: str, ensaio: bool = Fals
 
 
 
+def arquivos_apresentacao() -> tuple[list[Path], Path]:
+    """Carrossel de apresentação do perfil (fabrica/divulgacao.py --apresentacao)."""
+    import config
+    pasta = config.SAIDA / "divulgacao" / "apresentacao"
+    return sorted(pasta.glob("apresentacao_*.png")), pasta / "legenda.txt"
+
+
+def exigir_liberado_apresentacao(rede: str, ensaio: bool = False) -> dict:
+    """Mesmas travas do carrossel do episódio, para o post de apresentação (chave "apresentacao")."""
+    if rede != "instagram":
+        raise Recusado("o post de apresentação vai só para o feed do Instagram")
+    est = estado_painel().get("divulgacao", {}).get("apresentacao", {})
+    if not est.get("aprovado_em"):
+        raise Recusado("o post de apresentação não está aprovado no painel")
+    imagens, txt = arquivos_apresentacao()
+    if not 2 <= len(imagens) <= 10 or not txt.exists():
+        raise Recusado("imagens da apresentação ou legenda.txt não existem: gere de novo no painel")
+    aprovado = datetime.fromisoformat(est["aprovado_em"]).timestamp() + 5
+    if any(i.stat().st_mtime > aprovado for i in imagens):
+        raise Recusado("as imagens foram geradas de novo depois da aprovação: aprove de novo no painel")
+    legenda = txt.read_text(encoding="utf-8")
+    problemas = validar_copy(rede, {"legenda": legenda})
+    if problemas:
+        raise Recusado("legenda fora das regras: " + "; ".join(problemas))
+    s = status("apresentacao", rede)
+    if s.get("status") in TRAVADOS and not ensaio:
+        raise Recusado(f"{ROTULOS[rede]} está '{s['status']}' — nada é reenviado sozinho.")
+    return {"imagens": imagens, "copy": {"legenda": legenda}}
+
+
+CARROSSEL_DESDE = 4   # o carrossel do Instagram começa no episódio 4 (os anteriores não têm)
+
+
 def arquivos_carrossel(numero: int) -> tuple[list[Path], Path]:
     """As imagens do carrossel (em ordem) e o arquivo da legenda, em saida/epNNN/imagens/."""
     import config
@@ -207,6 +240,8 @@ def exigir_liberado_carrossel(numero: int, rede: str, ensaio: bool = False) -> d
     legenda dentro das regras e nada reenviado sozinho."""
     if rede != "instagram":
         raise Recusado("o carrossel só vai para o Instagram")
+    if numero < CARROSSEL_DESDE:
+        raise Recusado(f"o carrossel só começa no episódio {CARROSSEL_DESDE}")
     est = estado_painel().get("extras", {}).get(str(numero), {}).get("carrossel", {})
     if not est.get("aprovado_em"):
         raise Recusado(f"o carrossel do episódio {numero} não está aprovado no painel")
@@ -227,7 +262,29 @@ def exigir_liberado_carrossel(numero: int, rede: str, ensaio: bool = False) -> d
     return {"imagens": imagens, "copy": {"legenda": legenda}}
 
 # ---------------------------------------------------------------- regras de texto
-RE_URL = re.compile(r"(https?://\S+|www\.\S+|\b[\w-]+(\.[\w-]+)*\.(app|com|br|net|org|io|link|me|ly|gg)(/\S*)?)", re.I)
+# Link em qualquer forma: com/sem http, www, domínios comuns e o "ponto com" escrito por extenso.
+# REGRA FIXA: legenda do Instagram e do TikTok NUNCA tem link (só o YouTube pode). Conferido na geração das
+# copies (sem_link), na aprovação, na liberação para postar e de novo no celular, na hora de colar.
+RE_URL = re.compile(
+    r"(https?://\S+|www\.\S+"
+    r"|\b[\w-]+(\.[\w-]+)*\s?\.\s?(app|com|br|net|org|io|link|me|ly|gg|xyz|site|online|store|shop|tv|co|info|dev|page|bio)\b(/\S*)?"
+    r"|\b(ponto|dot)\s?(com|br|app|net)\b)", re.I)
+
+
+def sem_link(texto: str) -> str:
+    """Tira qualquer link do texto (legenda de Instagram/TikTok) e arruma os espaços que sobram."""
+    t = RE_URL.sub("", texto)
+    t = re.sub(r"[ \t]+([,.!?])", r"\1", t)
+    t = re.sub(r"[ \t]+\n", "\n", t)
+    return re.sub(r"[ \t]{2,}", " ", t).strip()
+
+
+def exigir_sem_link(rede: str, legenda: str) -> None:
+    """Última trava antes de colar a legenda no app: Instagram/TikTok com link → nada é postado."""
+    m = RE_URL.search(legenda or "")
+    if rede in ("instagram", "tiktok") and m:
+        raise Recusado(f"a legenda do {ROTULOS[rede]} tem link ({m.group(0)!r}): Instagram e TikTok nunca "
+                       "levam link. Nada foi postado.")
 RE_HASHTAG = re.compile(r"(?<![\w#])#[\wÀ-ÿ]+", re.U)
 
 

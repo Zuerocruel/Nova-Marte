@@ -7,13 +7,14 @@ import {
 } from '@/lib/mundo';
 import {
   BLOCO, CASA, COR, blocoDeTerreno, crateraBatizada, desenharBase, desenharClima, desenharObra, desenharPraca, desenharTrilha,
-  disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
+  desenharCapsula, disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
 } from '@/lib/colonia-arte';
 import { situacao, type Situacao } from '@/lib/vida';
 import { descricaoPet, situacaoPet } from '@/lib/pet';
 import { cargoDe } from '@/lib/cargos';
 import type { EstadoColonia } from '@/lib/colonia';
 import LojaModal from './LojaModal';
+import { liderancaDe, nomeComTitulo, vestirTraje } from '@/lib/liderancas';
 import BotaoComentar from './BotaoComentar';
 import type { MensagemChat } from '@/app/api/chat/route';
 
@@ -58,13 +59,16 @@ const suave = (k: number) => (k = clamp(k), k < 0.5 ? 4 * k * k * k : 1 - Math.p
 const TELHADOS = ['#e04f5f', '#3f8efc', '#2bb673', '#f4b400', '#9b59b6', '#ff7f50', '#00b8a9', '#ec407a'];
 
 const spritesColono = new Map<number, HTMLCanvasElement>();
-function spriteColono(seed: number): HTMLCanvasElement {
-  let c = spritesColono.get(seed);
+const spritesLider = new Map<string, HTMLCanvasElement>();
+function spriteColono(seed: number, lideranca?: string | null): HTMLCanvasElement {
+  const lid = liderancaDe(lideranca);
+  const k = lid ? `${seed}:${lid.id}` : '';
+  let c = lid ? spritesLider.get(k) : spritesColono.get(seed);
   if (!c) {
     c = document.createElement('canvas'); c.width = c.height = 12;
     const x = c.getContext('2d')!;
-    gerarSprite(seed).forEach((l, j) => l.forEach((cor, i) => { if (cor) { x.fillStyle = cor; x.fillRect(i, j, 1, 1); } }));
-    spritesColono.set(seed, c);
+    vestirTraje(gerarSprite(seed), lid).forEach((l, j) => l.forEach((cor, i) => { if (cor) { x.fillStyle = cor; x.fillRect(i, j, 1, 1); } }));
+    if (lid) spritesLider.set(k, c); else spritesColono.set(seed, c);
   }
   return c;
 }
@@ -311,9 +315,12 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
           .map((o) => ({ x0: o.x, y0: o.y, x1: o.x + o.w, y1: o.y + o.h }));
         for (const p of casas) desenharFio(ctx, p, fioDaCasa(idDoCodigo(p.codigo), Math.max(n, 1), fontes), t);
       }
+      const capsulas = new Map((e?.capsulas ?? []).map((k) => [`${k.pos_x},${k.pos_y}`, k.variante]));
       for (const p of casas) {
         const pessoa = pessoas.find((x) => x.p === p);
-        desenharCasinha(ctx, p.pos_x, p.pos_y, p.seed, !!pessoa && pessoa.s.tipo === 'casa');
+        const luz = !!pessoa && pessoa.s.tipo === 'casa', cap = capsulas.get(`${p.pos_x},${p.pos_y}`);
+        if (cap) desenharCapsula(ctx, p.pos_x * CASA, p.pos_y * CASA, cap, TELHADOS[p.seed % TELHADOS.length], luz);
+        else desenharCasinha(ctx, p.pos_x, p.pos_y, p.seed, luz);
       }
       if (e) for (const cp of e.compras) {
         if (cp.pos_x < vx0 - 1 || cp.pos_x > vx1 + 1 || cp.pos_y < vy0 - 1 || cp.pos_y > vy1 + 1) continue;
@@ -414,8 +421,8 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
               : (s.tipo === 'praca' && Math.sin(t * 4 + pe.id) > 0.8 ? -2 : s.tipo === 'obra' && Math.floor(t * 3 + pe.id) % 2 ? -1 : 0);
             ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(s.x - 4, s.y - 1, 8, 2);
             ctx.save(); ctx.translate(Math.round(s.x), Math.round(s.y + pulo)); if (s.dir < 0) ctx.scale(-1, 1);
-            if (img && img.complete && img.naturalWidth) ctx.drawImage(img, -6, -12, 12, 12);
-            else ctx.drawImage(spriteColono(p.seed), -6, -12, 12, 12);
+            if (img && img.complete && img.naturalWidth && !p.lideranca) ctx.drawImage(img, -6, -12, 12, 12);
+            else ctx.drawImage(spriteColono(p.seed, p.lideranca), -6, -12, 12, 12);
             ctx.restore();
             if (p.status === 'estreou') { ctx.fillStyle = '#ffd84a'; ctx.fillRect(s.x + 4, s.y - 13, 2.5, 2.5); }
             if (s.tipo === 'obra' && Math.floor(t * 4 + pe.id) % 3 === 0) { ctx.fillStyle = COR.ouro; ctx.fillRect(s.x + 5 * s.dir, s.y - 7, 2, 2); }
@@ -437,7 +444,23 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
           if (sel && sel.codigo === pe.p.codigo) continue;
           const s = tela(pe.s.x, pe.s.y + 6);
           const cg = cargoDe(pe.p.cargo);
-          if (s.x > -50 && s.x < w + 50 && s.y > -20 && s.y < h + 20) ctx.fillText(cg ? `${cg.emoji} ${pe.p.nome}` : pe.p.nome, s.x, s.y, CASA * zoom * 1.6);
+          const lid = liderancaDe(pe.p.lideranca);
+          const nome = nomeComTitulo(pe.p.nome, pe.p.lideranca);
+          ctx.fillStyle = lid ? lid.cor : '#fff';
+          if (s.x > -50 && s.x < w + 50 && s.y > -20 && s.y < h + 20) ctx.fillText(cg && !lid ? `${cg.emoji} ${nome}` : nome, s.x, s.y, CASA * zoom * 1.6);
+        }
+        ctx.fillStyle = '#fff';
+      }
+      if (zoom >= 2.5) {   // tag dos cargos de liderança (LÍDER, VICE...) em cima da cabeça, na cor do cargo
+        ctx.font = `bold ${Math.min(11, 2.2 * zoom)}px system-ui, sans-serif`; ctx.textAlign = 'center';
+        for (const pe of pessoas) {
+          const lid = liderancaDe(pe.p.lideranca);
+          if (!lid) continue;
+          const s = tela(pe.s.x, pe.s.y - 13);
+          if (s.x < -60 || s.x > w + 60 || s.y < -20 || s.y > h + 20) continue;
+          const lw = ctx.measureText(lid.tag).width + 8;
+          ctx.fillStyle = '#140f26dd'; ctx.fillRect(s.x - lw / 2, s.y - 14, lw, 13);
+          ctx.fillStyle = lid.cor; ctx.fillRect(s.x - lw / 2, s.y - 14, lw, 1.5); ctx.fillText(lid.tag, s.x, s.y - 4);
         }
       }
       if (e && zoom >= 1.2) {   // placa com o nome das crateras batizadas
@@ -665,7 +688,9 @@ export default function Mundo({ codigoInicial, novo, mensagens = [] }: {
         </div>
         {selecionado && (
           <div className="ficha">
-            <strong>{selecionado.nome}</strong> · @{selecionado.handle} ({selecionado.plataforma})<br />
+            <strong style={liderancaDe(selecionado.lideranca) ? { color: liderancaDe(selecionado.lideranca)!.cor } : undefined}>
+              {nomeComTitulo(selecionado.nome, selecionado.lideranca)}</strong> · @{selecionado.handle} ({selecionado.plataforma})<br />
+            {liderancaDe(selecionado.lideranca) && <span className="selo-cargo" style={{ margin: '4px 0', borderColor: liderancaDe(selecionado.lideranca)!.cor }}>🎖️ {liderancaDe(selecionado.lideranca)!.nome}</span>}
             {cargoDe(selecionado.cargo) && <span className="selo-cargo" style={{ margin: '4px 0' }}>{cargoDe(selecionado.cargo)!.emoji} {cargoDe(selecionado.cargo)!.nome}</span>}
             {cargoDe(selecionado.cargo) && <br />}
             {fazendo && <span style={{ color: 'var(--areia)' }}>Agora: {fazendo}<br /></span>}

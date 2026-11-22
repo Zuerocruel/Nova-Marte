@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fabrica"))
 import config  # noqa: E402  (config da fábrica: nome do site, pastas)
+from publicacao import sem_link  # noqa: E402  (Instagram/TikTok nunca levam link)
 
 NOME = "Operação Marte Zero"
 PLATAFORMAS = {
@@ -169,9 +170,9 @@ def montar(n: int, r: dict, lt: dict | None, linhas_pauta: list[str], g: dict, t
         "youtube": {"titulo": f"{titulo} | {NOME} #{n}"[:100], "descricao": "\n".join(yt_desc),
                     "tags": "operação marte zero, pixel art, marte, colônia espacial, " + missao.lower(),
                     "link": f"https://{link('youtube', n)}"},
-        "instagram": {"legenda": "\n".join(ig), "link": f"https://{link('instagram', n)}",
+        "instagram": {"legenda": sem_link("\n".join(ig)), "link": f"https://{link('instagram', n)}",
                       "obs": "Instagram não deixa link clicável na legenda: use este link na bio ou no story."},
-        "tiktok": {"legenda": tt[:2200], "link": f"https://{link('tiktok', n)}",
+        "tiktok": {"legenda": sem_link(tt)[:2200], "link": f"https://{link('tiktok', n)}",
                    "obs": "Coloque o link na bio do TikTok antes de postar."},
     }
 

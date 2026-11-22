@@ -22,7 +22,10 @@ function fotoMundo(t, alvo, zoom) {
     y0: Math.floor(-ty / zoom / CASA), y1: Math.ceil((H - ty) / zoom / CASA),
   };
   const energia = t >= tempoEnergia || EP.mundo.obras.some((o) => o.tipo === 'solar' && o.status === 'concluida');
+  desenharCanteiro(t);
   desenharObras(t);
+  desenharEsqueleto(t);
+  desenharCasas(view, t, energia);
   desenharColonos(view, t);
   desenharCompras(t);
   desenharBase(t, energia);
@@ -140,14 +143,16 @@ function capaVertical(info) {
   fotoMundo(cenaT('missao', 0.8) ?? EP.duracao * 0.6, 'obra', 6);
   fundoMundo(w, h, 0.25);
   const g = sx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, 'rgba(20,15,38,0.85)'); g.addColorStop(0.35, 'rgba(20,15,38,0.1)');
-  g.addColorStop(0.7, 'rgba(20,15,38,0.1)'); g.addColorStop(1, 'rgba(20,15,38,0.9)');
+  g.addColorStop(0, 'rgba(20,15,38,0.9)'); g.addColorStop(0.36, 'rgba(20,15,38,0.1)');
+  g.addColorStop(0.55, 'rgba(20,15,38,0.1)'); g.addColorStop(0.82, 'rgba(20,15,38,0.9)'); g.addColorStop(1, 'rgba(20,15,38,0.95)');
   sx.fillStyle = g; sx.fillRect(0, 0, w, h);
-  escrever('OPERAÇÃO', w / 2, 210, 70, '#fff');
-  escrever('MARTE ZERO', w / 2, 310, 96, COR.ouro);
-  selo(`EPISÓDIO ${EP.numero}`, w / 2 - 190, 400, 40, COR.agua);
-  quebrar(info.manchete, 56, w - 140).slice(0, 3).forEach((l, i) => escrever(l, w / 2, 1430 + i * 84, 56, i ? COR.ouro : '#fff'));
-  if (info.problema) { const t = `! ${info.problema.titulo.toUpperCase()}`; sx.font = `30px ${FONTE}`; selo(t, w / 2 - (sx.measureText(t).width + 42) / 2, 1700, 30, COR.alerta, '#fff'); }
+  // ÁREA SEGURA: a grade do perfil do Instagram mostra só o meio 3:4 (y 240 a 1680) e, dentro do Reel, a legenda e os
+  // botões cobrem a parte de baixo e a direita. Todo texto fica entre y 300 e 1560, com margem nas laterais.
+  escrever('OPERAÇÃO', w / 2, 340, 64, '#fff');
+  escrever('MARTE ZERO', w / 2, 435, 88, COR.ouro);
+  selo(`EPISÓDIO ${EP.numero}`, w / 2 - 180, 505, 38, COR.agua);
+  quebrar(info.manchete, 54, w - 200).slice(0, 3).forEach((l, i) => escrever(l, w / 2, 1235 + i * 78, 54, i ? COR.ouro : '#fff'));
+  if (info.problema) { const t = `! ${info.problema.titulo.toUpperCase()}`; sx.font = `30px ${FONTE}`; selo(t, w / 2 - (sx.measureText(t).width + 42) / 2, 1488, 30, COR.alerta, '#fff'); }
   return png();
 }
 

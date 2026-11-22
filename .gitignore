@@ -19,3 +19,6 @@ __pycache__/
 
 # Painel local (estado e logs ficam só neste computador)
 producao/dados/
+
+# configurações pessoais do Claude Code
+.claude/settings.local.json

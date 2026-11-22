@@ -260,14 +260,16 @@ export function desenharObra(c: Ctx, o: Geo & { tipo: string }, st: EstadoObra, 
     predioEmObra(c, r, st, t, PINTORES[o.tipo]);
   } else {   // estufa (e qualquer obra nova sem desenho próprio)
     if (st.p <= 0) return;
-    const colunas = o.w * 2, vis = Math.ceil(st.p * colunas), larg = (r.x1 - r.x0 - 4) / colunas;
+    const colunas = o.w * 2, larg = (r.x1 - r.x0 - 4) / colunas, H = r.y1 - r.y0 - 12;   // sobe de baixo para cima
+    const alt = Math.max(2, st.p * H), topo = r.y1 - 6 - alt;
     ret(c, r.x0 + 2, r.y1 - 6, r.x1 - r.x0 - 4, 4, '#6b6f86');
-    for (let i = 0; i < vis; i++) {
+    for (let i = 0; i < colunas; i++) {
       const x = r.x0 + 2 + i * larg;
-      c.globalAlpha = 0.55; ret(c, x, r.y0 + 6, larg - 1, r.y1 - r.y0 - 12, '#8fe6ff'); c.globalAlpha = 1;
-      ret(c, x, r.y0 + 6, 1, r.y1 - r.y0 - 12, '#eef0f8');
-      if (st.p > 0.6) for (let j = 0; j < 3; j++) ret(c, x + 3, r.y0 + 14 + j * 12, 4, 4, j % 2 ? '#2bb673' : '#4ed37a');
+      c.globalAlpha = 0.55; ret(c, x, topo, larg - 1, alt, '#8fe6ff'); c.globalAlpha = 1;
+      ret(c, x, topo, 1, alt, '#eef0f8');
+      for (let j = 0; j < 3; j++) { const y = r.y0 + 14 + j * 12; if (y >= topo) ret(c, x + 3, y, 4, 4, j % 2 ? '#2bb673' : '#4ed37a'); }
     }
+    if (st.p < 1) ret(c, r.x0 + 2, topo - 1, r.x1 - r.x0 - 4, 2, '#ffc83d');
   }
 }
 
@@ -447,4 +449,41 @@ export function desenharClima(c: Ctx, efeito: string, forte: boolean, t: number,
     ret(c, x, y, w, base.risco ? 1.5 : 3, base.cor);
   }
   c.globalAlpha = 1;
+}
+
+// ------------------------------------------------------------------ cápsulas (variantes da casa do colono)
+// Quem compra a cápsula habitacional troca a casinha do lote pela cápsula escolhida. A MESMA arte está em
+// fabrica/diretor.js (desenharCapsula): mude as duas juntas. Variantes: lib/mundo.ts → VARIANTES_CAPSULA.
+
+/** Cápsula num lote de 16 px (x, y = canto do lote). `cor` = cor do colono (telhado), `luz` = janela acesa. */
+export function desenharCapsula(c: Ctx, x: number, y: number, variante: string, cor: string, luz: boolean) {
+  const R = (a: number, b: number, w: number, h: number, k: string) => { c.fillStyle = k; c.fillRect(x + a, y + b, w, h); };
+  const D = (a: number, b: number, r: number, k: string) => disco(c, x + a, y + b, r, k);
+  const janela = luz ? '#ffe58a' : '#2b2350';
+  R(0, 13, 15, 2, 'rgba(0,0,0,0.25)');
+  if (variante === 'estufa') {                     // cúpula de vidro cheia de plantas
+    D(7, 8, 6, '#2f6b7e'); D(7, 8, 5, '#9fe7ff');
+    D(4, 9, 2, '#2bb673'); D(10, 9, 2, '#2bb673'); D(7, 6, 2, '#5fd38a'); R(9, 5, 1, 1, '#ff7f50'); R(4, 7, 1, 1, '#ffd85a');
+    R(4, 4, 2, 1, '#ffffff'); R(3, 5, 1, 1, '#ffffff');
+    R(1, 11, 13, 2, '#6b6f86'); R(2, 11, 11, 1, cor); R(6, 10, 3, 3, '#3a2f63');
+  } else if (variante === 'observatorio') {        // cúpula escura com a fenda aberta e o telescópio
+    R(1, 10, 13, 3, '#6b6f86'); R(1, 10, 13, 1, cor);
+    D(7, 8, 6, '#3b3f5c'); D(7, 8, 5, '#5a5f84');
+    R(6, 2, 3, 7, '#22253a');
+    c.fillStyle = '#c9cde0'; for (let i = 0; i < 4; i++) c.fillRect(x + 7 + i, y + 6 - i * 1.5, 2, 2);   // tubo do telescópio
+    R(11, 0, 2, 2, '#ffe58a');
+    R(3, 9, 2, 2, janela); R(10, 9, 2, 2, janela); R(6, 10, 3, 3, '#22253a');
+  } else if (variante === 'dupla') {                // duas cúpulas ligadas por um túnel
+    R(4, 9, 7, 3, '#b9bccc'); R(4, 9, 7, 1, '#e4e6f0');
+    D(4, 9, 4, '#6b6f86'); D(4, 9, 3, '#e4e6f0'); D(11, 8, 4, '#6b6f86'); D(11, 8, 3, '#e4e6f0');
+    R(1, 9, 7, 1, cor); R(8, 8, 7, 1, cor);
+    R(3, 10, 2, 3, '#3a2f63'); R(10, 6, 2, 2, janela); R(3, 6, 1, 1, janela);
+    R(13, 2, 1, 3, '#9a9db0'); R(13, 1, 1, 1, '#e04f5f');
+  } else {                                          // clássica: cúpula maior, faixa dourada, antena e painel solar
+    D(7, 8, 7, '#6b6f86'); D(7, 8, 6, '#f2f3f8');
+    R(1, 8, 13, 2, cor); R(1, 10, 13, 1, '#ffd85a');
+    R(6, 9, 3, 4, '#3a2f63'); R(3, 5, 2, 2, janela); R(10, 5, 2, 2, janela);
+    R(7, -2, 1, 3, '#9a9db0'); R(7, -3, 1, 1, '#e04f5f');
+    R(12, 11, 4, 2, '#3f5fae'); R(12, 11, 4, 1, '#8fb3ff');
+  }
 }

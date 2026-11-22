@@ -25,7 +25,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 import config
-from roteiro import produto_curto
+from roteiro import curto_com_variante
 
 
 def montar_ep(pasta: Path) -> dict:
@@ -37,13 +37,14 @@ def montar_ep(pasta: Path) -> dict:
         "estacao": lt.get("estacao"),      # clima/etiqueta do topo (eventos.py)
         "problema": lt.get("problema"),    # problema do dia (deixa o clima mais forte se for de clima)
         "site_tela": config.SITE_TELA,
+        "liderancas": config.liderancas(),   # traje e tag de quem foi nomeado (traje.js)
         "mundo": {
             "fundadores": d["fundadores"],
             "base": d["base"],
             "praca": d.get("praca"),
             "obras": d["obras"],
             "colonos": d["mundo"],
-            "compras": [{**c, "produto_curto": produto_curto(c["produto"])} for c in d["compras"]],
+            "compras": [{**c, "produto_curto": curto_com_variante(c, c["produto_slug"])} for c in d["compras"]],
             "crateras": d.get("crateras", []),
         },
     }

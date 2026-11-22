@@ -90,10 +90,13 @@ def primeiro_nome(nome: str) -> str:
 def colono_publico(p: dict) -> dict:
     # no vídeo e no post vai o NICK (o nome real fica só no cadastro); quem não tem nick usa o primeiro nome
     nick = (p.get("apelido") or "").strip()
+    lid = config.liderancas().get(p.get("lideranca") or "")
+    titulo = f"{lid['titulo']} " if lid else ""   # nomeado no painel: "Líder Ana"
     return {
         "codigo": p["codigo"],
-        "nome": nick or nome_exibicao(p["nome"]),
-        "falado": nick or primeiro_nome(p["nome"]),
+        "nome": titulo + (nick or nome_exibicao(p["nome"])),
+        "falado": titulo + (nick or primeiro_nome(p["nome"])),
+        "lideranca": lid["id"] if lid else None,
         # casa calculada aqui (bairro.py, a mesma conta do banco e do site): o vídeo não depende de a
         # migração do bairro já ter rodado no Supabase
         "x": bairro.casa_do_codigo(p["codigo"])[0], "y": bairro.casa_do_codigo(p["codigo"])[1],
@@ -177,6 +180,25 @@ def fila_de_servicos(db: Supabase, campos: str, numero: int) -> dict[str, list[d
     return fila
 
 
+CAPSULA = "capsula-habitacional"
+VARIANTES_CAPSULA = ("classica", "estufa", "observatorio", "dupla")   # mesma lista de lib/colonia-arte.ts
+
+
+def capsulas(db: Supabase) -> dict[str, str]:
+    """codigo do colono → variante da cápsula comprada (a mais recente), de QUALQUER data: a casa fica trocada
+    para sempre. Só pedidos pagos; pedido sem opção (antes das variantes) = clássica."""
+    linhas = db.get("pedidos", {
+        "select": "id,opcao,produto:produtos!inner(slug),personagem:personagens(codigo,oculto)",
+        "status": f"in.({','.join(STATUS_PAGOS)})", "produto.slug": f"eq.{CAPSULA}", "order": "id.asc",
+    })
+    saida = {}
+    for c in linhas:
+        p = c.get("personagem")
+        if p and not p.get("oculto"):
+            saida[p["codigo"]] = c.get("opcao") if c.get("opcao") in VARIANTES_CAPSULA else "classica"
+    return saida
+
+
 # ---------- coleta ----------
 def ultimo_episodio(db: Supabase, numero: int) -> dict | None:
     linhas = db.get("episodios", {
@@ -226,6 +248,11 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
         campos += ",cargo,apelido"
     except requests.HTTPError:
         print("aviso: coluna personagens.cargo ainda não existe (rode supabase/migrations/008_cargos_nick.sql)")
+    try:                                   # cargos de liderança (migração 012)
+        db.get("personagens", {"select": "lideranca", "limit": 1})
+        campos += ",lideranca"
+    except requests.HTTPError:
+        print("aviso: coluna personagens.lideranca ainda não existe (rode supabase/migrations/012_liderancas.sql)")
 
     total_colonos = db.contar("personagens", visiveis)
     novos_total = db.contar("personagens", {**visiveis, **({"created_at": f"gt.{desde}"} if desde else {})})
@@ -245,7 +272,7 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
     if desde:
         filtro_compras["atualizado_em"] = f"gt.{desde}"
     compras_linhas = db.get("pedidos", {
-        "select": "id,status,atualizado_em,produto:produtos(slug,nome),"
+        "select": "id,status,opcao,atualizado_em,produto:produtos(slug,nome),"
                   f"personagem:personagens({campos},oculto)",
         **filtro_compras,
         "order": "atualizado_em.asc",
@@ -258,7 +285,8 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
             continue  # venda sem personagem ligado só entra na contagem
         if c["produto"]["slug"] in SERVICOS:
             continue  # Fúria e Destaque não viram objeto na casa: têm o momento deles (fila_de_servicos)
-        compras.append({**colono_publico(p), "produto": c["produto"]["nome"], "produto_slug": c["produto"]["slug"]})
+        compras.append({**colono_publico(p), "produto": c["produto"]["nome"], "produto_slug": c["produto"]["slug"],
+                        "opcao": c.get("opcao")})
 
     lista_obras, fonte_obras = obras(db, col["obras"])
     if ultimo and fonte_obras != "supabase":
@@ -287,13 +315,14 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
         dados |= {"colonos_total": 0, "novos_total": 0, "novos": [], "compras_total": 0,
                   "compras": [], "mundo": [], "populacao_anterior": 0}
     else:
+        cap = capsulas(db)
         dados |= {
             "colonos_total": total_colonos,
             "novos_total": novos_total,
             "novos": [colono_publico(p) for p in novos],
             "compras_total": len(compras_linhas),
             "compras": compras,
-            "mundo": [colono_publico(p) for p in mundo],
+            "mundo": [colono_publico(p) | ({"capsula": cap[p["codigo"]]} if p["codigo"] in cap else {}) for p in mundo],
             "populacao_anterior": len(col["fundadores"]) + total_colonos - novos_total,
         }
     dados["populacao"] = len(col["fundadores"]) + dados["colonos_total"]

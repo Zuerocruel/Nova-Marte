@@ -149,6 +149,10 @@ PADRAO_ESTADO = {
         "atribuicoes": {},  # codigo → [ids]
     },
     "site": {},          # aprovado_hash, aprovado_em, publicado_em, previa_pid
+    # Aprovar o episódio = postar sozinho no próximo horário de madrugada (Instagram + TikTok pelo celular,
+    # YouTube pelo n8n já agendado para o mesmo horário). Ver agenda_automatica().
+    "auto_postar": {"ligado": True, "horario": "03:00"},
+    "divulgacao": {},    # apresentacao/{aprovado_em}, stories/{"3": {aprovado_em, enviado_em}}, institucional/{aprovado_em}
 }
 ITENS_CHECKLIST = [
     ("revisado", "Nome revisado"),
@@ -341,6 +345,8 @@ def dados_episodios() -> dict:
             "sem_voz": bool(v and "sem_voz" in v.name),
             "gerado_em": datetime.fromtimestamp(v.stat().st_mtime, timezone.utc).isoformat(timespec="seconds") if v else None,
             "aprovado_em": e.get("aprovado_em"),
+            "agendado_para": e.get("agendado_para"),
+            "agendamento": e.get("agendamento"),
             "publicado_em": e.get("publicado_em") or (no_banco.get(n) or {}).get("publicado_em"),
             "copies": (pasta / "copies.json").exists(),
             "resumo": resumo_copies(n),
@@ -351,7 +357,7 @@ def dados_episodios() -> dict:
             "extras": dados_extras(n, pasta, est),
         })
     publicados = [n for n, e in no_banco.items() if e.get("publicado_em")]
-    return {"episodios": lista[::-1], "proximo": (max(publicados) + 1) if publicados else 1}
+    return {"episodios": lista[::-1], "proximo": (max(publicados) + 1) if publicados else 1, "auto": est["auto_postar"]}
 
 
 def dados_extras(n: int, pasta: Path, est: dict) -> dict:
@@ -897,16 +903,130 @@ def acao_gerar_episodio(d: dict):
     return {"job": j.id}
 
 
+def proximo_horario(hhmm: str, de: datetime | None = None) -> datetime:
+    """Próximo horário de postagem (hora do PC). Aprovou já de madrugada, depois do horário? Vai em 40 min."""
+    de = de or datetime.now().astimezone()
+    h, m = (int(x) for x in hhmm.split(":"))
+    alvo = de.replace(hour=h, minute=m, second=0, microsecond=0)
+    if alvo <= de:
+        alvo = de + timedelta(minutes=40) if de.hour < 6 else alvo + timedelta(days=1)
+    return alvo
+
+
 def acao_aprovar_episodio(d: dict):
     n = _ep(d)
-    if not video_de(config.pasta_episodio(n)):
+    pasta = config.pasta_episodio(n)
+    v = video_de(pasta)
+    if not v:
         raise ValueError("o episódio ainda não tem vídeo")
-    ESTADO.mudar(lambda e: e["episodios"].setdefault(str(n), {}).update(aprovado_em=agora()))
+    auto = ESTADO.ler()["auto_postar"]
+    if not auto.get("ligado") or "sem_voz" in v.name:
+        ESTADO.mudar(lambda e: e["episodios"].setdefault(str(n), {}).update(aprovado_em=agora()))
+        return {"msg": "Aprovado (prévia sem voz: nada é postado)" if "sem_voz" in v.name else "Aprovado"}
+    if FILA.ocupada(f"Postar episódio {n} ") or ESTADO.ler()["episodios"].get(str(n), {}).get("publicado_em"):
+        raise ValueError("este episódio já foi publicado/está postando: use as ações de publicação")
+    if not (pasta / "copies.json").exists():
+        copies.gravar(n)
+    todas = config.ler_json(pasta / "copies.json")
+    problemas = [f"{pub.ROTULOS[r]}: {x}" for r in pub.REDES for x in pub.validar_copy(r, todas[r])]
+    if problemas:
+        raise ValueError("não aprovei (corrija as copies na Divulgação): " + "; ".join(problemas))
+    alvo = proximo_horario(auto.get("horario") or "03:00")
+
+    def fn(e):
+        ep = e["episodios"].setdefault(str(n), {})
+        ep.update(aprovado_em=agora(), agendado_para=alvo.isoformat(timespec="minutes"))
+        ep.pop("agendamento", None)
+        for r in pub.REDES:   # aprovar o vídeo aprova as copies como estão agora
+            e["copies"].setdefault(str(n), {}).setdefault(r, {}).setdefault("aprovado_em", agora())
+    ESTADO.mudar(fn)
+    return {"msg": f"Aprovado! Posta sozinho {alvo:%d/%m às %H:%M} no Instagram, TikTok e YouTube "
+                   "(deixe o PC ligado e o celular no cabo)."}
 
 
 def acao_desaprovar_episodio(d: dict):
     n = _ep(d)
-    ESTADO.mudar(lambda e: e["episodios"].get(str(n), {}).pop("aprovado_em", None))
+    if (ESTADO.ler()["episodios"].get(str(n), {}).get("agendamento") or {}).get("estado") == "rodando":
+        raise ValueError("a postagem automática já começou: espere terminar")
+
+    def fn(e):
+        ep = e["episodios"].get(str(n), {})
+        for k in ("aprovado_em", "agendado_para", "agendamento"):
+            ep.pop(k, None)
+    ESTADO.mudar(fn)
+
+
+def acao_auto_postar(d: dict):
+    """Liga/desliga a postagem automática e muda o horário (HH:MM, hora do PC)."""
+    hor = str(d.get("horario") or "03:00")
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", hor):
+        raise ValueError("horário no formato HH:MM")
+    ESTADO.mudar(lambda e: e["auto_postar"].update(ligado=bool(d.get("ligado", True)), horario=hor))
+
+
+def acao_adiar_agendamento(d: dict):
+    """Troca o horário de um episódio já aprovado (antes de começar a postar)."""
+    n, hor = _ep(d), str(d.get("horario") or "")
+    ep = ESTADO.ler()["episodios"].get(str(n), {})
+    if not ep.get("agendado_para") or ep.get("agendamento"):
+        raise ValueError("não há agendamento esperando para este episódio")
+    alvo = proximo_horario(hor)
+    ESTADO.mudar(lambda e: e["episodios"][str(n)].update(agendado_para=alvo.isoformat(timespec="minutes")))
+    return {"msg": f"Agora posta {alvo:%d/%m às %H:%M}"}
+
+
+ANTECEDENCIA_YT = 30   # minutos: o YouTube sobe antes e já fica agendado para o horário (o n8n exige ≥ 20)
+
+
+def agenda_automatica() -> None:
+    """Chamada pela vigia: dispara a postagem dos episódios aprovados quando chega a hora. Uma vez só por
+    episódio (estado "agendamento"); as travas de publicacao.py continuam valendo (nada é reenviado)."""
+    agora_ = datetime.now().astimezone()
+    for num, ep in ESTADO.ler()["episodios"].items():
+        if not ep.get("agendado_para") or ep.get("agendamento") or not ep.get("aprovado_em"):
+            continue
+        alvo = datetime.fromisoformat(ep["agendado_para"])
+        if agora_ < alvo - timedelta(minutes=ANTECEDENCIA_YT):
+            continue
+        n = int(num)
+        if FILA.ocupada("Postar episódio ") or FILA.ocupada("Postar extra "):
+            continue   # tenta de novo na próxima volta
+
+        def marcar(estado, **kw):
+            ESTADO.mudar(lambda e: e["episodios"][str(n)].setdefault("agendamento", {}).update(estado=estado, em=agora(), **kw))
+        marcar("rodando")
+
+        def fn(job, n=n, alvo=alvo, marcar=marcar):
+            try:
+                if not ESTADO.ler()["episodios"].get(str(n), {}).get("publicado_em"):
+                    _registrar(job, n)
+                falhas = []
+                minutos = max(20, int((alvo - datetime.now().astimezone()).total_seconds() // 60))
+                job.log(f"YouTube: envio agora, agendado para {alvo:%H:%M} (daqui a {minutos} min)")
+                try:
+                    rodar(job, [sys.executable, "youtube.py", "--episodio", str(n), "--minutos", str(minutos)], PRODUCAO)
+                except RuntimeError:
+                    falhas.append("youtube")
+                SINAL.mudou()
+                espera = (alvo - datetime.now().astimezone()).total_seconds()
+                if espera > 0:
+                    job.log(f"esperando {alvo:%H:%M} para postar no Instagram e no TikTok…")
+                    time.sleep(espera)
+                try:
+                    rodar(job, [sys.executable, "celular.py", "--episodio", str(n)], PRODUCAO)
+                except RuntimeError:
+                    falhas.append("celular")
+                SINAL.mudou()
+                resumo = " · ".join(f"{pub.ROTULOS[r]}: {pub.status(n, r)['status']}" for r in pub.REDES)
+                job.log(resumo)
+                marcar("erro" if falhas else "feito", resumo=resumo)
+                if falhas:
+                    raise RuntimeError(f"problema em: {', '.join(falhas)} (veja o log acima)")
+            except Exception as ex:
+                if not isinstance(ex, RuntimeError):
+                    marcar("erro", resumo=str(ex)[:300])
+                raise
+        FILA.adicionar(f"Postar episódio {n} (automático {alvo:%H:%M}) · Instagram, TikTok, YouTube", fn)
 
 
 def acao_publicar_episodio(d: dict):
@@ -1188,6 +1308,182 @@ def acao_cargo_atribuir(d: dict):
     ESTADO.mudar(fn)
 
 
+# ---------------------------------------------------------------- peças de divulgação (Aprovações)
+PASTA_DIVULGACAO = config.SAIDA / "divulgacao"
+
+
+def _url_saida(arq: Path) -> str:
+    return f"/midia/{arq.relative_to(config.SAIDA).as_posix()}?v={int(arq.stat().st_mtime)}"
+
+
+def dados_pecas() -> dict:
+    est = ESTADO.ler()["divulgacao"]
+    imgs, txt = pub.arquivos_apresentacao()
+    st = pub.ler().get("apresentacao", {}).get("instagram", {})
+    eps = sorted(int(x.parent.name[2:]) for x in config.SAIDA.glob("ep[0-9][0-9][0-9]/linha_do_tempo.json") if int(x.parent.name[2:]) < 900)
+    ult = eps[-1] if eps else None
+    stories = sorted((config.pasta_episodio(ult) / "stories").glob("story_*.png")) if ult else []
+    inst = PASTA_DIVULGACAO / "institucional" / "institucional.mp4"
+    return {
+        "apresentacao": {"imagens": [_url_saida(i) for i in imgs],
+                         "legenda": txt.read_text(encoding="utf-8") if txt.exists() else "",
+                         "aprovado_em": est.get("apresentacao", {}).get("aprovado_em"),
+                         "instagram": {k: st.get(k) for k in CAMPOS_REDE} | {"status": st.get("status", "pendente")},
+                         "gerando": FILA.ocupada("Gerar apresentação")},
+        "stories": {"episodio": ult, "imagens": [_url_saida(i) for i in stories],
+                    **est.get("stories", {}).get(str(ult), {}), "gerando": FILA.ocupada("Gerar stories")},
+        "institucional": {"video": _url_saida(inst) if inst.exists() else None,
+                          "roteiro": (inst.with_name("roteiro.txt").read_text(encoding="utf-8")
+                                      if inst.with_name("roteiro.txt").exists() else ""),
+                          **est.get("institucional", {}), "gerando": FILA.ocupada("Gerar vídeo institucional")},
+    }
+
+
+def acao_gerar_apresentacao(d: dict):
+    def fn(job):
+        ESTADO.mudar(lambda e: e["divulgacao"].pop("apresentacao", None))
+        rodar(job, [sys.executable, "divulgacao.py", "--apresentacao"], FABRICA)
+    return {"job": FILA.adicionar("Gerar apresentação (carrossel)", fn).id}
+
+
+def acao_aprovar_apresentacao(d: dict):
+    imgs, txt = pub.arquivos_apresentacao()
+    if len(imgs) < 2:
+        raise ValueError("gere a apresentação antes")
+    if isinstance(d.get("legenda"), str):
+        txt.write_text(d["legenda"].strip() + "\n", encoding="utf-8")
+    problemas = pub.validar_copy("instagram", {"legenda": txt.read_text(encoding="utf-8")})
+    if problemas:
+        raise ValueError("não aprovei: " + "; ".join(problemas))
+    ESTADO.mudar(lambda e: e["divulgacao"].setdefault("apresentacao", {}).update(aprovado_em=agora()))
+
+
+def acao_desaprovar_apresentacao(d: dict):
+    ESTADO.mudar(lambda e: e["divulgacao"].pop("apresentacao", None))
+
+
+def acao_postar_apresentacao(d: dict):
+    """📤 Carrossel de apresentação no feed do Instagram, pelo celular (mesmas travas do carrossel do episódio)."""
+    ensaio = bool(d.get("ensaio"))
+    if FILA.ocupada("Postar "):
+        raise ValueError("já tem uma postagem na fila: espere terminar")
+    if not ensaio:
+        pub.exigir_liberado_apresentacao("instagram")
+
+    def fn(job):
+        rodar(job, [sys.executable, "celular.py", "--apresentacao"] + (["--ensaio"] if ensaio else []), PRODUCAO)
+        SINAL.mudou()
+    return {"job": FILA.adicionar("Postar apresentação " + ("(ensaio)" if ensaio else "· Instagram"), fn).id,
+            "msg": "Ensaio na fila" if ensaio else "Postagem na fila"}
+
+
+def acao_gerar_stories(d: dict):
+    n = _ep(d)
+
+    def fn(job):
+        ESTADO.mudar(lambda e: e["divulgacao"].setdefault("stories", {}).pop(str(n), None))
+        rodar(job, [sys.executable, "divulgacao.py", "--stories", str(n)], FABRICA)
+    return {"job": FILA.adicionar(f"Gerar stories {n}", fn).id}
+
+
+def acao_aprovar_stories(d: dict):
+    """Aprovar os stories = mandar TODOS para a galeria do celular (prontos para postar no Instagram e no TikTok)."""
+    n = _ep(d)
+    imgs = sorted((config.pasta_episodio(n) / "stories").glob("story_*.png"))
+    if not imgs:
+        raise ValueError("gere os stories antes")
+    ESTADO.mudar(lambda e: e["divulgacao"].setdefault("stories", {}).setdefault(str(n), {}).update(aprovado_em=agora()))
+
+    def fn(job):
+        rodar(job, [sys.executable, "celular.py", "--galeria", *map(str, imgs)], PRODUCAO)
+        ESTADO.mudar(lambda e: e["divulgacao"]["stories"][str(n)].update(enviado_em=agora()))
+    return {"job": FILA.adicionar(f"Mandar stories {n} para o celular", fn).id, "msg": "Aprovado: mandando para o celular"}
+
+
+def acao_gerar_institucional(d: dict):
+    def fn(job):
+        ESTADO.mudar(lambda e: e["divulgacao"].pop("institucional", None))
+        rodar(job, [sys.executable, "institucional.py"], FABRICA)
+    return {"job": FILA.adicionar("Gerar vídeo institucional", fn).id}
+
+
+def acao_aprovar_institucional(d: dict):
+    if not (PASTA_DIVULGACAO / "institucional" / "institucional.mp4").exists():
+        raise ValueError("gere o vídeo antes")
+    ESTADO.mudar(lambda e: e["divulgacao"].setdefault("institucional", {}).update(aprovado_em=agora()))
+
+
+def acao_desaprovar_institucional(d: dict):
+    ESTADO.mudar(lambda e: e["divulgacao"].pop("institucional", None))
+
+
+# ---------------------------------------------------------------- Cargos de Nova Marte (liderança)
+def dados_liderancas() -> dict:
+    """Catálogo (fabrica/liderancas.json) + quem ocupa cada cargo + candidatos (quem entrou pelo site primeiro)."""
+    cat = list(config.liderancas().values())
+    try:
+        pers = db().todos("personagens", {"select": (
+            "codigo,nome,apelido,seed,lideranca,oculto,origem_source,origem_medium,origem_link_slug,origem_referer"),
+            "order": "id.asc"})
+        falta = None
+    except Exception as e:  # noqa: BLE001  (sem a coluna lideranca: migração 012)
+        pers = db().todos("personagens", {"select": "codigo,nome,apelido,seed,oculto,origem_source,origem_medium,"
+                                                    "origem_link_slug,origem_referer", "order": "id.asc"})
+        falta = f"rode supabase/migrations/012_liderancas.sql no SQL Editor ({str(e)[:80]})"
+    colonos = []
+    for x in pers:
+        if x.get("oculto"):
+            continue
+        org = origem_legivel(x)
+        colonos.append({"codigo": x["codigo"], "nome": (x.get("apelido") or "").strip() or episodio.nome_exibicao(x["nome"]),
+                        "seed": x["seed"], "lideranca": x.get("lideranca"), "origem": org["rotulo"],
+                        "pelo_site": org["rede"] == "Direto"})
+    ocupante = {c["lideranca"]: c for c in colonos if c.get("lideranca")}
+    return {"cargos": [{**c, "ocupante": ocupante.get(c["id"])} for c in cat], "colonos": colonos, "falta": falta}
+
+
+def acao_lideranca_nomear(d: dict):
+    """Nomeia alguém para um cargo de liderança (tira de quem estava; cada pessoa tem no máximo um cargo)."""
+    cid, codigo = str(d.get("cargo") or ""), str(d.get("codigo") or "").upper()
+    lid = config.liderancas().get(cid)
+    if not lid:
+        raise ValueError("cargo não existe")
+    if not re.fullmatch(r"NM\d{6}", codigo):
+        raise ValueError("escolha um colono (código NM000123)")
+    try:
+        db().escrever("PATCH", "personagens", {"lideranca": f"eq.{cid}"}, {"lideranca": None, "lideranca_em": None},
+                      prefer="return=minimal")
+        db().escrever("PATCH", "personagens", {"codigo": f"eq.{codigo}"}, {"lideranca": None}, prefer="return=minimal")
+        feito = db().escrever("PATCH", "personagens", {"codigo": f"eq.{codigo}"},
+                              {"lideranca": cid, "lideranca_em": datetime.now(timezone.utc).isoformat()},
+                              prefer="return=representation")
+    except Exception as e:  # noqa: BLE001
+        if "lideranca" in str(e):
+            raise ValueError("falta a coluna: rode supabase/migrations/012_liderancas.sql no SQL Editor") from e
+        raise
+    if not feito:
+        raise ValueError("colono não encontrado")
+    SINAL.mudou()
+    return {"msg": f"{lid['titulo']} {feito[0].get('apelido') or episodio.nome_exibicao(feito[0]['nome'])} agora é {lid['nome']}!"}
+
+
+def acao_lideranca_remover(d: dict):
+    cid = str(d.get("cargo") or "")
+    if cid not in config.liderancas():
+        raise ValueError("cargo não existe")
+    db().escrever("PATCH", "personagens", {"lideranca": f"eq.{cid}"}, {"lideranca": None, "lideranca_em": None},
+                  prefer="return=minimal")
+    SINAL.mudou()
+
+
+def script_traje() -> bytes:
+    """gerarSprite (do diretor.js) + vestirTraje (traje.js): a prévia do painel usa o MESMO boneco do vídeo."""
+    dj = (FABRICA / "diretor.js").read_text(encoding="utf-8")
+    ini = dj.index("const PELES")                       # paletas, rng, pick e gerarSprite, em sequência no diretor
+    fim = dj.index("\n}\n", dj.index("function gerarSprite(seed)")) + 3
+    return (dj[ini:fim] + "\n" + (FABRICA / "traje.js").read_text(encoding="utf-8")).encode("utf-8")
+
+
 def acao_chat_ocultar(d: dict):
     db().escrever("PATCH", "chat_mensagens", {"id": f"eq.{int(d['id'])}"}, {"oculto": True}, prefer="return=minimal")
     SINAL.mudou()
@@ -1264,7 +1560,7 @@ def legenda_carrossel_padrao(n: int) -> str:
 
 def dados_carrossel(n: int, est: dict) -> dict | None:
     imagens, txt = pub.arquivos_carrossel(n)
-    if not imagens:
+    if n < pub.CARROSSEL_DESDE or not imagens:
         return None
     pasta = config.pasta_episodio(n)
     st = pub.ler().get(pub.chave_extra(n, "carrossel"), {}).get("instagram", {})
@@ -1296,6 +1592,8 @@ def acao_gerar_extras(d: dict):
 
 def acao_aprovar_extra(d: dict):
     n, item = _ep(d), _item_extra(d)
+    if item == "carrossel" and n < pub.CARROSSEL_DESDE:
+        raise ValueError(f"o carrossel só começa no episódio {pub.CARROSSEL_DESDE}")
     if item == "carrossel":
         imagens, txt = pub.arquivos_carrossel(n)
         if len(imagens) < 2:
@@ -1398,6 +1696,8 @@ GETS = {
     "/api/copies": lambda q: dados_copies(int(q.get("ep", ["1"])[0])),
     "/api/colonos": lambda q: dados_colonos(),
     "/api/cadastros": lambda q: dados_cadastros(),
+    "/api/liderancas": lambda q: dados_liderancas(),
+    "/api/pecas": lambda q: dados_pecas(),
     "/api/visao": lambda q: dados_visao(q.get("ocultar", ["1"])[0] == "1"),
     "/api/compras": lambda q: dados_compras(),
     "/api/site": lambda q: dados_site(),
@@ -1450,6 +1750,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(GETS[u.path](parse_qs(u.query)))
             elif u.path.startswith("/midia/"):
                 self._midia(unquote(u.path[len("/midia/"):]))
+            elif u.path == "/traje.js":
+                corpo = script_traje()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/javascript; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(corpo)))
+                self.end_headers()
+                self.wfile.write(corpo)
             elif u.path.startswith("/fontes/"):
                 self._arquivo(FABRICA / "fontes" / Path(u.path).name)
             else:
@@ -1514,8 +1822,10 @@ class Handler(BaseHTTPRequestHandler):
     def _midia(self, rel: str):
         """Serve vídeo/prévias de saida/epNNN com suporte a Range (para o player avançar)."""
         partes = rel.split("/")
-        sub_ok = len(partes) == 2 or (len(partes) == 3 and partes[1] in ("imagens", "pov"))
-        if not sub_ok or not re.fullmatch(r"ep\d{3}", partes[0]) or not re.fullmatch(r"[\w.\-]+\.(mp4|png|txt)", partes[-1]):
+        divulg = len(partes) == 3 and partes[0] == "divulgacao" and partes[1] in ("apresentacao", "institucional")
+        sub_ok = divulg or (re.fullmatch(r"ep\d{3}", partes[0]) and
+                            (len(partes) == 2 or (len(partes) == 3 and partes[1] in ("imagens", "pov", "stories"))))
+        if not sub_ok or not re.fullmatch(r"[\w.\-]+\.(mp4|png|txt)", partes[-1]):
             return self.send_error(404)
         p = config.SAIDA.joinpath(*partes)
         if not p.is_file():
@@ -1563,6 +1873,10 @@ def vigia() -> None:
             if html.stat().st_mtime != mt:
                 mt = html.stat().st_mtime
                 SINAL.mudou(recarregar=True)
+            try:
+                agenda_automatica()
+            except Exception as ex:  # noqa: BLE001
+                print("agenda automática:", ex, file=sys.stderr)
             if time.time() - ultima_consulta > 15:
                 ultima_consulta = time.time()
                 nova = (db().contar("personagens", {}), db().contar("pedidos", {}),

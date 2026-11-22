@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
     .gte('pos_y', cy * CHUNK).lt('pos_y', (cy + 1) * CHUNK)
     .limit(CHUNK * CHUNK);
   const CAMPOS = 'codigo, nome, handle, plataforma, status, pos_x, pos_y, seed, sprite_url';
-  let { data, error } = await consulta(`${CAMPOS}, cargo`);
+  let { data, error } = await consulta(`${CAMPOS}, cargo, lideranca`);
+  if (error?.code === '42703') ({ data, error } = await consulta(`${CAMPOS}, cargo`));   // sem a migração 012
   if (error?.code === '42703') ({ data, error } = await consulta(CAMPOS));   // sem a migração 008 (cargo)
 
   if (error) return NextResponse.json({ erro: error.message }, { status: 500 });

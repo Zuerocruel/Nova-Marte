@@ -181,22 +181,18 @@ details { margin-top: 8px; }
 
 /* ---------- Mundo ao vivo: botões de comprar e de comentar ---------- */
 .acoes-mundo { display: flex; gap: 12px; flex-wrap: wrap; align-items: stretch; margin: 12px 0; }
+/* botões do Mundo ao vivo: discretos (contorno fino, sem brilho piscando) */
 .btn-comprar-vivo {
-  font-family: var(--pixel); font-size: 15px; line-height: 1.4; cursor: pointer; border: 0;
-  color: #2a1600; background: linear-gradient(180deg, #ffe58a, #ffc83d 55%, #f0a020);
-  padding: 14px 22px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
-  box-shadow: inset -4px -4px 0 #c07a10, 4px 4px 0 #0008, 0 0 0 0 #ffc83d88;
-  animation: pulso-comprar 1.6s ease-in-out infinite;
+  font-family: var(--pixel); font-size: 10px; line-height: 1.5; cursor: pointer;
+  color: #ffd84a; background: #1e1838; border: 2px solid #ffc83d88; padding: 10px 14px;
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; box-shadow: 3px 3px 0 #0006;
 }
-.btn-comprar-vivo small { font-family: system-ui, sans-serif; font-size: 12px; font-weight: 600; opacity: .8; }
-.btn-comprar-vivo:hover { filter: brightness(1.08); }
-.btn-comprar-vivo:active { transform: translate(2px, 2px); }
-@keyframes pulso-comprar {
-  0%, 100% { box-shadow: inset -4px -4px 0 #c07a10, 4px 4px 0 #0008, 0 0 0 0 #ffc83d88; }
-  50% { box-shadow: inset -4px -4px 0 #c07a10, 4px 4px 0 #0008, 0 0 0 10px #ffc83d00; }
-}
-@media (prefers-reduced-motion: reduce) { .btn-comprar-vivo { animation: none; } }
-.btn-ig { background: linear-gradient(135deg, #833ab4, #fd1d1d 60%, #fcb045); box-shadow: inset -4px -4px 0 #6a1f7a, 4px 4px 0 #0008; display: inline-flex; align-items: center; }
+.btn-comprar-vivo small { font-family: system-ui, sans-serif; font-size: 11px; color: var(--texto-2); }
+.btn-comprar-vivo:hover { border-color: #ffc83d; background: #241d44; }
+.btn-comprar-vivo:active { transform: translate(2px, 2px); box-shadow: none; }
+.btn-ig { font-size: 10px; padding: 10px 14px; color: var(--texto); background: #1e1838; border: 2px solid #c13584aa;
+  box-shadow: 3px 3px 0 #0006; display: inline-flex; align-items: center; }
+.btn-ig:hover { border-color: #e1306c; background: #241d44; }
 
 /* ---------- pop-up (modal) centralizado, com fim, rolando sem barra visível ---------- */
 .modal-fundo {
@@ -240,3 +236,7 @@ details { margin-top: 8px; }
   font-family: var(--pixel); color: #fff; text-transform: uppercase; line-height: 1.35; word-break: break-word;
   font-size: clamp(10px, 3.4vw, 20px); text-shadow: 0 0 6px #3fd0c9, 0 0 2px #3fd0c9, 2px 2px 0 #0b2a3a;
 }
+
+/* prévia da cápsula no pop-up de compra (pixel art ampliada) */
+.capsula-previa { display: block; width: min(100%, 288px); aspect-ratio: 24 / 20; margin: 0 auto 12px;
+  image-rendering: pixelated; border: 2px solid #3a2f63; border-radius: 6px; }
