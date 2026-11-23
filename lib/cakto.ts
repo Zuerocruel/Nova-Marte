@@ -87,17 +87,19 @@ export async function processarEventoCakto(payload: unknown): Promise<string> {
     produtoId = data?.[0]?.id ?? null;
   }
 
-  // personagem: 1) visitante repassado no checkout  2) WhatsApp = telefone do comprador
+  // personagem: 1) WhatsApp = telefone do comprador  2) visitante repassado no checkout.
+  // O telefone vem primeiro: o visitante é por NAVEGADOR, e duas contas criadas no mesmo navegador
+  // dividem o mesmo visitante (a compra ia para a conta errada).
   const src = primeiro(payload, CAMPOS.src);
   const telefone = primeiro(payload, CAMPOS.telefone);
   let personagemId: number | null = null;
-  if (src && /^[0-9a-f-]{36}$/i.test(src)) {
-    const { data } = await db().from('personagens').select('id').eq('visitante_id', src).limit(1);
+  const chave = chaveTelefone(telefone);
+  if (chave) {
+    const { data } = await db().from('personagens').select('id').eq('whatsapp_chave', chave).limit(1);
     personagemId = data?.[0]?.id ?? null;
   }
-  const chave = chaveTelefone(telefone);
-  if (!personagemId && chave) {
-    const { data } = await db().from('personagens').select('id').eq('whatsapp_chave', chave).limit(1);
+  if (!personagemId && src && /^[0-9a-f-]{36}$/i.test(src)) {
+    const { data } = await db().from('personagens').select('id').eq('visitante_id', src).order('id', { ascending: false }).limit(1);
     personagemId = data?.[0]?.id ?? null;
   }
 
