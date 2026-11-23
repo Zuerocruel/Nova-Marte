@@ -1,5 +1,5 @@
 {
-  "_leia": "Mapa fixo da colônia (coordenadas em casas; y negativo fica ao norte das casas dos colonos, que começam em 0,0). As obras são feitas nesta ordem. Cada episódio (diário) tem uma Missão do Dia que AVANÇA a primeira obra não concluída, e uma obra pode levar vários episódios (veja \"ritmo\"). O estágio de cada obra vem do Supabase (tabela colonia_obras); sem a tabela, vale o campo 'estado_inicial' daqui (só serve para o episódio 1).",
+  "_leia": "Mapa fixo da colônia (coordenadas em casas; y negativo fica ao norte das casas dos colonos, que começam em 0,0). As obras são feitas nesta ordem. Cada episódio (diário) tem uma Missão do Dia que AVANÇA a primeira obra não concluída, e uma obra pode levar vários episódios (veja \"ritmo\"). O estágio de cada obra vem do Supabase (tabela colonia_obras); sem a tabela, vale o campo 'estado_inicial' daqui (só serve para o episódio 1). 'colina' (opcional): a obra fica no alto de uma colina desenhada no terreno (dx/dy = deslocamento do centro, rx/ry = raios, em casas).",
   "fundadores": [
     {
       "id": "vega",
@@ -275,6 +275,12 @@
       "y": -16,
       "w": 3,
       "h": 4,
+      "colina": {
+        "dx": 0,
+        "dy": -0.6,
+        "rx": 3.7,
+        "ry": 3.3
+      },
       "trabalho": 24,
       "estado_inicial": {
         "status": "planejada",
@@ -304,12 +310,12 @@
             },
             "atores": {
               "vega": [
-                8.5,
-                -11.6
+                8.6,
+                -14.4
               ],
               "lia": [
-                6.8,
-                -11.2
+                7.4,
+                -13.9
               ]
             },
             "progresso": [

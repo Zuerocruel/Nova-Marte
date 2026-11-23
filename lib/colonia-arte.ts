@@ -1,4 +1,5 @@
 import { gerarSprite } from '@/lib/sprite';
+import colonia from '@/fabrica/colonia.json';
 /**
  * Desenho da colônia no site — o MESMO visual do vídeo (fabrica/diretor.js), adaptado para um mapa
  * interativo: tudo em "pixels do mundo" (1 casa = 16 px), o componente aplica a câmera com setTransform.
@@ -129,6 +130,47 @@ const SOLOS = ['#b85a37', '#bc5e3a', '#b35538', '#c0623d'];
 
 export type Reservado = Ret;   // em casas: onde não nasce cratera (base, obras, lotes)
 
+// Colina embaixo de uma obra (colonia.json → obras[].colina): degraus de terra vistos de cima, luz vindo do
+// noroeste (borda de cima clara) e sombra no sudeste. MESMA arte em fabrica/diretor.js (colinaEm): mude as duas juntas.
+function colinaEm(t: Ctx, cx: number, cy: number, rx: number, ry: number, semente: number) {
+  const NIVEIS = ['#a95234', '#b8603a', '#c46c44', '#cf7a4f', '#d98a5c'];
+  for (let i = 0; i < NIVEIS.length; i++) {
+    const k = 1 - i * 0.19, ax = rx * k, ay = ry * k, oy = -i * 3;
+    t.fillStyle = '#7e3a26'; t.beginPath(); t.ellipse(cx + 3, cy + oy + 5, ax, ay, 0, 0, Math.PI * 2); t.fill();     // sombra do degrau
+    t.fillStyle = NIVEIS[i]; t.beginPath(); t.ellipse(cx, cy + oy, ax, ay, 0, 0, Math.PI * 2); t.fill();
+    t.strokeStyle = '#e6a07a'; t.lineWidth = 2; t.beginPath(); t.ellipse(cx, cy + oy, ax - 1, ay - 1, 0, Math.PI * 1.05, Math.PI * 1.75); t.stroke();   // brilho
+  }
+  for (let i = 0; i < 26; i++) {   // pedrinhas e marcas na encosta
+    const a = (i / 26) * Math.PI * 2 + semente, rr = 0.35 + ((i * 37) % 10) / 16;
+    const x = Math.round(cx + Math.cos(a) * rx * rr), y = Math.round(cy + Math.sin(a) * ry * rr - 4);
+    t.fillStyle = i % 3 ? '#8f4129' : '#e6a07a'; t.fillRect(x, y, i % 4 ? 2 : 3, 2);
+  }
+}
+
+// Dunas do Norte (bioma): começam logo depois da última faixa do bairro (y < DUNAS_Y, em casas) e vão ficando
+// mais fortes para o norte. Cristas onduladas iluminadas, vales em sombra e ondinhas de vento.
+// MESMA arte em fabrica/diretor.js: mude os dois juntos.
+const DUNAS_Y = -27, DUNAS_FADE = 7;
+function dunaEm(wx: number, wy: number): string | null {   // wx, wy em casas (podem ser fracionários); devolve a cor ou null
+  if (wy > DUNAS_Y) return null;
+  const k = Math.min(1, (DUNAS_Y - wy) / DUNAS_FADE);
+  if (k < 1 && hash(Math.floor(wx * 2), Math.floor(wy * 2), 31) > k * 1.3) return null;   // borda irregular
+  const onda = Math.sin(wx * 0.32 + Math.sin(wy * 0.21 + wx * 0.05) * 2.2 + wy * 0.95);
+  const fino = Math.sin(wx * 1.7 + wy * 3.1);
+  if (onda > 0.86) return '#f2c08e';
+  if (onda > 0.55) return '#e3a571';
+  if (onda < -0.7) return '#b4683f';
+  if (onda < -0.35) return '#c87b4d';
+  return fino > 0.9 ? '#e8b07c' : '#d8955f';
+}
+function pintarDuna(t: Ctx, x: number, y: number, px: number, py: number) {   // a casa (x, y) em 4x4 pedacinhos de 4 px
+  if (y > DUNAS_Y + 1) return;
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
+    const c = dunaEm(x + (i + 0.5) / 4, y + (j + 0.5) / 4);
+    if (c) { t.fillStyle = c; t.fillRect(px + i * 4, py + j * 4, 4, 4); }
+  }
+}
+
 export function blocoDeTerreno(bx: number, by: number, livre: (x: number, y: number) => boolean,
                                lote: (x: number, y: number) => boolean,
                                rua: (x: number, y: number) => boolean = () => false): HTMLCanvasElement {
@@ -154,10 +196,19 @@ export function blocoDeTerreno(bx: number, by: number, livre: (x: number, y: num
         t.fillRect(px + Math.floor(hash(x, y, k + 9) * 15), py + Math.floor(hash(x, y, k + 19) * 15), h < 0.12 ? 2 : 1, 1);
       }
     }
+    pintarDuna(t, x, y, px, py);
+  }
+  // colinas embaixo das obras (podem passar da borda do bloco: cada bloco desenha a parte dele)
+  for (const o of colonia.obras as Array<{ x: number; y: number; w: number; h: number; colina?: { dx?: number; dy?: number; rx: number; ry: number } }>) {
+    if (!o.colina) continue;
+    const k = o.colina, cx = (o.x + o.w / 2 + (k.dx || 0) - x0) * CASA, cy = (o.y + o.h / 2 + (k.dy || 0) - y0) * CASA;
+    if (cx < -k.rx * CASA - 20 || cy < -k.ry * CASA - 20 || cx > BLOCO * CASA + k.rx * CASA + 20 || cy > BLOCO * CASA + k.ry * CASA + 20) continue;
+    colinaEm(t, cx, cy, k.rx * CASA, k.ry * CASA, o.x);
   }
   // crateras e pedras (podem passar da borda do bloco: o vizinho desenha a parte dele)
   for (let y = y0 - 2; y < y0 + BLOCO + 2; y++) for (let x = x0 - 2; x < x0 + BLOCO + 2; x++) {
     if (!livre(x, y)) continue;
+    if (y < DUNAS_Y - 1 && hash(x, y, 33) > 0.12) continue;   // nas dunas quase não há crateras/pedras
     const h = hash(x, y, 7), px = (x - x0) * CASA + 8, py = (y - y0) * CASA + 8;
     if (h < 0.012) {
       const r = 6 + Math.floor(hash(x, y, 8) * 16);

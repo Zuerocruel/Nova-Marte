@@ -263,7 +263,8 @@ def resultado_da_votacao(n: int) -> dict | None:
     v = next((x for x in votacoes()["votacoes"] if x["id"] == marcado.get("id")), None)
     if not v or marcado.get("resultado") not in ("sim", "nao"):
         return None
-    return {"id": v["id"], "tela": v["tela"], "resultado": marcado["resultado"], "fala": v[marcado["resultado"]]}
+    return {"id": v["id"], "tela": v["tela"], "resultado": marcado["resultado"], "fala": v[marcado["resultado"]],
+            "camera": v.get("camera")}
 
 
 def avanco_da_obra(d: dict, obra: dict, n: int) -> tuple[int, int]:
@@ -356,7 +357,7 @@ def montar(d: dict) -> dict:
     # 2b. resultado da votação do episódio anterior (quem comentou decidiu)
     res = resultado_da_votacao(n)
     if res:
-        cenas.append(cena("resultado", "resultado", Fala().add(res["fala"]), camera={"alvo": "colonia", "zoom": 3.4},
+        cenas.append(cena("resultado", "resultado", Fala().add(res["fala"]), camera=res.get("camera") or {"alvo": "colonia", "zoom": 3.4},
                           votacao={k: res[k] for k in ("id", "tela", "resultado")}))
 
     # 3. boas-vindas (chamando pelo nome; câmera vai em cada um quando o nome é dito)
@@ -450,7 +451,7 @@ def montar(d: dict) -> dict:
     # 5c. votação: SIM ou NÃO nos comentários (o resultado abre o próximo episódio)
     votacao = escolher_votacao(n, d)
     if votacao:
-        cenas.append(cena("votacao", "votacao", Fala().add(votacao["fala"]), camera={"alvo": "panorama", "zoom": 2.6},
+        cenas.append(cena("votacao", "votacao", Fala().add(votacao["fala"]), camera=votacao.get("camera") or {"alvo": "panorama", "zoom": 2.6},
                           votacao={"id": votacao["id"], "tela": votacao["tela"]}))
 
     # 6. gancho final
@@ -498,7 +499,7 @@ def montar(d: dict) -> dict:
         # pedidos de Destaque usados aqui (episodio.ja_usados lê isto para não repetir)
         "destaques": [{"pedido": c["pedido"], "codigo": c["codigo"], "nome": c["nome"]} for c in destaques],
         "votacao": {"id": votacao["id"], "tela": votacao["tela"], "fala": votacao["fala"]} if votacao else None,
-        "resultado_votacao": res,
+        "resultado_votacao": {k: v for k, v in res.items() if k != "camera"} if res else None,
         "cenas": cenas,
     }
 

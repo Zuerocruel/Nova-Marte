@@ -282,6 +282,47 @@ const anelDe = (x, y) => Math.max(Math.abs(loteDe(x - CENTRO.x)), Math.abs(loteD
 
 function retanguloDe(o) { return { x0: o.x * CASA, y0: o.y * CASA, x1: (o.x + o.w) * CASA, y1: (o.y + o.h) * CASA }; }
 
+// Colina embaixo de uma obra (colonia.json → obras[].colina): degraus de terra vistos de cima, luz vindo do
+// noroeste (borda de cima clara) e sombra no sudeste. MESMA arte em lib/colonia-arte.ts (colina): mude as duas juntas.
+function colinaEm(t, cx, cy, rx, ry, semente) {
+  const NIVEIS = ['#a95234', '#b8603a', '#c46c44', '#cf7a4f', '#d98a5c'];
+  for (let i = 0; i < NIVEIS.length; i++) {
+    const k = 1 - i * 0.19, ax = rx * k, ay = ry * k, oy = -i * 3;
+    t.fillStyle = '#7e3a26'; t.beginPath(); t.ellipse(cx + 3, cy + oy + 5, ax, ay, 0, 0, Math.PI * 2); t.fill();     // sombra do degrau
+    t.fillStyle = NIVEIS[i]; t.beginPath(); t.ellipse(cx, cy + oy, ax, ay, 0, 0, Math.PI * 2); t.fill();
+    t.strokeStyle = '#e6a07a'; t.lineWidth = 2; t.beginPath(); t.ellipse(cx, cy + oy, ax - 1, ay - 1, 0, Math.PI * 1.05, Math.PI * 1.75); t.stroke();   // brilho
+  }
+  for (let i = 0; i < 26; i++) {   // pedrinhas e marcas na encosta
+    const a = (i / 26) * Math.PI * 2 + semente, rr = 0.35 + ((i * 37) % 10) / 16;
+    const x = Math.round(cx + Math.cos(a) * rx * rr), y = Math.round(cy + Math.sin(a) * ry * rr - 4);
+    t.fillStyle = i % 3 ? '#8f4129' : '#e6a07a'; t.fillRect(x, y, i % 4 ? 2 : 3, 2);
+  }
+}
+
+// Dunas do Norte (bioma): começam logo depois da última faixa do bairro (y < DUNAS_Y, em casas) e vão ficando
+// mais fortes para o norte. Cristas onduladas iluminadas, vales em sombra e ondinhas de vento.
+// MESMA arte em lib/colonia-arte.ts: mude os dois juntos.
+const DUNAS_Y = -27, DUNAS_FADE = 7;
+function dunaEm(wx, wy) {   // wx, wy em casas (podem ser fracionários); devolve a cor ou null
+  if (wy > DUNAS_Y) return null;
+  const k = Math.min(1, (DUNAS_Y - wy) / DUNAS_FADE);
+  if (k < 1 && hash(Math.floor(wx * 2), Math.floor(wy * 2), 31) > k * 1.3) return null;   // borda irregular
+  const onda = Math.sin(wx * 0.32 + Math.sin(wy * 0.21 + wx * 0.05) * 2.2 + wy * 0.95);
+  const fino = Math.sin(wx * 1.7 + wy * 3.1);
+  if (onda > 0.86) return '#f2c08e';
+  if (onda > 0.55) return '#e3a571';
+  if (onda < -0.7) return '#b4683f';
+  if (onda < -0.35) return '#c87b4d';
+  return fino > 0.9 ? '#e8b07c' : '#d8955f';
+}
+function pintarDuna(t, x, y, px, py) {   // a casa (x, y) em 4x4 pedacinhos de 4 px
+  if (y > DUNAS_Y + 1) return;
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
+    const c = dunaEm(x + (i + 0.5) / 4, y + (j + 0.5) / 4);
+    if (c) { t.fillStyle = c; t.fillRect(px + i * 4, py + j * 4, 4, 4); }
+  }
+}
+
 function prepararTerreno() {
   const m = EP.mundo;
   prepararReservas();
@@ -316,6 +357,12 @@ function prepararTerreno() {
         t.fillRect(px + Math.floor(hash(x, y, k + 9) * 15), py + Math.floor(hash(x, y, k + 19) * 15), h < 0.12 ? 2 : 1, 1);
       }
     }
+    pintarDuna(t, x, y, px, py);
+  }
+  // colinas embaixo das obras que pedem (ex.: a Antena no ponto mais alto)
+  for (const o of m.obras) if (o.colina) {
+    const c = o.colina, cx = (o.x + o.w / 2 + (c.dx || 0) - tx0) * CASA, cy = (o.y + o.h / 2 + (c.dy || 0) - ty0) * CASA;
+    colinaEm(t, cx, cy, c.rx * CASA, c.ry * CASA, o.x);
   }
   // bairro em espiral: lotes em xadrez e ruas de terra batida (igual ao site)
   if (EP.lotes) for (let y = ty0; y < ty1; y++) for (let x = tx0; x < tx1; x++) {
@@ -339,6 +386,7 @@ function prepararTerreno() {
   const longeDasBatizadas = (x, y) => !batizadas.some((c) => Math.hypot(x - c.x, y - c.y) * CASA < c.r + 34);
   for (let y = ty0; y < ty1; y++) for (let x = tx0; x < tx1; x++) {
     if (!livre(x, y) || !longeDasBatizadas(x, y)) continue;
+    if (y < DUNAS_Y - 1 && hash(x, y, 33) > 0.12) continue;   // nas dunas quase não há crateras/pedras
     const h = hash(x, y, 7), px = (x - tx0) * CASA + 8, py = (y - ty0) * CASA + 8;
     if (h < 0.012) {
       const r = 6 + Math.floor(hash(x, y, 8) * 16);
@@ -481,6 +529,7 @@ window.carregarEpisodio = async function (ep) {
   prepararVinheta();
   prepararTempos();
   prepararLegendas();
+  if (window.prepararTomadas) window.prepararTomadas();   // cortes cinematográficos (tomadas.js)
   prepararNoite();
   prepararFios();
   planejarVida();
@@ -754,6 +803,7 @@ function posAlvo(alvo, t) {
   if (tipo === 'obra') return centro((id && EP.mundo.obras.find((o) => o.slug === id)) || obraDaMissao());
   if (tipo === 'praca' && EP.mundo.praca) return centro(EP.mundo.praca);
   if (tipo === 'colonia' || tipo === 'panorama') return caixaColonia();
+  if (tipo === 'dunas') return { x: 5 * CASA, y: (DUNAS_Y - 13) * CASA };   // Dunas do Norte
   if (tipo === 'cratera') {
     const c = (EP.mundo.crateras || []).find((x) => String(x.id) === id);
     if (c) return { x: c.x * CASA + 8, y: c.y * CASA + 8 };
@@ -1248,13 +1298,101 @@ function desenharColonos(view, t) {
   }
 }
 
-// o herói do problema do dia trabalhando: caixa de ferramentas, chave batendo, faíscas e barra de progresso
+// o herói do problema do dia trabalhando: cada TIPO de problema tem a sua cena (e mais de uma variante, que
+// alterna entre episódios), para o conserto nunca ficar igual ao de outro dia.
+//   oxigênio → troca o cartucho do filtro (ar sujo some, bolhas limpas sobem) ou liga o purificador
+//   água → cano pingando aquecido com o maçarico (vapor) ou bomba sendo destravada
+//   manutenção → chave inglesa e faíscas ou solda com máscara
+//   clima → pá tirando poeira/gelo do lugar ou escova nos painéis
+//   saúde → maleta médica com scanner e corações · ataque → lanterna espantando bichinhos
+//   descoberta → scanner varrendo uma amostra brilhante
+const CONSERTOS = {
+  oxigenio: ['filtro', 'purificador'], agua: ['cano', 'bomba'], manutencao: ['chave', 'solda'],
+  clima: ['pa', 'escova'], saude: ['kit'], ataque: ['lanterna'], descoberta: ['scanner'],
+};
+function tipoDeConserto() {
+  const p = EP.problema || {};
+  const v = CONSERTOS[p.categoria] || ['chave'];
+  return v[(EP.numero + (p.id || '').length) % v.length];
+}
 function desenharConserto(p, t, k) {
-  ret(p.x - 14, p.y - 5, 7, 5, '#e04f5f'); ret(p.x - 14, p.y - 5, 7, 1, '#ff8a8a'); ret(p.x - 12, p.y - 7, 3, 2, '#9aa0b5');
-  const a = Math.round(Math.sin(t * 14) * 1.5);
-  ret(p.x + 5, p.y - 8 + a, 4, 1.5, '#d8dbe8'); ret(p.x + 8, p.y - 10 + a, 1.5, 4, '#d8dbe8');
-  const f = Math.floor(t * 10);
-  for (let i = 0; i < 4; i++) if ((f + i) % 3 === 0) ret(p.x + 9 + hash(i, f) * 7, p.y - 6 - hash(i, f, 2) * 8, 1.5, 1.5, i % 2 ? COR.ouro : COR.agua);
+  const tipo = tipoDeConserto(), f = Math.floor(t * 10), bx = p.x - 15, by = p.y - 6;
+  const caixaFerr = () => { ret(bx, by + 1, 7, 5, '#e04f5f'); ret(bx, by + 1, 7, 1, '#ff8a8a'); ret(bx + 2, by - 1, 3, 2, '#9aa0b5'); };
+  if (tipo === 'filtro') {   // unidade de filtro: cartucho velho sai, novo entra, ar limpa
+    ret(bx - 2, by - 6, 9, 12, '#9aa0b5'); ret(bx - 1, by - 5, 7, 10, '#6b6f86');
+    const sai = clamp(k / 0.45), entra = clamp((k - 0.5) / 0.35);
+    if (k < 0.5) ret(bx + 1, by - 4 - sai * 9, 3, 7, '#6b4a2e');                    // cartucho sujo subindo
+    else { ret(bx + 7 + (1 - entra) * 4, by + 4, 3, 3, '#6b4a2e'); ret(bx + 1, by - 4 - (1 - entra) * 9, 3, 7, '#eef0f8'); ret(bx + 1, by - 2 - (1 - entra) * 9, 3, 1, COR.agua); }
+    for (let i = 0; i < 7; i++) {   // ar sujo (marrom) vira bolhas limpas (azul-claras)
+      const q = ((t * 0.6 + i / 7) % 1), x = bx + 3 + Math.sin(i * 2 + t) * 6, y = by - 6 - q * 16;
+      ctx.globalAlpha = 1 - q;
+      ret(x, y, 1.5, 1.5, k < 0.55 ? '#8a6a52' : '#bff8ff');
+    }
+    ctx.globalAlpha = 1;
+    ret(p.x + 7, p.y - 9, 2, 1.5, '#d8dbe8');                                          // mão com o cartucho
+  } else if (tipo === 'purificador') {   // purificador portátil girando, névoa sumindo
+    ret(bx, by - 2, 8, 8, '#eef0f8'); ret(bx + 1, by - 1, 6, 6, '#3a2f63');
+    const g = t * 18;
+    for (let i = 0; i < 4; i++) ret(bx + 4 + Math.cos(g + i * 1.57) * 2 - 0.5, by + 2 + Math.sin(g + i * 1.57) * 2 - 0.5, 1.5, 1.5, COR.agua);
+    for (let i = 0; i < 10; i++) {
+      const a = i * 0.63 + t * 0.4, rr = 10 + (i % 3) * 4 - k * 8;
+      ctx.globalAlpha = Math.max(0, 0.55 * (1 - k * 1.1));
+      ret(bx + 4 + Math.cos(a) * rr, by + Math.sin(a) * rr * 0.5, 2, 2, '#a88a6a');
+    }
+    ctx.globalAlpha = 1;
+  } else if (tipo === 'cano') {   // cano rachado pingando; o maçarico aquece e o vapor sai
+    ret(bx - 4, by + 1, 16, 3, '#9aa0b5'); ret(bx - 4, by + 1, 16, 1, '#c9ced9');
+    if (k < 0.6) for (let i = 0; i < 2; i++) { const q = (t * 1.6 + i * 0.5) % 1; ret(bx + 3, by + 4 + q * 6, 1.2, 1.5, COR.agua); }
+    ret(p.x + 5, p.y - 8, 4, 1.5, '#6b6f86');
+    if (f % 2) { ret(p.x + 9, p.y - 8, 2, 1.5, '#ffc83d'); ret(p.x + 10.5, p.y - 8, 1.5, 1.5, '#ff8a3d'); }
+    for (let i = 0; i < 4; i++) { const q = (t * 0.8 + i / 4) % 1; ctx.globalAlpha = (1 - q) * 0.7; ret(bx + 3 + Math.sin(i + t * 3) * 2, by - q * 12, 2, 2, '#f3eefe'); }
+    ctx.globalAlpha = 1;
+  } else if (tipo === 'bomba') {   // bomba d'água: manivela girando, água volta a correr
+    ret(bx, by - 2, 8, 7, '#3f8efc'); ret(bx, by - 2, 8, 1, '#8fc2ff');
+    const a = t * 7;
+    ret(bx + 4 + Math.cos(a) * 3, by + 1 + Math.sin(a) * 3, 2, 2, '#d8dbe8');
+    if (k > 0.5) for (let i = 0; i < 4; i++) ret(bx - 6 + ((t * 20 + i * 4) % 12), by + 5, 2, 1, COR.agua);
+    caixaFerr();
+  } else if (tipo === 'solda') {   // máscara de solda e clarão
+    ret(p.x + 1, p.y - 11, 5, 4, '#2a2140');
+    caixaFerr();
+    if (f % 3 !== 0) { brilhoEm(p.x + 9, p.y - 7, 7, '#bff8ff', 0.6); ret(p.x + 8, p.y - 8, 2, 2, '#ffffff'); }
+    for (let i = 0; i < 6; i++) if ((f + i) % 2 === 0) ret(p.x + 9 + (hash(i, f) - 0.5) * 10, p.y - 7 + hash(i, f, 2) * 6, 1.2, 1.2, i % 2 ? COR.ouro : '#ffffff');
+  } else if (tipo === 'pa') {   // pá tirando poeira / gelo do lugar: o monte diminui
+    const alt = 6 * (1 - k);
+    ret(bx - 2, by + 6 - alt, 9, alt, EP.estacao && EP.estacao.id === 'inverno' ? '#dff3ff' : '#c98a5e');
+    const g = (t * 1.4) % 1, sobe = g < 0.5 ? g * 2 : 2 - g * 2;
+    ret(p.x + 5, p.y - 6 - sobe * 4, 1.2, 7, '#6b4a2e'); ret(p.x + 4, p.y + 1 - sobe * 4, 4, 2, '#9aa0b5');
+    if (g > 0.5) for (let i = 0; i < 3; i++) ret(p.x + 8 + i * 2 + (g - 0.5) * 12, p.y - 6 - Math.sin((g - 0.5) * 6.28) * 6 - i, 1.5, 1.5, '#c98a5e');
+  } else if (tipo === 'escova') {   // escova eletrostática varrendo
+    const vai = Math.sin(t * 6) * 5;
+    ret(p.x + 4 + vai, p.y - 7, 6, 2, '#ffc83d'); ret(p.x + 4 + vai, p.y - 5, 6, 1, '#6b4a2e');
+    for (let i = 0; i < 4; i++) { const q = (t * 1.5 + i / 4) % 1; ctx.globalAlpha = (1 - q) * 0.8; ret(p.x + 10 + q * 8, p.y - 6 - q * 4 + i, 1.5, 1.5, '#e8b48c'); }
+    ctx.globalAlpha = 1;
+  } else if (tipo === 'kit') {   // maleta médica + scanner verde + corações
+    ret(bx, by + 1, 8, 6, '#eef0f8'); ret(bx + 3, by + 2, 2, 4, '#e04f5f'); ret(bx + 2, by + 3, 4, 2, '#e04f5f');
+    const s = Math.sin(t * 4) * 4;
+    ret(p.x + 6, p.y - 10 + s, 6, 1, COR.ok);
+    for (let i = 0; i < 2; i++) { const q = (t * 0.7 + i / 2) % 1; ctx.globalAlpha = 1 - q; ret(p.x - 2 + i * 5, p.y - 16 - q * 10, 2, 2, '#ff8fa3'); ret(p.x - 3 + i * 5, p.y - 15 - q * 10, 4, 1, '#ff8fa3'); }
+    ctx.globalAlpha = 1;
+  } else if (tipo === 'lanterna') {   // lanterna varrendo; bichinhos fogem
+    const a = Math.sin(t * 2) * 0.5;
+    ctx.globalAlpha = 0.35; ctx.fillStyle = '#fff4c2';
+    ctx.beginPath(); ctx.moveTo(p.x + 7, p.y - 7); ctx.lineTo(p.x + 30, p.y - 7 + Math.tan(a - 0.25) * 23); ctx.lineTo(p.x + 30, p.y - 7 + Math.tan(a + 0.25) * 23); ctx.fill(); ctx.globalAlpha = 1;
+    ret(p.x + 5, p.y - 8, 3, 2, '#4a4466');
+    for (let i = 0; i < 3; i++) ret(p.x + 18 + k * 30 + i * 4, p.y - 2 + Math.sin(t * 9 + i) * 1.5, 2, 1.5, '#8f4129');
+  } else if (tipo === 'scanner') {   // amostra brilhante escaneada
+    ret(bx + 2, by + 3, 4, 3, '#8fe6ff'); brilhoEm(bx + 4, by + 4, 6, '#8fe6ff', 0.5);
+    ret(p.x + 5, p.y - 9, 3, 4, '#3a2f63'); ret(p.x + 5.5, p.y - 8.5, 2, 2, COR.agua);
+    const y = by + 2 + Math.sin(t * 5) * 3;
+    ctx.globalAlpha = 0.6; ret(bx, y, 8, 1, COR.agua); ctx.globalAlpha = 1;
+    for (let i = 0; i < 3; i++) if ((f + i) % 3 === 0) ret(p.x - 2 + i * 4, p.y - 18 - hash(i, f) * 4, 1.5, 1.5, COR.agua);
+  } else {   // chave inglesa batendo + faíscas (o conserto clássico)
+    caixaFerr();
+    const a = Math.round(Math.sin(t * 14) * 1.5);
+    ret(p.x + 5, p.y - 8 + a, 4, 1.5, '#d8dbe8'); ret(p.x + 8, p.y - 10 + a, 1.5, 4, '#d8dbe8');
+    for (let i = 0; i < 4; i++) if ((f + i) % 3 === 0) ret(p.x + 9 + hash(i, f) * 7, p.y - 6 - hash(i, f, 2) * 8, 1.5, 1.5, i % 2 ? COR.ouro : COR.agua);
+  }
 }
 // barra de progresso e ✓ ao lado do herói (desenhados depois da noite, para não escurecer, e fora da etiqueta do nome)
 function desenharHudConserto(t) {
@@ -1281,7 +1419,8 @@ function prepararNoite() {
   const w = c && (c.palavras || []).find((x) => /p[õo]e|anoitec|noite/i.test(x.p));
   tNoite = c ? (w ? w.i : c.fala_inicio + 0.6) : Infinity;
 }
-const escuridao = (t) => clamp((t - tNoite) / 2.4);
+// nas Dunas do Norte a noite é de lua cheia: escurece menos, para as dunas aparecerem
+const escuridao = (t) => { const e = clamp((t - tNoite) / 2.4), c = cenaEm(t); return c && c.camera && c.camera.alvo === 'dunas' ? e * 0.5 : e; };
 function brilhoEm(x, y, r, cor, a) {
   const g = ctx.createRadialGradient(x, y, 0, x, y, r);
   g.addColorStop(0, cor); g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -2191,6 +2330,15 @@ function legendaGrande(t) {
 
 // ------------------------------------------------------------------ quadro
 function desenhar(t) {
+  // corte para uma tomada (cena de lado, em close) — tomadas.js; a narração continua por cima
+  const tm = window.tomadaEm && window.tomadaEm(t);
+  if (tm) {
+    window.desenharTomada(tm, t);
+    legendaGrande(t);
+    const pr = Math.max(1 - clamp(t / 0.6), clamp((t - (EP.duracao - 0.9)) / 0.9));
+    if (pr > 0) { ctx.globalAlpha = pr; ret(0, 0, W, H, '#000'); ctx.globalAlpha = 1; }
+    return;
+  }
   const cam = camera(t);
   const cena = cenaEm(t);
   ctx.setTransform(1, 0, 0, 1, 0, 0);

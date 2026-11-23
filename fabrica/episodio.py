@@ -233,6 +233,7 @@ def obras(db: Supabase, catalogo: list[dict]) -> tuple[list[dict], str]:
     for o in catalogo:
         estado = linhas.get(o["slug"], o["estado_inicial"])
         saida.append({k: o[k] for k in ("slug", "nome", "tipo", "x", "y", "w", "h")}
+                     | ({"colina": o["colina"]} if o.get("colina") else {})
                      | {"status": estado["status"], "progresso": int(estado.get("progresso") or 0),
                         "dias": int(estado.get("dias") or 0), "trabalho": o.get("trabalho")})
     return saida, fonte
