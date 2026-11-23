@@ -60,6 +60,35 @@ export function gerarSprite(seed: number): (string | null)[][] {
   return g;
 }
 
+/* ---------- personalização no cadastro ----------
+ * O boneco continua saindo SÓ do seed (site, painel e fábrica de vídeos não mudam).
+ * Para personalizar, a pessoa escolhe os traços e procuramos um seed que gera exatamente aqueles traços. */
+export const OPCOES_SPRITE = { peles: PELES, roupas: ROUPAS, cabelos: CABELOS };
+export const PENTEADOS = ['Curtinho', 'Franja', 'Médio', 'Longo', 'Chapéu'] as const;
+export type Tracos = { pele: number; roupa: number; calca: number; cabelo: number; penteado: number; chapeu: number };
+export const SEED_MAX = 2147483646;
+
+/** Traços que um seed gera (mesma ordem de sorteio de gerarSprite). penteado 4 = chapéu. */
+export function tracosDoSeed(seed: number): Tracos {
+  const r = rng(seed);
+  const idx = (n: number) => Math.floor(r() * n);
+  const pele = idx(PELES.length), roupa = idx(ROUPAS.length), calca = idx(ROUPAS.length), cabelo = idx(CABELOS.length);
+  const estilo = Math.floor(r() * 4), temChapeu = r() < 0.25, chapeu = idx(ROUPAS.length);
+  return { pele, roupa, calca, cabelo, penteado: temChapeu ? 4 : estilo, chapeu };
+}
+
+const iguais = (a: Tracos, b: Tracos) => a.pele === b.pele && a.roupa === b.roupa && a.calca === b.calca &&
+  a.penteado === b.penteado && (a.penteado === 4 ? a.chapeu === b.chapeu : a.cabelo === b.cabelo);
+
+/** Procura um seed com os traços pedidos (≈100 mil tentativas no pior caso: poucos milissegundos). */
+export function seedDosTracos(t: Tracos): number | null {
+  for (let i = 0; i < 3_000_000; i++) {
+    const s = 1 + Math.floor(Math.random() * SEED_MAX);
+    if (iguais(tracosDoSeed(s), t)) return s;
+  }
+  return null;
+}
+
 export function desenharSprite(ctx: CanvasRenderingContext2D, seed: number, x: number, y: number, escala: number) {
   const g = gerarSprite(seed);
   for (let j = 0; j < 12; j++)

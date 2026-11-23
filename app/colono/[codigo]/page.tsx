@@ -52,7 +52,7 @@ export default async function PerfilColono({ params }: Props) {
       </section>
 
       <section className="perfil-numeros">
-        <div className="caixa"><div className="kpi-valor">{p.dias}</div><div className="mudo">{p.dias === 1 ? 'dia' : 'dias'} na colônia</div><div className="mudo" style={{ fontSize: 12 }}>desde {data(p.desde)}</div></div>
+        <div className="caixa"><div className="kpi-valor">{p.dias}</div><div className="mudo">{p.dias === 1 ? 'dia' : 'dias'} na colônia</div><div className="mudo" style={{ fontSize: 16 }}>desde {data(p.desde)}</div></div>
         <div className="caixa"><div className="kpi-valor">{p.episodios_vividos}</div><div className="mudo">episódios vividos</div></div>
         <div className="caixa"><div className="kpi-valor">{p.compras.length}</div><div className="mudo">{p.compras.length === 1 ? 'item' : 'itens'} na casa</div></div>
         <div className="caixa"><div className="kpi-valor">{tem}/{p.conquistas.length}</div><div className="mudo">conquistas</div></div>
@@ -84,7 +84,7 @@ export default async function PerfilColono({ params }: Props) {
       {p.compras.length ? (
         <div className="grade">
           {p.compras.map((c, i) => (
-            <div key={i} className="caixa produto">
+            <div key={i} className="papel produto">
               {c.imagem_url ? <img src={c.imagem_url} alt="" /> : <IconeItem slug={c.slug} />}  {/* eslint-disable-line @next/next/no-img-element */}
               <h3 style={{ marginTop: 12 }}>{c.nome}</h3>
               <p className="mudo" style={{ margin: 0 }}>{data(c.em)}</p>

@@ -6,7 +6,8 @@ export const metadata: Metadata = { title: 'Central do colono · Operação Mart
 export default function PaginaCentral() {
   return (
     <main className="wrap">
-      <h1>Central do colono</h1>
+      <p className="etiqueta">BASE DE OPERAÇÕES</p>
+      <h1 className="titulo-secao">Central do colono</h1>
       <p className="mudo">Missões, minigames, moedas e ranking. Volte todo dia: as missões renovam à meia-noite.</p>
       <Central />
     </main>

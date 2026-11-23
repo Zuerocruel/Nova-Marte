@@ -25,22 +25,24 @@ export default async function Loja() {
   }
 
   return (
-    <main className="wrap">
-      <h1>Loja</h1>
-      <p className="mudo">
+    <main className="pagina-ferrugem">
+     <div className="wrap">
+      <p className="etiqueta">ENTREPOSTO DA COLÔNIA</p>
+      <h1 className="titulo-secao">Loja</h1>
+      <p className="sub-secao">
         Itens que aparecem nos episódios. Pagamento seguro pela Cakto (Pix ou cartão).
         Já comprou? Escolha ou personalize em <a href="/meus-itens">Meus itens</a>.
       </p>
       {produtos.length === 0 && <p>Nenhum item à venda agora. Volte depois do próximo episódio.</p>}
       <div className="grade">
         {produtos.map((p) => (
-          <article key={p.slug} id={p.slug} className="caixa produto">
+          <article key={p.slug} id={p.slug} className="papel produto">
             {p.imagem_url
               ? <img src={p.imagem_url} alt={p.nome} loading="lazy" />
               : <div className="sem-img" aria-hidden="true" />}
             <h3 style={{ marginTop: 12 }}>{p.nome}</h3>
             {p.episodios && <p className="mudo">Aparece no ep. {p.episodios.numero}: {p.episodios.titulo}</p>}
-            {p.descricao && <p style={{ fontSize: 14 }}>{p.descricao}</p>}
+            {p.descricao && <p style={{ fontSize: 19 }}>{p.descricao}</p>}
             {p.tipo === 'gratis' ? (
               <>
                 <div className="preco">GRÁTIS · 1 por pessoa</div>
@@ -55,7 +57,7 @@ export default async function Loja() {
                   <option value="" disabled>selecione…</option>
                   {lerOpcoes(p.opcoes).map((o) => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
                 </select>
-                {p.pergunta_texto && <p className="mudo" style={{ fontSize: 12 }}>Depois do pagamento você conta os detalhes em “Meus itens”.</p>}
+                {p.pergunta_texto && <p className="mudo" style={{ fontSize: 16 }}>Depois do pagamento você conta os detalhes em “Meus itens”.</p>}
                 <p style={{ marginTop: 12 }}><button className="btn">Comprar</button></p>
               </form>
             ) : (
@@ -67,6 +69,7 @@ export default async function Loja() {
           </article>
         ))}
       </div>
+     </div>
     </main>
   );
 }

@@ -54,7 +54,7 @@ export default function LojaMoedas() {
         {d.itens.map((it) => {
           const tenho = d.meus?.includes(it.slug), vestido = d.vestido === it.slug;
           return (
-            <article key={it.slug} className="caixa produto">
+            <article key={it.slug} className="papel produto">
               <Previa seed={seed} traje={it.traje} />
               <h3 style={{ marginTop: 10 }}>{it.nome}</h3>
               <small className="mudo">{TIPO[it.tipo]}</small>

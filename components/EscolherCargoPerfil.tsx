@@ -25,7 +25,7 @@ export default function EscolherCargoPerfil() {
   return (
     <div className="caixa" style={{ marginTop: 12 }}>
       <strong>Escolha o seu cargo na colônia</strong>
-      <p className="mudo" style={{ margin: '4px 0 0', fontSize: 13 }}>Atenção: o cargo é escolhido uma vez só e não pode ser trocado depois.</p>
+      <p className="mudo" style={{ margin: '4px 0 0', fontSize: 18 }}>Atenção: o cargo é escolhido uma vez só e não pode ser trocado depois.</p>
       <EscolherCargo nome="cargo-perfil" valor={valor} aoMudar={setValor} />
       {erro && <p className="erro" role="alert">{erro}</p>}
       <p style={{ marginTop: 12 }}>

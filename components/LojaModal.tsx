@@ -113,7 +113,7 @@ export default function LojaModal() {
                   <CapsulaPrevia variante={opcao || item.opcoes[0].valor} />
                 ) : item.imagem_url && <img className="modal-img" src={item.imagem_url} alt="" />}
 
-                {item.descricao && <p style={{ fontSize: 14 }}>{item.descricao}</p>}
+                {item.descricao && <p style={{ fontSize: 19 }}>{item.descricao}</p>}
 
                 {item.opcoes.length > 0 && (
                   <>
@@ -139,12 +139,12 @@ export default function LojaModal() {
                     <label htmlFor="modal-texto">{pergunta}</label>
                     <input id="modal-texto" value={texto} maxLength={limite} onChange={(e) => setTexto(e.target.value)}
                       placeholder={item.slug === 'outdoor-holografico' ? 'Ex.: ALÔ MARTE! SOU EU' : ''} required={TEXTO_OBRIGATORIO.has(item.slug)} />
-                    <div className="mudo" style={{ fontSize: 12, textAlign: 'right' }}>{texto.length}/{limite}</div>
+                    <div className="mudo" style={{ fontSize: 16, textAlign: 'right' }}>{texto.length}/{limite}</div>
                   </>
                 )}
 
                 <div className="preco" style={{ marginTop: 12 }}>{item.tipo === 'gratis' ? 'GRÁTIS · 1 por pessoa' : reais(item.preco_centavos)}</div>
-                <p className="mudo" style={{ fontSize: 12 }}>
+                <p className="mudo" style={{ fontSize: 16 }}>
                   {item.tipo === 'gratis' ? 'Quem já é personagem resgata grátis.' : 'Pagamento seguro pela Cakto (Pix ou cartão). O item aparece depois que o pagamento for aprovado.'}
                 </p>
                 <button className="btn" style={{ width: '100%' }} disabled={faltaOpcao || faltaTexto}>

@@ -6,6 +6,7 @@ import { chaveApelido, erroApelido, limparApelido, normalizarBusca, normalizarHa
 import { ipDe, permitido } from '@/lib/limite';
 import { gravarSessao } from '@/lib/sessao';
 import { cargoDe } from '@/lib/cargos';
+import { SEED_MAX } from '@/lib/sprite';
 
 const PLATAFORMAS = ['instagram', 'tiktok', 'youtube'];
 
@@ -26,6 +27,8 @@ export async function POST(req: NextRequest) {
   const whatsapp = normalizarWhatsapp(String(b.whatsapp ?? ''));
   const cargo = cargoDe(String(b.cargo ?? ''))?.id ?? null;
   const apelido = limparApelido(String(b.apelido ?? ''));
+  // boneco montado no cadastro (o seed desenha o sprite); fora da faixa → o banco sorteia
+  const seed = Number.isInteger(b.seed) && (b.seed as number) >= 1 && (b.seed as number) <= SEED_MAX ? (b.seed as number) : undefined;
 
   const erros: string[] = [];
   if (nome.length < 2) erros.push('Digite seu nome.');
@@ -68,6 +71,7 @@ export async function POST(req: NextRequest) {
       ultimo_source: lt?.s ?? null,
       ultimo_campaign: lt?.c ?? null,
       ultimo_link_slug: lt?.l ?? null,
+      ...(seed ? { seed } : {}),
   };
   const inserir = (l: Record<string, unknown>) => db().from('personagens').insert(l).select('codigo').single();
   let { data, error } = await inserir({ ...linha, cargo, cargo_em: new Date().toISOString(), apelido, apelido_chave: chaveApelido(apelido) });

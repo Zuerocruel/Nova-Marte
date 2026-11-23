@@ -24,7 +24,7 @@ export default function EscolherApelidoPerfil() {
   return (
     <form className="caixa" style={{ marginTop: 12 }} onSubmit={salvar} noValidate>
       <strong>Crie o seu nick</strong>
-      <p className="mudo" style={{ margin: '4px 0 0', fontSize: 13 }}>Agora você entra na conta com nick + WhatsApp. Cada nick é único.</p>
+      <p className="mudo" style={{ margin: '4px 0 0', fontSize: 18 }}>Agora você entra na conta com nick + WhatsApp. Cada nick é único.</p>
       <input value={nick} onChange={(e) => setNick(e.target.value.replace(/\s+/g, ''))} placeholder="ex.: astro_ana" maxLength={20}
              aria-label="Nick" autoCapitalize="none" style={{ marginTop: 8 }} />
       {erro && <p className="erro" role="alert">{erro}</p>}

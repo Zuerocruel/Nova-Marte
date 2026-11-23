@@ -6,7 +6,8 @@ export default async function MundoPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   return (
     <main className="wrap wrap-largo">
-      <h1>Mundo ao vivo</h1>
+      <p className="etiqueta">TRANSMISSÃO DIRETA DA COLÔNIA</p>
+      <h1 className="titulo-secao">Mundo ao vivo</h1>
       <MundoAoVivo codigoInicial={sp.c} novo={sp.novo === '1'} />
     </main>
   );

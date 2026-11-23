@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import EscolherCargo from '@/components/EscolherCargo';
+import MontarBoneco from '@/components/MontarBoneco';
 
 export default function Cadastro() {
   const router = useRouter();
@@ -38,6 +39,7 @@ export default function Cadastro() {
           handle: f.get('handle'),
           plataforma: f.get('plataforma'),
           cargo: f.get('cargo'),
+          seed: Number(f.get('seed')) || undefined,
           consentimento: f.get('consentimento') === 'on',
           aceita_whatsapp: f.get('aceita_whatsapp') === 'on',
           site: f.get('site'),
@@ -54,6 +56,10 @@ export default function Cadastro() {
 
   return (
     <form onSubmit={enviar} noValidate>
+      <label style={{ marginTop: 0 }}>Monte seu colono</label>
+      <p className="mudo" style={{ margin: '0 0 8px', fontSize: 18 }}>É assim que você vai aparecer no mapa e nos episódios.</p>
+      <MontarBoneco />
+
       <label htmlFor="nome">Seu nome</label>
       <input id="nome" name="nome" autoComplete="name" maxLength={60} required />
 
@@ -61,7 +67,7 @@ export default function Cadastro() {
       <input id="apelido" name="apelido" autoComplete="username" autoCapitalize="none" placeholder="ex.: astro_ana" maxLength={20}
              value={nick} onChange={(e) => setNick(e.target.value.replace(/\s+/g, ''))} required
              aria-describedby="apelido-info" aria-invalid={nickInfo ? !nickInfo.livre : undefined} />
-      <p id="apelido-info" className="mudo" style={{ margin: '4px 0 0', fontSize: 13, color: nickInfo ? (nickInfo.livre ? 'var(--agua)' : '#ff7b7b') : undefined }}>
+      <p id="apelido-info" className="mudo" style={{ margin: '4px 0 0', fontSize: 18, color: nickInfo ? (nickInfo.livre ? 'var(--agua)' : '#ff7b7b') : undefined }}>
         {nickInfo ? (nickInfo.livre ? '✓ Nick disponível' : nickInfo.erro) : '3 a 20 letras ou números, pode usar _ e . — cada nick é único.'}
       </p>
 
@@ -79,7 +85,7 @@ export default function Cadastro() {
       </div>
 
       <label style={{ marginTop: 18 }}>O que você quer ser na colônia?</label>
-      <p className="mudo" style={{ margin: '0 0 4px', fontSize: 13 }}>
+      <p className="mudo" style={{ margin: '0 0 4px', fontSize: 18 }}>
         Seu cargo aparece no seu perfil e no mapa. Quando um problema do dia for da sua área, você pode ser chamado para resolver no episódio! Escolha com carinho: o cargo não pode ser trocado depois.
       </p>
       <EscolherCargo />

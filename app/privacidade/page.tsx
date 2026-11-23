@@ -3,8 +3,10 @@ export const metadata = { title: 'Privacidade — Operação Marte Zero' };
 // MODELO — revise com um advogado antes de publicar e preencha os [colchetes].
 export default function Privacidade() {
   return (
-    <main className="wrap" style={{ maxWidth: 760 }}>
-      <h1>Privacidade</h1>
+    <main className="wrap" style={{ maxWidth: 820 }}>
+      <p className="etiqueta">LGPD</p>
+      <h1 className="titulo-secao">Privacidade</h1>
+      <div className="papel texto-longo">
       <p><strong>Quem somos:</strong> [razão social / nome], [CNPJ ou CPF], contato: [e-mail de privacidade].</p>
       <h2>O que coletamos</h2>
       <ul>
@@ -21,6 +23,7 @@ export default function Privacidade() {
         [e-mail de privacidade] informando seu código (NM...) ou WhatsApp. Atendemos em até 15 dias.</p>
       <h2>Por quanto tempo</h2>
       <p>Enquanto a série estiver no ar ou até você pedir exclusão. Dados de compra são guardados pelo prazo exigido por lei.</p>
+      </div>
     </main>
   );
 }

@@ -98,7 +98,7 @@ export default function Chat({ aoMudar }: { aoMudar?: (m: MensagemChat[]) => voi
   return (
     <section className="chat caixa" aria-label="Chat da colônia">
       <h2 style={{ margin: '0 0 2px' }}>Rádio da colônia</h2>
-      <p className="mudo" style={{ margin: '0 0 8px', fontSize: 12 }}>As mensagens somem depois de 10 minutos.</p>
+      <p className="mudo" style={{ margin: '0 0 8px', fontSize: 16 }}>As mensagens somem depois de 10 minutos.</p>
       <ol className="chat-lista" ref={lista} aria-live="polite"
           onScroll={(e) => { const el = e.currentTarget; colado.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; }}>
         {indisponivel && <li className="mudo">O chat ainda está sendo instalado. Volte daqui a pouco!</li>}
@@ -120,7 +120,7 @@ export default function Chat({ aoMudar }: { aoMudar?: (m: MensagemChat[]) => voi
                  placeholder={`Falar como ${eu.nome}…`} aria-label="Mensagem" />
           <button className="btn" disabled={enviando || !texto.trim()}>Enviar</button>
           {erro && <p className="erro" role="alert" style={{ flexBasis: '100%' }}>{erro}</p>}
-          <p className="mudo" style={{ flexBasis: '100%', margin: 0, fontSize: 12 }}>
+          <p className="mudo" style={{ flexBasis: '100%', margin: 0, fontSize: 16 }}>
             Sem links e sem ofensas: a moderação apaga. <button type="button" className="link" onClick={sair}>Sair</button>
           </p>
         </form>

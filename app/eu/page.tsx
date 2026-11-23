@@ -11,7 +11,8 @@ export default async function Eu() {
   if (codigo) redirect(`/colono/${codigo}`);
   return (
     <main className="wrap" style={{ maxWidth: 520 }}>
-      <h1>Meu perfil</h1>
+      <p className="etiqueta">ACESSO DO COLONO</p>
+      <h1 className="titulo-secao">Meu perfil</h1>
       <div className="caixa"><Entrar /></div>
     </main>
   );

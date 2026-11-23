@@ -12,7 +12,8 @@ export default async function ResgatarPage({ params }: { params: Promise<{ slug:
 
   return (
     <main className="wrap" style={{ maxWidth: 560 }}>
-      <h1>{produto.nome}</h1>
+      <p className="etiqueta">ITEM GRÁTIS</p>
+      <h1 className="titulo-secao">{produto.nome}</h1>
       {produto.descricao && <p>{produto.descricao}</p>}
       <div className="caixa">
         <Resgate produto={produto.slug} />
