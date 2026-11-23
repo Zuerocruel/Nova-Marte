@@ -450,6 +450,17 @@ function resumoEpisodio(e) {
     <button class="btn" onclick="irPara('divulgacao',{ep:${e.numero}})">✏️ Editar pauta, ganchos e copies</button></details>`;
 }
 
+// votação SIM ou NÃO do fim do episódio: o resultado marcado aqui abre o episódio seguinte
+function blocoVotacao(e) {
+  const v = e.votacao;
+  if (!v) return '';
+  const rot = { sim: '✅ SIM', nao: '❌ NÃO' };
+  return `<div class="aviso" style="margin:10px 0">🗳️ <b>Votação:</b> ${esc(v.tela)} · ${v.resultado ? `decidido: <b>${rot[v.resultado]}</b>` : '<span class="mudo">ainda sem resultado — conte os comentários e marque antes de gerar o próximo episódio</span>'}
+    <div class="linha" style="margin-top:6px">${botao('SIM venceu', 'votacao', { numero: e.numero, resultado: 'sim' }, v.resultado === 'sim' ? 'aprovar' : '')}
+    ${botao('NÃO venceu', 'votacao', { numero: e.numero, resultado: 'nao' }, v.resultado === 'nao' ? 'aprovar' : '')}
+    ${v.resultado ? botao('Desmarcar', 'votacao', { numero: e.numero, resultado: '' }) : ''}</div></div>`;
+}
+
 // ================================================================ EPISÓDIOS
 async function rEpisodios() {
   const d = await get('/api/episodios');
@@ -468,6 +479,7 @@ async function rEpisodios() {
         <span class="mudo">${e.duracao ? Math.round(e.duracao) + ' s · ' : ''}gerado ${quando(e.gerado_em)}</span></div>
         <details style="margin:12px 0"><summary>Roteiro (${e.falas.length} falas)</summary><ol>${e.falas.map((f) => `<li><b>${esc(f.id)}</b>: ${esc(f.fala)}</li>`).join('')}</ol></details>
         ${e.resumo ? resumoEpisodio(e) : ''}
+        ${blocoVotacao(e)}
         <div class="linha">
           ${e.aprovado_em ? botao('Desaprovar', 'desaprovar_episodio', { numero: e.numero }) : botao('✅ Aprovar', 'aprovar_episodio', { numero: e.numero }, 'aprovar', e.video && !e.gerando ? '' : 'disabled')}
           ${botao('🚀 Publicar', 'publicar_episodio', { numero: e.numero }, 'publicar',

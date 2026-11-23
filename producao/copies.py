@@ -48,7 +48,8 @@ def _mmss(s: float) -> str:
 
 ROTULO_CENA = {"abertura": "Abertura", "populacao": "População", "boas_vindas": "Boas-vindas",
                "compras": "Novidades na vizinhança", "cratera": "Nome novo no mapa", "destaque": "Destaque do dia",
-               "problema": "Alerta: problema do dia", "solucao": "Problema resolvido", "gancho": "Próximo episódio"}
+               "problema": "Alerta: problema do dia", "solucao": "Problema resolvido", "gancho": "Próximo episódio",
+               "votacao": "Votação: SIM ou NÃO?", "resultado": "A colônia decidiu"}
 
 
 def capitulos(lt: dict) -> list[str]:
@@ -135,9 +136,11 @@ def ganchos(d: dict, r: dict) -> dict:
     if any(c.get("nova") for c in d.get("crateras", [])):
         perguntas.append("Que nome você daria para uma cratera de Marte? Comenta! 👇")
     perguntas.append("Você moraria em Marte? Comenta SIM ou NÃO! 👇")
+    v = r.get("votacao")   # o episódio pergunta SIM ou NÃO: a copy pede o mesmo voto
+    voto = f"🗳️ Votação da colônia: {v['fala']} A maioria decide o próximo episódio 👇" if v and v.get("fala") else None
     return {
         "historia": f"Amanhã: {r['proxima']}." if n >= 2 else f"No próximo episódio: {r['proxima']}.",
-        "comentar": perguntas[n % len(perguntas)],
+        "comentar": voto or perguntas[n % len(perguntas)],
         "curtir": "Curte se você quer ver a colônia crescer! ❤️",
         "seguir": "Segue o perfil para não perder o episódio de amanhã 🚀",
         "inscrever": "Inscreva-se e ative o 🔔 para acompanhar a colônia todo dia",

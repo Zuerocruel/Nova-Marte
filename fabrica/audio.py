@@ -209,9 +209,10 @@ def montar(numero: int, manter_quadros: bool = False, sufixo: str = "") -> Path:
     print(f"  legendas: {gerar_legendas(pasta / 'legendas.ass', lt)} eventos")
 
     final = pasta / f"episodio_{numero:03d}{sufixo}.mp4"
-    fontes = Path("..", "..", "fontes").as_posix()  # relativo à pasta do episódio (sem ":" do Windows no filtro)
     ffmpeg("-framerate", config.FPS, "-i", "quadros/%05d.jpg", "-i", "mix.wav",
-           "-vf", f"ass=legendas.ass:fontsdir={fontes},format=yuv420p",
+           # o texto grande da narração já vem desenhado nos quadros (diretor.js → legendaGrande);
+           # legendas.ass continua sendo gerada (serve de legenda/CC), mas não é mais queimada no vídeo
+           "-vf", "format=yuv420p",
            "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-profile:v", "high", "-r", config.FPS,
            "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart",
            final.name, cwd=pasta)

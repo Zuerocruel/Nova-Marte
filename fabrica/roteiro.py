@@ -19,6 +19,7 @@ Também gera a linha do tempo (início/fim de cada cena) a partir das durações
 """
 from __future__ import annotations
 
+import json
 import random
 import re
 
@@ -230,6 +231,41 @@ FIM_DO_DIA = ["O sol se põe em Marte. Amanhã a obra continua, e cada novo colo
 
 
 
+# ---------------------------------------------------------------- votação SIM ou NÃO (fabrica/votacoes.json)
+def votacoes() -> dict:
+    return json.loads((config.FABRICA / "votacoes.json").read_text(encoding="utf-8"))
+
+
+def escolher_votacao(n: int, d: dict) -> dict | None:
+    """Pergunta do fim do episódio n: sem repetir as recentes e só se a obra que ela pede já estiver pronta."""
+    if n < 2:
+        return None
+    banco = votacoes()
+    recentes = set()
+    for k in range(n - 1, max(0, n - 1 - int(banco.get("sem_repetir", 12))), -1):
+        arq = config.SAIDA / f"ep{k:03d}" / "roteiro.json"
+        if arq.exists():
+            v = json.loads(arq.read_text(encoding="utf-8")).get("votacao")
+            if v:
+                recentes.add(v["id"])
+    prontas = {o["slug"] for o in d.get("obras", []) if o.get("status") == "concluida"}
+    ok = [v for v in banco["votacoes"] if (not v.get("requer") or v["requer"] in prontas)]
+    opcoes = [v for v in ok if v["id"] not in recentes] or ok
+    return random.Random(f"votacao:{n}").choice(opcoes) if opcoes else None
+
+
+def resultado_da_votacao(n: int) -> dict | None:
+    """Decisão da votação do episódio n-1 (marcada no painel em saida/epNNN/votacao.json), ou None."""
+    arq = config.SAIDA / f"ep{n - 1:03d}" / "votacao.json"
+    if n < 2 or not arq.exists():
+        return None
+    marcado = json.loads(arq.read_text(encoding="utf-8"))
+    v = next((x for x in votacoes()["votacoes"] if x["id"] == marcado.get("id")), None)
+    if not v or marcado.get("resultado") not in ("sim", "nao"):
+        return None
+    return {"id": v["id"], "tela": v["tela"], "resultado": marcado["resultado"], "fala": v[marcado["resultado"]]}
+
+
 def avanco_da_obra(d: dict, obra: dict, n: int) -> tuple[int, int]:
     """(progresso de ontem, progresso ao fim de hoje) em %, pela mão de obra da colônia."""
     p0 = int(obra.get("progresso") or 0)
@@ -316,6 +352,12 @@ def montar(d: dict) -> dict:
         f.add(f"A população segue firme: {plural(pop, 'colono', 'colonos')} na Operação Marte Zero.")
     cenas.append(cena("populacao", "populacao", f, camera={"alvo": "colonia", "zoom": 3.0},
                       contagem=[antes, pop]))
+
+    # 2b. resultado da votação do episódio anterior (quem comentou decidiu)
+    res = resultado_da_votacao(n)
+    if res:
+        cenas.append(cena("resultado", "resultado", Fala().add(res["fala"]), camera={"alvo": "colonia", "zoom": 3.4},
+                          votacao={k: res[k] for k in ("id", "tela", "resultado")}))
 
     # 3. boas-vindas (chamando pelo nome; câmera vai em cada um quando o nome é dito)
     if d["novos"]:
@@ -405,6 +447,12 @@ def montar(d: dict) -> dict:
                           reacao=problema.get("reacao", "heroi"), alvo=problema["alvo"],
                           heroi_codigo=problema["heroi"].get("colono")))
 
+    # 5c. votação: SIM ou NÃO nos comentários (o resultado abre o próximo episódio)
+    votacao = escolher_votacao(n, d)
+    if votacao:
+        cenas.append(cena("votacao", "votacao", Fala().add(votacao["fala"]), camera={"alvo": "panorama", "zoom": 2.6},
+                          votacao={"id": votacao["id"], "tela": votacao["tela"]}))
+
     # 6. gancho final
     if n == 1:
         f = Fala().add(f"Quer ser um dos primeiros colonos da Operação Marte Zero? Entre em {config.SITE_FALADO} e vire "
@@ -449,6 +497,8 @@ def montar(d: dict) -> dict:
                     if problema else None,
         # pedidos de Destaque usados aqui (episodio.ja_usados lê isto para não repetir)
         "destaques": [{"pedido": c["pedido"], "codigo": c["codigo"], "nome": c["nome"]} for c in destaques],
+        "votacao": {"id": votacao["id"], "tela": votacao["tela"], "fala": votacao["fala"]} if votacao else None,
+        "resultado_votacao": res,
         "cenas": cenas,
     }
 

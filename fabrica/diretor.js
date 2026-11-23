@@ -480,6 +480,7 @@ window.carregarEpisodio = async function (ep) {
   prepararTerreno();
   prepararVinheta();
   prepararTempos();
+  prepararLegendas();
   prepararNoite();
   prepararFios();
   planejarVida();
@@ -2088,6 +2089,28 @@ function cartao(cena, t, cam) {
     if (!ok && p.furia) texto(`CHAMADA POR ${p.furia.toUpperCase()}`, W / 2, 452 - sobe, 20, COR.ouro, { contorno: false, maxW: W - 220 });
     texto((p.titulo || '').toUpperCase(), W / 2, 408 - sobe, 26, COR.texto, { contorno: false, maxW: W - 200 });
     if (ok && cena.heroi) texto(`POR ${cena.heroi.toUpperCase()}`, W / 2, 452 - sobe, 20, COR.ouro, { contorno: false });
+  } else if (cena.tipo === 'votacao') {   // SIM ou NÃO nos comentários: decide o começo do próximo episódio
+    const v = cena.votacao || {};
+    caixa(60, 220 - sobe, W - 120, 400, 0.9, COR.ouro);
+    texto('VOTAÇÃO DA COLÔNIA', W / 2, 282 - sobe, 30, COR.ouro, { contorno: false });
+    texto(v.tela || '', W / 2, 352 - sobe, 34, COR.texto, { contorno: false, maxW: W - 200 });
+    const pisca = Math.floor(t * 2) % 2;
+    [['SIM', COR.ok, -1], ['NÃO', COR.alerta, 1]].forEach(([rot, cor, lado], i) => {
+      const x = W / 2 + lado * 190, y = 450 - sobe, aceso = pisca === i, s = aceso ? 1.08 : 1;
+      const w = 300 * s, h = 110 * s;
+      ret(x - w / 2 + 8, y - h / 2 + 8, w, h, '#0008');
+      ret(x - w / 2, y - h / 2, w, h, aceso ? cor : COR.borda);
+      texto(rot, x, y + 2, Math.round(56 * s), aceso ? COR.ceu : cor, { contorno: false });
+    });
+    texto('RESPONDA NOS COMENTÁRIOS', W / 2, 568 - sobe, 24, COR.agua, { contorno: false });
+  } else if (cena.tipo === 'resultado') {   // decisão da votação do episódio anterior
+    const v = cena.votacao || {}, sim = v.resultado === 'sim';
+    caixa(60, 220 - sobe, W - 120, 330, 0.9, sim ? COR.ok : COR.alerta);
+    texto('A COLÔNIA DECIDIU', W / 2, 282 - sobe, 30, COR.ouro, { contorno: false });
+    texto(v.tela || '', W / 2, 340 - sobe, 26, COR.texto, { contorno: false, maxW: W - 200 });
+    const k = saida(clamp((t - cena.fala_inicio - 0.3) / 0.35)), s = 1 + (1 - k) * 0.6;
+    ctx.globalAlpha = a * clamp(k * 2);
+    texto(sim ? 'SIM!' : 'NÃO!', W / 2, 452 - sobe, Math.round(96 * s), sim ? COR.ok : COR.alerta);
   } else if (cena.tipo === 'gancho') {
     texto('PROCURE SEU NOME', W / 2, 330 - sobe, 50, COR.ouro);
     ctx.font = `38px ${FONTE}`;
@@ -2100,6 +2123,70 @@ function cartao(cena, t, cam) {
     texto(`PRÓXIMO EPISÓDIO: ${EP.proxima.toUpperCase()}`, W / 2, 610 - sobe, 24, COR.agua, { maxW: W - 120 });
   }
   ctx.globalAlpha = 1;
+}
+
+// ------------------------------------------------------------------ texto grande
+// A narração aparece na tela em blocos curtos (até 3 palavras), em MAIÚSCULAS e grandes, um bloco por vez: o
+// bloco entra com um pulo e a palavra que está sendo falada fica dourada. Dá para entender o vídeo sem som.
+// (Desenhado aqui e não no ffmpeg porque a fonte só acerta os acentos das maiúsculas com o desenho à mão.)
+const LEG = { tam: 64, linha: 13, bloco: 22, palavras: 3, y: 1345, entre: 84 };
+let BLOCOS_LEG = [];
+function prepararLegendas() {
+  BLOCOS_LEG = [];
+  for (const c of EP.cenas) {
+    const pal = (c.palavras || []).filter((w) => w.p && w.p.trim());
+    const blocos = [];
+    let atual = [], tam = 0;
+    for (const w of pal) {
+      const extra = w.p.length + (atual.length ? 1 : 0);
+      if (atual.length && (tam + extra > LEG.bloco || atual.length >= LEG.palavras)) { blocos.push(atual); atual = []; tam = 0; }
+      atual.push(w); tam += atual.length > 1 ? w.p.length + 1 : w.p.length;
+      if (/[.!?:,]$/.test(w.p) && tam >= 6) { blocos.push(atual); atual = []; tam = 0; }
+    }
+    if (atual.length) blocos.push(atual);
+    blocos.forEach((b, j) => {
+      const prox = blocos[j + 1];
+      const fim = Math.min(c.fim - 0.05, prox ? prox[0].i : b[b.length - 1].f + 0.5);
+      // até 2 linhas equilibradas
+      const comp = (ws) => ws.reduce((a, w) => a + w.p.length, 0) + ws.length - 1;
+      let linhas = [b];
+      if (comp(b) > LEG.linha && b.length > 1) {
+        let melhor = Infinity;
+        for (let k = 1; k < b.length; k++) { const n = Math.max(comp(b.slice(0, k)), comp(b.slice(k))); if (n < melhor) { melhor = n; linhas = [b.slice(0, k), b.slice(k)]; } }
+      }
+      BLOCOS_LEG.push({ ini: b[0].i, fim, linhas });
+    });
+  }
+}
+
+function legendaGrande(t) {
+  const b = BLOCOS_LEG.find((x) => t >= x.ini && t < x.fim);
+  if (!b) return;
+  const pulo = 1 + 0.22 * (1 - saida(clamp((t - b.ini) / 0.13)));
+  const fala = [].concat(...b.linhas).filter((w) => t >= w.i).pop();
+  ctx.save();
+  const y0 = LEG.y - (b.linhas.length - 1) * LEG.entre / 2;
+  ctx.translate(W / 2, y0); ctx.scale(pulo, pulo); ctx.translate(-W / 2, -y0);
+  b.linhas.forEach((linha, li) => {
+    const y = y0 + li * LEG.entre;
+    const pal = linha.map((w) => w.p.toUpperCase());
+    ctx.font = `${LEG.tam}px ${FONTE}`;
+    const esp = ctx.measureText(' ').width;
+    let tam = LEG.tam;
+    const larg = () => pal.reduce((a, p) => a + ctx.measureText(p).width, 0) + esp * (pal.length - 1);
+    while (larg() > W - 100 && tam > 30) { tam -= 2; ctx.font = `${tam}px ${FONTE}`; }
+    let x = W / 2 - larg() / 2;
+    const e = ctx.measureText(' ').width;
+    linha.forEach((w, i) => {
+      // sombra dura + contorno grosso, igual ao estilo dos títulos
+      ctx.font = `${tam}px ${FONTE}`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#0009'; ctx.fillText(pal[i], x + 6, y + 7);
+      texto(pal[i], x, y, tam, w === fala ? COR.ouro : '#ffffff', { alinhar: 'left', maxW: 9999 });
+      x += ctx.measureText(pal[i]).width + e;
+    });
+  });
+  ctx.restore();
 }
 
 // ------------------------------------------------------------------ quadro
@@ -2150,6 +2237,7 @@ function desenhar(t) {
   hudTopo(t);
   cartao(cena, t, cam);
   desenharPlantio25D(t);   // cena especial em 2,5D por cima de tudo
+  legendaGrande(t);        // texto grande da narração (por cima de tudo)
 
   // entra e sai do preto
   const preto = Math.max(1 - clamp(t / 0.6), clamp((t - (EP.duracao - 0.9)) / 0.9));

@@ -1,0 +1,123 @@
+{
+  "_leia": "Votação do fim do episódio (roteiro.py → cena 'votacao'): a colônia pergunta SIM ou NÃO e quem comenta decide. O dono marca o resultado no painel (card do episódio → Votação) e o episódio SEGUINTE começa com a decisão (cena 'resultado', fala 'sim' ou 'nao'). Sem resultado marcado, o episódio seguinte não fala da votação. 'tela' = pergunta curta que aparece no vídeo (até ~30 letras). 'fala' = narração (termina pedindo SIM ou NÃO). 'requer' (opcional) = obra que precisa estar concluída. A mesma pergunta não volta antes de 'sem_repetir' episódios. A decisão só muda a história contada, nunca o andamento das obras.",
+  "sem_repetir": 12,
+  "votacoes": [
+    {
+      "id": "mascote-lagarto",
+      "tela": "ADOTAR O LAGARTO-DE-DUNA?",
+      "fala": "Um lagarto-de-duna anda rondando a colônia toda noite. Ele vira o mascote oficial? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM! O lagarto-de-duna agora é o mascote oficial da colônia, e já ganhou um cantinho perto do módulo.",
+      "nao": "Vocês decidiram: NÃO. A guarda levou o lagarto de volta para as dunas, bem longe das casas."
+    },
+    {
+      "id": "racionar-agua",
+      "tela": "RACIONAR ÁGUA ESTA SEMANA?",
+      "fala": "O reservatório está mais baixo do que deveria. A colônia raciona água esta semana? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM. Banho de dois minutos para todo mundo, e o reservatório já começou a subir.",
+      "nao": "Vocês decidiram: NÃO. A equipe de Geologia vai cavar mais fundo atrás de gelo para encher o reservatório."
+    },
+    {
+      "id": "festa-praca",
+      "tela": "FESTA NA PRAÇA HOJE À NOITE?",
+      "fala": "A colônia trabalhou pesado. Fazemos uma festa na praça hoje à noite? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM! Teve música, luzinha pendurada e dança na praça até a última bateria acabar.",
+      "nao": "Vocês decidiram: NÃO. A festa fica para depois, e todo mundo foi dormir cedo para render mais na obra."
+    },
+    {
+      "id": "sinal-nave",
+      "tela": "RESPONDER O SINAL DO CÉU?",
+      "fala": "O rádio captou um sinal estranho vindo do céu, repetindo a mesma sequência. A colônia responde? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM. O rádio mandou a resposta... e o sinal parou. Ninguém sabe se isso é bom ou ruim.",
+      "nao": "Vocês decidiram: NÃO. O rádio ficou em silêncio, mas o sinal continua lá, toda noite, no mesmo horário."
+    },
+    {
+      "id": "explorar-cratera-noite",
+      "tela": "EXPLORAR A CRATERA À NOITE?",
+      "fala": "Uma luz piscou no fundo da cratera mais próxima. Mandamos uma equipe olhar de noite? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM. A equipe desceu de lanterna e achou um pedaço de metal antigo, com riscos que ninguém entende.",
+      "nao": "Vocês decidiram: NÃO. A cratera foi cercada com fita, e a luz piscou de novo na noite seguinte."
+    },
+    {
+      "id": "turno-madrugada",
+      "tela": "OBRA TAMBÉM DE MADRUGADA?",
+      "fala": "Tem gente querendo trabalhar na obra de madrugada, no frio. A colônia libera o turno da noite? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM. O turno da madrugada ganhou holofotes e muita sopa quente.",
+      "nao": "Vocês decidiram: NÃO. Noite é para descansar, e a obra continua só de dia."
+    },
+    {
+      "id": "pintar-modulo",
+      "tela": "PINTAR O MÓDULO DE AZUL?",
+      "fala": "O módulo de pouso está todo riscado de poeira. Pintamos ele de azul, para lembrar o céu da Terra? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM! Faixas azuis no módulo de pouso. Dá para ver de longe, no meio de tanto vermelho.",
+      "nao": "Vocês decidiram: NÃO. O módulo continua do jeito que pousou, com cada risco contando a história da viagem."
+    },
+    {
+      "id": "folga",
+      "tela": "UM DIA DE FOLGA AMANHÃ?",
+      "fala": "Dias seguidos de obra, frio e poeira. A colônia merece um dia de folga? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM. Teve campeonato de arremesso de pedra marciana e soneca no meio da tarde.",
+      "nao": "Vocês decidiram: NÃO. Folga só quando a obra ficar pronta, e a colônia voltou ao trabalho com tudo."
+    },
+    {
+      "id": "pedra-brilhante",
+      "tela": "GUARDAR A PEDRA QUE BRILHA?",
+      "fala": "Um colono achou uma pedra que brilha no escuro. Guardamos ela dentro da colônia? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM. A pedra está numa caixa de vidro no módulo... e de noite ela brilha mais forte.",
+      "nao": "Vocês decidiram: NÃO. A pedra voltou para onde foi achada, e foi marcada no mapa como ponto de pesquisa."
+    },
+    {
+      "id": "telescopio",
+      "tela": "TELESCÓPIO NO TETO DO MÓDULO?",
+      "fala": "Dá para montar um telescópio no teto do módulo e ver a Terra de noite. Vale a pena? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM! Agora toda noite tem fila no teto do módulo para ver a Terra, um pontinho azul.",
+      "nao": "Vocês decidiram: NÃO. As peças foram para a obra, e o telescópio fica para quando sobrar material."
+    },
+    {
+      "id": "plantar-morango",
+      "tela": "PLANTAR MORANGO NA ESTUFA?",
+      "requer": "estufa",
+      "fala": "A estufa tem espaço para uma fileira nova. Plantamos morango, mesmo gastando mais água? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM! A primeira fileira de morango de Marte foi plantada, e a equipe da Estufa já conta os dias.",
+      "nao": "Vocês decidiram: NÃO. A fileira nova ficou com batata, que gasta menos água e enche mais a barriga."
+    },
+    {
+      "id": "mensagem-terra",
+      "tela": "MANDAR UM VÍDEO PARA A TERRA?",
+      "requer": "antena",
+      "fala": "A antena consegue mandar um vídeo curto para a Terra. A colônia grava um recado? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM. O vídeo foi gravado com a colônia inteira acenando, e já está viajando pelo espaço.",
+      "nao": "Vocês decidiram: NÃO. A antena vai guardar a energia para os sinais de emergência."
+    },
+    {
+      "id": "robos-noite",
+      "tela": "ROBÔS SOZINHOS DE NOITE?",
+      "requer": "oficina",
+      "fala": "Os robôs da oficina podem trabalhar sozinhos enquanto a colônia dorme. Deixamos? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM. De manhã, a obra estava mais adiantada... e um robô amanheceu do lado de fora, olhando o céu.",
+      "nao": "Vocês decidiram: NÃO. Os robôs ficam desligados de noite, trancados na oficina."
+    },
+    {
+      "id": "cardapio",
+      "tela": "SOPA DE BATATA TODO DIA?",
+      "requer": "cantina",
+      "fala": "A cantina só tem batata para oferecer. Vira sopa de batata todo dia, até a estufa render mais? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM. Sopa de batata no café, no almoço e no jantar. Ninguém reclamou... ainda.",
+      "nao": "Vocês decidiram: NÃO. A Chef inventou batata frita, purê e bolinho. Mesma batata, três pratos."
+    },
+    {
+      "id": "abrir-porta-abrigo",
+      "tela": "ABRIR O ABRIGO PARA TODOS?",
+      "requer": "abrigo",
+      "fala": "O abrigo antirradiação cabe a colônia inteira. Ele fica aberto de noite para quem quiser dormir lá? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM. O abrigo virou o dormitório mais disputado da colônia: quentinho e silencioso.",
+      "nao": "Vocês decidiram: NÃO. O abrigo só abre em emergência, e fica pronto para a próxima tempestade solar."
+    },
+    {
+      "id": "mapa-dunas",
+      "tela": "MAPEAR AS DUNAS DO NORTE?",
+      "fala": "Ninguém da colônia foi além das dunas do norte. Mandamos o rover mapear a região? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM. O rover voltou com o mapa das dunas... e com marcas de pneu que não são dele.",
+      "nao": "Vocês decidiram: NÃO. As dunas do norte continuam sem mapa, e o rover ficou ajudando na obra."
+    }
+  ]
+}

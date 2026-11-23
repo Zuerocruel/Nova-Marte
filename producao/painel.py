@@ -357,9 +357,21 @@ def dados_episodios() -> dict:
             "postando": FILA.ocupada(f"Postar episódio {n} "),
             "copies_aprovadas": {p: bool(est["copies"].get(str(n), {}).get(p, {}).get("aprovado_em")) for p in pub.REDES},
             "extras": dados_extras(n, pasta, est),
+            "votacao": dados_votacao(pasta),
         })
     publicados = [n for n, e in no_banco.items() if e.get("publicado_em")]
     return {"episodios": lista[::-1], "proximo": (max(publicados) + 1) if publicados else 1, "auto": est["auto_postar"]}
+
+
+def dados_votacao(pasta: Path) -> dict | None:
+    """Pergunta SIM ou NÃO do fim do episódio e o resultado marcado (abre o próximo episódio)."""
+    rot = pasta / "roteiro.json"
+    v = config.ler_json(rot).get("votacao") if rot.exists() else None
+    if not v:
+        return None
+    arq = pasta / "votacao.json"
+    marcado = config.ler_json(arq) if arq.exists() else {}
+    return {"tela": v["tela"], "resultado": marcado.get("resultado") if marcado.get("id") == v["id"] else None}
 
 
 def dados_extras(n: int, pasta: Path, est: dict) -> dict:
@@ -1169,6 +1181,20 @@ def acao_liberar_rede(d: dict):
         raise ValueError("espere a postagem em andamento terminar")
     pub.liberar(n, r, "liberado no painel depois de conferir")
     SINAL.mudou()
+
+
+def acao_votacao(d: dict):
+    """Marca o que os comentários decidiram (sim/nao) — o episódio seguinte começa com a decisão. Vazio desmarca."""
+    n, res = _ep(d), str(d.get("resultado") or "")
+    pasta = config.pasta_episodio(n)
+    v = config.ler_json(pasta / "roteiro.json").get("votacao")
+    if not v:
+        raise ValueError("este episódio não tem votação")
+    arq = pasta / "votacao.json"
+    if res not in ("sim", "nao"):
+        arq.unlink(missing_ok=True)
+        return
+    config.gravar_json(arq, {"id": v["id"], "tela": v["tela"], "resultado": res, "marcado_em": agora()})
 
 
 def acao_gerar_copies(d: dict):
