@@ -4,17 +4,19 @@ import { useEffect, useRef, useState } from 'react';
 import { gerarSprite, OPCOES_SPRITE, PENTEADOS, SEED_MAX, seedDosTracos, tracosDoSeed, type Tracos } from '@/lib/sprite';
 
 /**
- * Monta o boneco no cadastro: pele, cabelo (ou chapéu), roupa e calça.
+ * Monta o boneco (cadastro e troca única no perfil): pele, cabelo (ou chapéu), roupa e calça.
  * Guarda o resultado como um seed (campo escondido "seed"), o mesmo número que desenha o colono
  * no mapa, no painel e nos episódios.
  */
-export default function MontarBoneco() {
+export default function MontarBoneco({ seedInicial, aoMudar }: { seedInicial?: number; aoMudar?: (seed: number) => void } = {}) {
   const [seed, setSeed] = useState<number | null>(null);
   const [t, setT] = useState<Tracos | null>(null);
   const cv = useRef<HTMLCanvasElement>(null);
 
-  const sortear = () => { const s = 1 + Math.floor(Math.random() * SEED_MAX); setSeed(s); setT(tracosDoSeed(s)); };
-  useEffect(sortear, []);   // sorteia só no navegador (evita diferença entre servidor e cliente)
+  const usar = (s: number) => { setSeed(s); setT(tracosDoSeed(s)); aoMudar?.(s); };
+  const sortear = () => usar(1 + Math.floor(Math.random() * SEED_MAX));
+  // começa pelo boneco atual (perfil) ou sorteia só no navegador (evita diferença entre servidor e cliente)
+  useEffect(() => { if (seedInicial) usar(seedInicial); else sortear(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const x = cv.current?.getContext('2d');
@@ -27,7 +29,7 @@ export default function MontarBoneco() {
     if (!t) return;
     const novo = { ...t, ...parte };
     const s = seedDosTracos(novo);
-    if (s) { setSeed(s); setT(tracosDoSeed(s)); }
+    if (s) usar(s);
   };
 
   const cores = (rotulo: string, lista: string[], atual: number, aoEscolher: (i: number) => void) => (

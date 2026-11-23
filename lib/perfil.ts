@@ -79,3 +79,10 @@ export async function perfilDe(codigoBruto: string): Promise<Perfil | null> {
     compras, feitos: listaFeitos, mensagens, conquistas,
   };
 }
+
+/** Troca única do boneco: true = já trocou, false = ainda pode, null = migração 015 ainda não rodou. */
+export async function bonecoJaTrocado(codigo: string): Promise<boolean | null> {
+  const { data, error } = await db().from('personagens').select('boneco_trocado_em').eq('codigo', codigo.toUpperCase()).maybeSingle();
+  if (error || !data) return null;
+  return Boolean((data as { boneco_trocado_em: string | null }).boneco_trocado_em);
+}

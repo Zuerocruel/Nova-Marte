@@ -4,8 +4,9 @@ import AvatarGrande from '@/components/AvatarGrande';
 import IconeItem from '@/components/IconeItem';
 import EscolherCargoPerfil from '@/components/EscolherCargoPerfil';
 import EscolherApelidoPerfil from '@/components/EscolherApelidoPerfil';
+import TrocarBonecoPerfil from '@/components/TrocarBonecoPerfil';
 import { cargoDe } from '@/lib/cargos';
-import { perfilDe } from '@/lib/perfil';
+import { bonecoJaTrocado, perfilDe } from '@/lib/perfil';
 import { codigoDaSessao } from '@/lib/sessao';
 import BotaoComentar from '@/components/BotaoComentar';
 
@@ -29,6 +30,8 @@ export default async function PerfilColono({ params }: Props) {
   const meu = eu === p.codigo;
   const tem = p.conquistas.filter((c) => c.tem).length;
   const cargo = cargoDe(p.cargo);
+  // troca única do boneco: só no próprio perfil, sem arte final desenhada e com a migração 015 rodada
+  const podeTrocarBoneco = meu && !p.sprite_url && (await bonecoJaTrocado(p.codigo)) === false;
 
   return (
     <main className="wrap">
@@ -48,6 +51,7 @@ export default async function PerfilColono({ params }: Props) {
           </p>
           {meu && !p.apelido && <EscolherApelidoPerfil />}
           {meu && !p.cargo && <EscolherCargoPerfil />}
+          {podeTrocarBoneco && <TrocarBonecoPerfil seedAtual={p.seed} />}
         </div>
       </section>
 

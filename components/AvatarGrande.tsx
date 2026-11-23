@@ -9,6 +9,7 @@ export default function AvatarGrande({ seed, url, tamanho = 144 }: { seed: numbe
     if (url) return;
     const x = ref.current?.getContext('2d');
     if (!x) return;
+    x.clearRect(0, 0, 12, 12);   // limpa antes (o boneco pode mudar depois da troca no perfil)
     gerarSprite(seed).forEach((l, j) => l.forEach((c, i) => { if (c) { x.fillStyle = c; x.fillRect(i, j, 1, 1); } }));
   }, [seed, url]);
   const estilo = { width: tamanho, height: tamanho, imageRendering: 'pixelated' as const, background: 'var(--ceu)', border: '4px solid var(--borda)' };
