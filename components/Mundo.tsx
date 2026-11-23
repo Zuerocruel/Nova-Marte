@@ -11,6 +11,7 @@ import {
 } from '@/lib/colonia-arte';
 import { situacao, type Situacao } from '@/lib/vida';
 import { descricaoPet, situacaoPet } from '@/lib/pet';
+import { desenharBola, desenharPet } from '@/lib/pet-arte';
 import { cargoDe } from '@/lib/cargos';
 import type { EstadoColonia } from '@/lib/colonia';
 import LojaModal from './LojaModal';
@@ -413,18 +414,12 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
         if (tg.racao > 0) { ctx.fillStyle = '#a0613f'; ctx.fillRect(tg.x - 2 + (1 - tg.racao) * 2, tg.y - 2, Math.max(1, 4 * tg.racao), 1); }
         if (sp.poca) { ctx.globalAlpha = 0.75 * (1 - sp.poca.seca); ctx.fillStyle = '#f2d14b'; ctx.fillRect(sp.poca.x - 2, sp.poca.y - 1, 4, 2); ctx.fillRect(sp.poca.x - 1, sp.poca.y, 3, 1); ctx.globalAlpha = 1; }
         if (sp.coco) { ctx.fillStyle = '#5a3a22'; ctx.fillRect(sp.coco.x - 1, sp.coco.y - 1, 3, 2); ctx.fillRect(sp.coco.x, sp.coco.y - 2, 1, 1); }
-        const passo = sp.andando && Math.floor(t * 10 + idDono) % 2 ? -0.7 : 0;
-        const dormindo = sp.acao === 'dormindo' && !sp.andando;
-        const agachado = sp.acao === 'fazendo cocô';
+        // arte e animação em fabrica/pet.js (a mesma do vídeo); pelagem pelo id do dono
         atores.push({
           x: sp.x, y: sp.y,
           desenha: () => {
-            ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(sp.x - 3, sp.y - 0.5, 6, 1);
-            ctx.save(); ctx.translate(Math.round(sp.x * 2) / 2, Math.round((sp.y - sp.pulo + passo) * 2) / 2);
-            if (sp.dir < 0) ctx.scale(-1, 1);
-            if (sp.acao === 'fazendo xixi') ctx.rotate(-0.25);     // levanta a pata
-            if (dormindo) ctx.scale(1.1, 0.6); else if (agachado) ctx.scale(1, 0.8);
-            ctx.drawImage(spriteContornado('pet'), -4.8, -8, 9.6, 8); ctx.restore();   // com contorno: não some no chão
+            if (sp.bola) desenharBola(ctx, sp.bola.x, sp.bola.y, sp.bola.alt);
+            desenharPet(ctx, Math.round(sp.x * 2) / 2, Math.round(sp.y * 2) / 2, { pose: sp.pose, dir: sp.dir, t: agoraS, seed: idDono, pulo: sp.pulo });
           },
         });
         if (sp.emote) emotesPet.push({ x: sp.x, y: sp.y - 6, emote: sp.emote });

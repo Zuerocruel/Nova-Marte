@@ -180,6 +180,15 @@ def fila_de_servicos(db: Supabase, campos: str, numero: int) -> dict[str, list[d
     return fila
 
 
+def com_pet(db: Supabase) -> set[str]:
+    """Códigos dos colonos que têm Pet do Colono (pedido pago de QUALQUER data): o pet aparece em todo episódio."""
+    linhas = db.get("pedidos", {
+        "select": "id,produto:produtos!inner(slug),personagem:personagens(codigo,oculto)",
+        "status": f"in.({','.join(STATUS_PAGOS)})", "produto.slug": "ilike.*pet*",
+    })
+    return {c["personagem"]["codigo"] for c in linhas if c.get("personagem") and not c["personagem"].get("oculto")}
+
+
 CAPSULA = "capsula-habitacional"
 VARIANTES_CAPSULA = ("classica", "estufa", "observatorio", "dupla")   # mesma lista de lib/colonia-arte.ts
 
@@ -316,13 +325,15 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
                   "compras": [], "mundo": [], "populacao_anterior": 0}
     else:
         cap = capsulas(db)
+        pets = com_pet(db)
         dados |= {
             "colonos_total": total_colonos,
             "novos_total": novos_total,
             "novos": [colono_publico(p) for p in novos],
             "compras_total": len(compras_linhas),
             "compras": compras,
-            "mundo": [colono_publico(p) | ({"capsula": cap[p["codigo"]]} if p["codigo"] in cap else {}) for p in mundo],
+            "mundo": [colono_publico(p) | ({"capsula": cap[p["codigo"]]} if p["codigo"] in cap else {})
+                      | ({"pet": True} if p["codigo"] in pets else {}) for p in mundo],
             "populacao_anterior": len(col["fundadores"]) + total_colonos - novos_total,
         }
     dados["populacao"] = len(col["fundadores"]) + dados["colonos_total"]

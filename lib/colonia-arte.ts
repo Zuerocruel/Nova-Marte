@@ -41,7 +41,8 @@ const MAPAS: Record<string, string[]> = {
          '..oOOYYOOo..', '.SoOOOOOOoS.', '..oOGGGGOo..', '...OO..OO...', '...OO..OO...', '...BB..BB...'],
   lia: ['....pPPp....', '...PPPPPP...', '..PPSSSSPP..', '..PSKSSKSP..', '..PSSSSSSP..', '..P.SSSS.P..',
         '..WWTTTTWW..', '.SWWTTTTWWS.', '..WWTYTTWW..', '...TT..TT...', '...TT..TT...', '...BB..BB...'],
-  pet: ['......c.c.', '.c....cCc.', '.C...CCKCw', '.C...CCCCK', '..CCCVVCw.', '..CwwwwCC.', '..C.C.C.C.', '..c.c.c.c.'],
+  // pet sentado: tirado da arte nova (fabrica/pet.js), para o ícone do item
+  pet: ['...............', '...............', '.........CcCCC.', '.........ccCKC.', '.........ccCCwK', '.........ccwwww', '......CCCVV....', '.....NNCCCY....', '.....NNCCww....', '....CCCCCww....', '....CCCCCww....', '....CCCCCcC....', 'wCCCCCCC.cC....', '...wwww..ww....', '...............'],
   rover: ['........', '..GG....', '..GV....', '.WWWWWW.', 'WWWWWWWW', 'WOOWWOOW', '.KK..KK.', '........'],
   foguete: ['...WW...', '..WWWW..', '..WVVW..', '..WWWW..', '..WOOW..', '.OWWWWO.', '.O.YY.O.', '...YY...'],
   bandeira: ['KTTTTT..', 'KTTTTT..', 'KTYYTT..', 'KTTTTT..', 'K.......', 'K.......', 'K.......', 'KK......'],

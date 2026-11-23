@@ -162,7 +162,8 @@ const MAPAS = {
     '...TT..TT...',
     '...BB..BB...',
   ],
-  pet: ['......c.c.', '.c....cCc.', '.C...CCKCw', '.C...CCCCK', '..CCCVVCw.', '..CwwwwCC.', '..C.C.C.C.', '..c.c.c.c.'],
+  // pet sentado: tirado da arte nova (fabrica/pet.js), para o ícone do item
+  pet: ['...............', '...............', '.........CcCCC.', '.........ccCKC.', '.........ccCCwK', '.........ccwwww', '......CCCVV....', '.....NNCCCY....', '.....NNCCww....', '....CCCCCww....', '....CCCCCww....', '....CCCCCcC....', 'wCCCCCCC.cC....', '...wwww..ww....', '...............'],
   rover: ['........', '..GG....', '..GV....', '.WWWWWW.', 'WWWWWWWW', 'WOOWWOOW', '.KK..KK.', '........'],
   foguete: ['...WW...', '..WWWW..', '..WVVW..', '..WWWW..', '..WOOW..', '.OWWWWO.', '.O.YY.O.', '...YY...'],
   bandeira: ['KTTTTT..', 'KTTTTT..', 'KTYYTT..', 'KTTTTT..', 'K.......', 'K.......', 'K.......', 'KK......'],
@@ -696,18 +697,21 @@ function desenharPortaAbrigo(t) {
   ret(p.x - 4, p.y - 9, 8, 1, '#ffc83d');   // luz da porta
 }
 
-function desenharPet(c, t) {   // o pet passeia pelo quintal do dono (corre, para, vira)
+// Pet do Colono: arte e rotina em fabrica/pet.js (a MESMA do site). Brinca de bolinha, corre, senta, coça a
+// orelha e pula no quintal do dono; quando o dono entra no módulo à noite, deita e dorme no quintal.
+function desenharPet(c, t) {
   const t0 = aparicaoCompra(c);
   if (t0 >= 0 && t < t0) return;
-  const h = hash(c.x, c.y, 11);
-  const fase = t * 0.8 + h * 30;
-  const px = c.x * CASA + 8 + Math.sin(fase) * 7, py = c.y * CASA + 17 + Math.sin(fase * 0.5) * 1.5;
-  const dir = Math.cos(fase) >= 0 ? 1 : -1;
-  const correndo = Math.abs(Math.cos(fase)) > 0.4;
-  ret(px - 3, py - 0.5, 6, 1, 'rgba(0,0,0,0.25)');
-  ctx.save(); ctx.translate(Math.round(px), Math.round(py - (correndo && Math.floor(t * 10) % 2 ? 1 : 0)));
-  if (dir < 0) ctx.scale(-1, 1);
-  ctx.drawImage(spriteContornado('pet'), -5, -9, 10, 8.4); ctx.restore();
+  const dono = colonoPorCodigo.get(c.codigo);
+  const seed = parseInt(String(c.codigo || '').replace(/\D/g, ''), 10) || 1;   // = id do dono (mesma pelagem do site)
+  let r;
+  if (dono && dono.noite != null && t >= dono.noite + 0.6) r = { x: c.x * CASA + 12, y: c.y * CASA + 17, dir: -1, pose: 'dormindo', pulo: 0, bola: null };
+  else r = PetArte.rotinaVideo(c.x, c.y, t, seed);
+  if (r.bola) PetArte.desenharBola(ctx, r.bola.x, r.bola.y, r.bola.alt);
+  if (t0 >= 0 && t < t0 + 0.4) {   // chegou no episódio: aparece com um pulinho
+    r = { ...r, pose: 'pulando', pulo: Math.sin(clamp((t - t0) / 0.4) * Math.PI) * 5 };
+  }
+  PetArte.desenhar(ctx, r.x, r.y, { pose: r.pose, dir: r.dir, t, seed, pulo: r.pulo });
 }
 
 // ------------------------------------------------------------------ posições
@@ -1427,6 +1431,9 @@ function aparicaoCompra(c) {
 }
 
 function desenharCompras(t) {
+  // pets comprados em episódios anteriores moram no quintal do dono para sempre
+  const novos = new Set(EP.mundo.compras.filter((c) => /pet/.test(c.produto_slug)).map((c) => c.codigo));
+  for (const c of EP.mundo.colonos) if (c.pet && !novos.has(c.codigo)) desenharPet({ codigo: c.codigo, x: c.x, y: c.y, produto_slug: 'pet-do-colono' }, t);
   for (const c of EP.mundo.compras) {
     if (/pet/.test(c.produto_slug)) { desenharPet(c, t); continue; }
     const t0 = aparicaoCompra(c);
