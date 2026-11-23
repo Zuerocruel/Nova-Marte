@@ -4,15 +4,16 @@
  * Cada pet tem um "dia" de CICLO_S segundos, com o horário próprio (deslocado pelo id do dono):
  *   brinca pelo quintal → fome aperta → vai até a tigela e come → brinca → xixi → brinca → cocô → cochilo.
  * O xixi deixa uma poça que seca; o cocô fica no quintal até o dono limpar (e encher a tigela) no cochilo.
- * Quando o dono sai para passear, o pet vai junto (atrás dele, no caminho).
+ * Quando o dono sai de casa (visita, praça, cantina, obra, passeio), o pet vai junto: anda atrás dele e,
+ * quando o dono para, fica por perto (senta, coça a orelha, abana o rabo). Mora na cápsula, se o dono tiver uma.
  */
-import { casaDoId } from '@/lib/mundo';
+import { moradiaDe } from '@/lib/mundo';
 
 export const CICLO_S = 96;
 const CASA = 16;
 
 export type AcaoPet = 'brincando' | 'indo comer' | 'comendo' | 'indo fazer xixi' | 'fazendo xixi'
-  | 'indo fazer cocô' | 'fazendo cocô' | 'dormindo' | 'passeando com o dono';
+  | 'indo fazer cocô' | 'fazendo cocô' | 'dormindo' | 'passeando com o dono' | 'junto com o dono';
 
 /** Pose do desenho (fabrica/pet.js). */
 export type PosePet = 'parado' | 'andando' | 'correndo' | 'sentado' | 'pulando' | 'comendo' | 'xixi' | 'coco' | 'dormindo' | 'cocando';
@@ -46,9 +47,12 @@ const XIXI = [54, 57, 60] as const;
 const COCO = [72, 75, 79] as const;
 const DORME = [84, CICLO_S] as const;
 
-/** Ponto aleatório (estável) no quintal da casa — a faixa em frente à casinha. */
-function pontoNoQuintal(cx: number, cy: number, ...sal: number[]) {
-  return { x: cx * CASA + 2 + h01(...sal, 1) * 12, y: cy * CASA + 13 + h01(...sal, 2) * 4 };
+type Casa = { x: number; y: number; grande: boolean };
+/** Ponto aleatório (estável) no quintal — a faixa em frente à casinha (ou à cápsula, que é 2x2 e tem quintal maior). */
+function pontoNoQuintal(c: Casa, ...sal: number[]) {
+  return c.grande
+    ? { x: c.x * CASA + 2 + h01(...sal, 1) * 28, y: c.y * CASA + 32 + h01(...sal, 2) * 4 }
+    : { x: c.x * CASA + 2 + h01(...sal, 1) * 12, y: c.y * CASA + 13 + h01(...sal, 2) * 4 };
 }
 
 /**
@@ -56,16 +60,16 @@ function pontoNoQuintal(cx: number, cy: number, ...sal: number[]) {
  * `dono(t)`: posição do dono no instante t (segundos), ou null se o dono está em casa / fora da tela.
  */
 export function situacaoPet(idDono: number, agoraS: number,
-                            dono?: (t: number) => { x: number; y: number; dir: 1 | -1; passeando: boolean } | null): SituacaoPet {
-  const c = casaDoId(idDono);
+                            dono?: (t: number) => { x: number; y: number; dir: 1 | -1; fora: boolean; andando: boolean } | null): SituacaoPet {
+  const c = moradiaDe(idDono);
   const off = h01(idDono, 7) * CICLO_S;
   const t = agoraS + off;
   const ciclo = Math.floor(t / CICLO_S);
   const f = t - ciclo * CICLO_S;
 
-  const tigela = { x: c.x * CASA + 3, y: c.y * CASA + 15 };
-  const xixiEm = pontoNoQuintal(c.x, c.y, idDono, ciclo, 30);
-  const cocoEm = pontoNoQuintal(c.x, c.y, idDono, ciclo, 40);
+  const tigela = c.grande ? { x: c.x * CASA + 4, y: c.y * CASA + 34 } : { x: c.x * CASA + 3, y: c.y * CASA + 15 };
+  const xixiEm = pontoNoQuintal(c, idDono, ciclo, 30);
+  const cocoEm = pontoNoQuintal(c, idDono, ciclo, 40);
 
   // necessidades: a fome cresce desde a última refeição; a bexiga desde o último xixi
   const desdeComer = (f - COMER[2] + CICLO_S) % CICLO_S;
@@ -85,7 +89,7 @@ export function situacaoPet(idDono: number, agoraS: number,
   // parado, ele senta, fica de pé abanando o rabo, coça a orelha ou dá pulinhos
   const brincar = (sal: number) => {
     const j = Math.floor(f / 4), fr = (f / 4) - j;
-    const de = pontoNoQuintal(c.x, c.y, idDono, ciclo, j - 1, sal), para = pontoNoQuintal(c.x, c.y, idDono, ciclo, j, sal);
+    const de = pontoNoQuintal(c, idDono, ciclo, j - 1, sal), para = pontoNoQuintal(c, idDono, ciclo, j, sal);
     const jogo = h01(idDono, ciclo, j, 11), busca = jogo < 0.45;
     const k = suave(busca ? (fr - 0.08) / 0.35 : fr / 0.6);
     const dir = (Math.abs(para.x - de.x) < 0.5 ? (h01(idDono, j, 12) < 0.5 ? -1 : 1) : para.x < de.x ? -1 : 1) as 1 | -1;
@@ -111,11 +115,21 @@ export function situacaoPet(idDono: number, agoraS: number,
   const base = { fome, bexiga, tigela: { ...tigela, racao }, poca, coco };
   const janela = Math.floor(agoraS / 2.2);
 
-  // o dono saiu para passear: o pet vai junto, um pouco atrás, pisando onde o dono pisou
-  const d = dono?.(agoraS - 1.1);
-  if (d && d.passeando) {
-    return { ...base, x: d.x - d.dir * 5, y: d.y + 1, dir: d.dir, andando: true, pulo: 0, pose: 'andando', bola: null, acao: 'passeando com o dono',
-             emote: h01(idDono, janela, 3) < 0.2 ? (h01(idDono, janela, 4) < 0.5 ? '❤️' : '🐾') : null };
+  // o dono saiu de casa: o pet vai junto para onde ele for (visita, praça, cantina, obra, passeio)
+  const d = dono?.(agoraS - 0.9);
+  if (d && d.fora) {
+    const coracao = h01(idDono, janela, 3) < 0.2 ? (h01(idDono, janela, 4) < 0.5 ? '❤️' : '🐾') : null;
+    if (d.andando) {   // um pouco atrás, pisando onde o dono pisou
+      return { ...base, x: d.x - d.dir * 6, y: d.y + 1, dir: d.dir, andando: true, pulo: 0, pose: 'andando', bola: null,
+               acao: 'passeando com o dono', emote: coracao };
+    }
+    // o dono parou: fica do lado dele, trocando de pose de vez em quando (e às vezes dá uma voltinha)
+    const j = Math.floor(agoraS / 3), lado = h01(idDono, j, 14) < 0.5 ? -1 : 1;
+    const x = d.x + lado * (6 + h01(idDono, j, 15) * 4), y = d.y + 1 + h01(idDono, j, 16) * 2;
+    const r = h01(idDono, j, 17);
+    const pose: PosePet = r < 0.4 ? 'sentado' : r < 0.7 ? 'parado' : r < 0.85 ? 'cocando' : 'pulando';
+    return { ...base, x, y, dir: (d.x < x ? -1 : 1) as 1 | -1, andando: false, pulo: pose === 'pulando' ? Math.abs(Math.sin(agoraS * 7)) * 3 : 0,
+             pose, bola: null, acao: 'junto com o dono', emote: coracao };
   }
 
   const antes = brincar(0);
@@ -127,7 +141,7 @@ export function situacaoPet(idDono: number, agoraS: number,
   if (f >= COCO[0] && f < COCO[1]) return { ...base, ...ir(antes, cocoEm, COCO[0], COCO[1]), acao: 'indo fazer cocô', emote: '😣' };
   if (f >= COCO[1] && f < COCO[2]) return { ...base, ...cocoEm, x: cocoEm.x + 4, dir: 1, andando: false, pulo: 0, pose: 'coco', bola: null, acao: 'fazendo cocô', emote: '💩' };
   if (f >= DORME[0]) {
-    const cama = { x: c.x * CASA + 13, y: c.y * CASA + 14 };
+    const cama = c.grande ? { x: c.x * CASA + 27, y: c.y * CASA + 33 } : { x: c.x * CASA + 13, y: c.y * CASA + 14 };
     if (f < DORME[0] + 2) return { ...base, ...ir(antes, cama, DORME[0], DORME[0] + 2), acao: 'dormindo', emote: null };
     return { ...base, ...cama, dir: -1, andando: false, pulo: 0, pose: 'dormindo', bola: null, acao: 'dormindo', emote: Math.floor(f) % 3 === 0 ? null : '💤' };
   }

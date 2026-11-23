@@ -5,7 +5,8 @@
 import '@/fabrica/pet.js';
 import type { PosePet } from '@/lib/pet';
 
-type OpcoesPet = { pose: PosePet; dir: 1 | -1; t: number; seed: number; pulo?: number; escala?: number };
+export type EspeciePet = 'cachorro' | 'gato' | 'macaco';
+type OpcoesPet = { pose: PosePet; dir: 1 | -1; t: number; seed: number; pulo?: number; escala?: number; especie?: EspeciePet };
 type Api = {
   desenhar: (c: CanvasRenderingContext2D, x: number, y: number, o: OpcoesPet) => void;
   desenharBola: (c: CanvasRenderingContext2D, x: number, y: number, alt: number) => void;

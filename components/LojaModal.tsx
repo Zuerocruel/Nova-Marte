@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { Opcao } from '@/lib/opcoes';
-import { desenharCapsula } from '@/lib/colonia-arte';
+import { PET_MACACO, type Opcao } from '@/lib/opcoes';
+import type { EspeciePet } from '@/lib/pet-arte';
+import { PreviaCapsula, PreviaPet, PreviaRover } from './PreviasLoja';
 
 /**
  * Botão chamativo "Comprar para a colônia" do Mundo ao vivo + pop-up centralizado.
@@ -10,7 +11,10 @@ import { desenharCapsula } from '@/lib/colonia-arte';
  * evento, bandeira/satélite/festa…) e texto (outdoor, cores da bandeira), com prévia ao vivo do outdoor.
  * "Pagar" vai para /comprar/<slug>?opcao=…&texto=… (registra o clique e abre o checkout da Cakto).
  * Nada aparece na colônia antes do pagamento aprovado: a prévia do outdoor existe só aqui, no pop-up.
+ * Pet: cachorro e gato são opções do "pet-do-colono"; o macaco é o produto "pet-macaco" (mais caro, bicho exótico),
+ * escolhido no mesmo cartão. A página /loja abre este pop-up direto num item (evento "loja:abrir").
  */
+export function abrirLoja(slug?: string) { window.dispatchEvent(new CustomEvent('loja:abrir', { detail: { slug } })); }
 type Produto = {
   slug: string; nome: string; descricao: string | null; preco_centavos: number; tipo: 'pago' | 'gratis';
   opcoes: Opcao[]; pergunta_texto: string | null; imagem_url: string | null;
@@ -20,26 +24,26 @@ const reais = (c: number) => (c / 100).toLocaleString('pt-BR', { style: 'currenc
 const LIMITE_TEXTO: Record<string, number> = { 'outdoor-holografico': 40 };
 const TEXTO_OBRIGATORIO = new Set(['outdoor-holografico']);
 
-/** A cápsula escolhida, grande, com a MESMA arte da casa no mapa (lib/colonia-arte.ts → desenharCapsula). */
-function CapsulaPrevia({ variante }: { variante: string }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const c = ref.current?.getContext('2d');
-    if (!c) return;
-    c.fillStyle = '#c1673e'; c.fillRect(0, 0, 24, 20);
-    c.fillStyle = '#b05c37'; for (const [x, y] of [[2, 3], [19, 15], [4, 17], [20, 4]]) c.fillRect(x, y, 2, 1);
-    desenharCapsula(c, 4, 4, variante, '#3f8efc', true);
-  }, [variante]);
-  return <canvas ref={ref} width={24} height={20} className="capsula-previa" aria-label={`Prévia da cápsula ${variante}`} />;
-}
-
-export default function LojaModal() {
+export default function LojaModal({ semBotao = false }: { semBotao?: boolean }) {
   const [aberto, setAberto] = useState(false);
   const [produtos, setProdutos] = useState<Produto[] | null>(null);
   const [item, setItem] = useState<Produto | null>(null);
   const [opcao, setOpcao] = useState('');
   const [texto, setTexto] = useState('');
   const caixa = useRef<HTMLDivElement>(null);
+  const [pedido, setPedido] = useState<string | null>(null);   // slug pedido pela /loja antes da lista chegar
+
+  useEffect(() => {   // a página /loja abre o pop-up direto num item
+    const abrir = (e: Event) => { setAberto(true); setPedido((e as CustomEvent<{ slug?: string }>).detail?.slug ?? null); };
+    window.addEventListener('loja:abrir', abrir);
+    return () => window.removeEventListener('loja:abrir', abrir);
+  }, []);
+  useEffect(() => {
+    if (!pedido || !produtos) return;
+    const p = produtos.find((x) => x.slug === pedido);
+    if (p) escolher(p);
+    setPedido(null);
+  }, [pedido, produtos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!aberto || produtos) return;
@@ -55,29 +59,39 @@ export default function LojaModal() {
     return () => { document.removeEventListener('keydown', tecla); document.body.style.overflow = antes; };
   }, [aberto]);
 
-  function fechar() { setAberto(false); setItem(null); }
+  function fechar() { setAberto(false); setItem(null); setPedido(null); }
   function escolher(p: Produto) {
     setItem(p); setOpcao(''); setTexto('');
     caixa.current?.scrollTo({ top: 0 });
   }
 
+  // pet: a espécie escolhida decide o produto (macaco = produto próprio, preço próprio)
+  const macaco = produtos?.find((p) => p.slug === PET_MACACO) ?? null;
+  const ehPet = item?.slug === 'pet-do-colono';
+  const especie: EspeciePet = ehPet ? (opcao === 'macaco' ? 'macaco' : opcao === 'gato' ? 'gato' : 'cachorro') : 'cachorro';
+  const comprando = ehPet && opcao === 'macaco' && macaco ? macaco : item;
+  const opcoesPet: Opcao[] = ehPet ? [...(item?.opcoes ?? []), { valor: 'macaco', rotulo: '🐒 Macaco' }] : [];
   const limite = item ? LIMITE_TEXTO[item.slug] ?? 120 : 120;
   // o outdoor sempre pede o texto (a pergunta também vem do banco: migração 010)
   const pergunta = item ? item.pergunta_texto ?? (TEXTO_OBRIGATORIO.has(item.slug) ? 'Texto do outdoor (até 40 letras)' : null) : null;
   const faltaOpcao = !!item && item.opcoes.length > 0 && !opcao;
   const faltaTexto = !!item && TEXTO_OBRIGATORIO.has(item.slug) && !texto.trim();
-  const destino = item
-    ? item.tipo === 'gratis'
-      ? `/resgatar/${item.slug}`
-      : `/comprar/${item.slug}?${new URLSearchParams({ ...(opcao ? { opcao } : {}), ...(texto.trim() ? { texto: texto.trim() } : {}) })}`
+  const destino = item && comprando
+    ? comprando.tipo === 'gratis'
+      ? `/resgatar/${comprando.slug}`
+      : comprando.slug === PET_MACACO
+        ? `/comprar/${PET_MACACO}`
+        : `/comprar/${comprando.slug}?${new URLSearchParams({ ...(opcao ? { opcao } : {}), ...(texto.trim() ? { texto: texto.trim() } : {}) })}`
     : '#';
 
   return (
     <>
-      <button type="button" className="btn-comprar-vivo" onClick={() => setAberto(true)}>
-        🛒 COMPRAR PARA A COLÔNIA
-        <small>cápsula · foguete · rover · pet · outdoor · eventos</small>
-      </button>
+      {!semBotao && (
+        <button type="button" className="btn-comprar-vivo" onClick={() => setAberto(true)}>
+          🛒 COMPRAR PARA A COLÔNIA
+          <small>cápsula · foguete · rover · pet · outdoor · eventos</small>
+        </button>
+      )}
 
       {aberto && (
         <div className="modal-fundo" onMouseDown={(e) => { if (e.target === e.currentTarget) fechar(); }}>
@@ -90,7 +104,7 @@ export default function LojaModal() {
                 <p className="mudo" style={{ marginTop: 0 }}>Escolha um item: ele aparece na sua casa no mapa e no próximo episódio.</p>
                 {!produtos && <p className="mudo">Carregando…</p>}
                 <div className="modal-grade">
-                  {produtos?.map((p) => (
+                  {produtos?.filter((p) => p.slug !== PET_MACACO).map((p) => (
                     <button type="button" key={p.slug} className="modal-produto" onClick={() => escolher(p)}>
                       {p.imagem_url ? <img src={p.imagem_url} alt="" loading="lazy" /> : <span className="sem-img" />}
                       <b>{p.nome}</b>
@@ -110,12 +124,33 @@ export default function LojaModal() {
                     <div className="outdoor-tela"><span>{texto.trim() || 'SEU TEXTO AQUI'}</span></div>
                   </div>
                 ) : item.slug === 'capsula-habitacional' && item.opcoes.length > 0 ? (
-                  <CapsulaPrevia variante={opcao || item.opcoes[0].valor} />
+                  <PreviaCapsula variante={opcao || item.opcoes[0].valor} />
+                ) : ehPet ? (
+                  <PreviaPet especie={especie} />
+                ) : item.slug === 'rover' ? (
+                  <PreviaRover />
                 ) : item.imagem_url && <img className="modal-img" src={item.imagem_url} alt="" />}
 
                 {item.descricao && <p style={{ fontSize: 19 }}>{item.descricao}</p>}
 
-                {item.opcoes.length > 0 && (
+                {ehPet && (
+                  <>
+                    <label htmlFor="modal-opcao">Qual bicho?</label>
+                    <div className="modal-opcoes opcoes-pet" id="modal-opcao" role="radiogroup">
+                      {opcoesPet.map((o) => {
+                        const indisponivel = o.valor === 'macaco' && !macaco;
+                        const preco = o.valor === 'macaco' ? (macaco?.preco_centavos ?? 800) : item.preco_centavos;
+                        return (
+                          <button type="button" key={o.valor} role="radio" aria-checked={opcao === o.valor} disabled={indisponivel}
+                            className={opcao === o.valor ? 'ativa' : ''} onClick={() => setOpcao(o.valor)}>
+                            {o.rotulo}<small>{indisponivel ? 'em breve' : reais(preco)}{o.valor === 'macaco' ? ' · exótico' : ''}</small>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+                {!ehPet && item.opcoes.length > 0 && (
                   <>
                     <label htmlFor="modal-opcao">{item.slug === 'eventos-furia-marte' ? 'Qual evento?' : item.slug === 'capsula-habitacional' ? 'Qual cápsula?' : item.slug === 'bandeira' ? 'Qual bandeira?' : 'Escolha:'}</label>
                     {item.opcoes.length > 12 ? (   // muitas opções (ex.: ~200 países da bandeira): lista suspensa
@@ -143,7 +178,7 @@ export default function LojaModal() {
                   </>
                 )}
 
-                <div className="preco" style={{ marginTop: 12 }}>{item.tipo === 'gratis' ? 'GRÁTIS · 1 por pessoa' : reais(item.preco_centavos)}</div>
+                <div className="preco" style={{ marginTop: 12 }}>{item.tipo === 'gratis' ? 'GRÁTIS · 1 por pessoa' : reais((comprando ?? item).preco_centavos)}</div>
                 <p className="mudo" style={{ fontSize: 16 }}>
                   {item.tipo === 'gratis' ? 'Quem já é personagem resgata grátis.' : 'Pagamento seguro pela Cakto (Pix ou cartão). O item aparece depois que o pagamento for aprovado.'}
                 </p>

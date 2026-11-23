@@ -12,3 +12,6 @@ export function rotuloDe(opcoes: unknown, valor: string | null | undefined): str
   if (!valor) return null;
   return lerOpcoes(opcoes).find((o) => o.valor === valor)?.rotulo ?? valor;
 }
+
+/** O macaco é um produto próprio (bicho exótico, preço maior); cachorro e gato são opções do "pet-do-colono". */
+export const PET_MACACO = 'pet-macaco';

@@ -59,3 +59,22 @@ export function erroApelido(apelido: string): string | null {
   if (APELIDOS_RESERVADOS.has(k.replace(/[_.]/g, ''))) return 'Esse nick é reservado. Escolha outro.';
   return null;
 }
+
+/**
+ * Texto que vai aparecer em público (ex.: outdoor no mapa): sem links, sem telefone e com os palavrões
+ * mais comuns mascarados. Filtro simples — a revisão do dono continua valendo para o episódio.
+ */
+const PALAVROES = ['porra', 'caralho', 'merda', 'puta', 'puto', 'fdp', 'buceta', 'cu', 'cuzao', 'cuzão', 'viado', 'arrombado',
+  'piroca', 'pica', 'foder', 'fode', 'fodase', 'foda-se', 'vagabunda', 'vadia', 'corno', 'otario', 'otário', 'babaca', 'bosta', 'pau no cu'];
+export function textoPublico(bruto: string | null | undefined, max = 60): string | null {
+  let t = String(bruto ?? '').replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  t = t.replace(/(https?:\/\/|www\.)\S+/gi, '').replace(/\S+\.(com|net|org|br|io|gg|me|ly)\b\S*/gi, '')   // links
+       .replace(/\+?\d[\d\s().-]{7,}\d/g, '');                                                            // telefones
+  for (const p of PALAVROES) {
+    const re = new RegExp(String.raw`(^|[^\p{L}])(${p})(?=$|[^\p{L}])`, 'giu');
+    t = t.replace(re, (_m, a: string, w: string) => a + w[0] + '*'.repeat(Math.max(1, w.length - 1)));
+  }
+  t = t.replace(/\s+/g, ' ').trim().slice(0, max);
+  return t || null;
+}

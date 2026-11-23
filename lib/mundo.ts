@@ -145,3 +145,25 @@ export const VARIANTES_CAPSULA = ['classica', 'estufa', 'observatorio', 'dupla']
 export type VarianteCapsula = (typeof VARIANTES_CAPSULA)[number];
 export const varianteDaCapsula = (opcao: string | null | undefined): VarianteCapsula =>
   (VARIANTES_CAPSULA as readonly string[]).includes(opcao ?? '') ? (opcao as VarianteCapsula) : 'classica';
+
+/* ---------------------------------------------------------------- Vila das Cápsulas
+ * Quem compra a Cápsula Habitacional deixa a casinha grátis do lote e ganha uma cápsula MAIOR (2x2 casas)
+ * num bairro próprio, a leste da colônia (depois do anel das crateras). A ordem de chegada (1ª compra paga)
+ * define o lote da vila: 5 por fileira, com uma rua de 1 casa entre eles. */
+export const VILA = { x: CENTRO.x + 27, y: CENTRO.y - 7, colunas: 5, passo: 3, lado: 2 };
+export function loteDaVila(i: number): { x: number; y: number; w: number; h: number } {
+  const n = Math.max(0, Math.floor(i));
+  return { x: VILA.x + (n % VILA.colunas) * VILA.passo, y: VILA.y + Math.floor(n / VILA.colunas) * VILA.passo, w: VILA.lado, h: VILA.lado };
+}
+
+/** Moradias especiais (cápsulas): id do colono → canto da cápsula, em casas. Preenchido pelo Mundo ao vivo. */
+const MORADIAS = new Map<number, { x: number; y: number }>();
+export function definirMoradias(lista: { id: number; x: number; y: number }[]) {
+  MORADIAS.clear();
+  for (const m of lista) MORADIAS.set(m.id, { x: m.x, y: m.y });
+}
+/** Onde o colono mora AGORA: a cápsula (grande = true, 2x2 casas) ou a casinha do lote (1x1). */
+export function moradiaDe(id: number): { x: number; y: number; grande: boolean } {
+  const m = MORADIAS.get(id);
+  return m ? { ...m, grande: true } : { ...casaDoId(id), grande: false };
+}

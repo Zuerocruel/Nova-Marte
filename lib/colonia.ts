@@ -1,8 +1,9 @@
 import 'server-only';
 import { db } from '@/lib/supabase';
+import { textoPublico } from '@/lib/texto';
 import colonia from '@/fabrica/colonia.json';
 import marte from '@/fabrica/marte.json';
-import { posCratera, varianteDaCapsula } from '@/lib/mundo';
+import { loteDaVila, posCratera, varianteDaCapsula } from '@/lib/mundo';
 
 /**
  * Estado da colônia para o "Mundo ao vivo": a MESMA geometria do vídeo (fabrica/colonia.json),
@@ -13,10 +14,12 @@ export type Obra = { slug: string; nome: string; tipo: string; x: number; y: num
 export type Fundador = { id: string; curto: string; casa: [number, number]; sprite: string };
 export type Estacao = { id: string; nome: string; dia: number; temp: number | null; efeito: string };
 export type ProblemaDoDia = { titulo: string; rotulo: string; categoria: string; heroi: string | null; heroi_codigo: string | null };
-export type CompraNoMapa = { pos_x: number; pos_y: number; produto_slug: string; seed: number };
-/** Pet do Colono: vive no quintal do dono (lib/pet.ts) em vez de ficar parado como ícone. */
-export type CapsulaNoMapa = { pos_x: number; pos_y: number; variante: string };
-export type PetNoMapa = { codigo: string; pos_x: number; pos_y: number };
+/** Item comprado que aparece na casa do colono (um de cada tipo; o rover anda com o dono). */
+export type CompraNoMapa = { codigo: string; pos_x: number; pos_y: number; produto_slug: string; seed: number; opcao: string | null; texto: string | null };
+/** Cápsula habitacional: o colono sai da casinha do lote (pos_x/pos_y) e mora na cápsula da Vila (x, y; 2x2 casas). */
+export type CapsulaNoMapa = { codigo: string; nome: string; pos_x: number; pos_y: number; x: number; y: number; variante: string };
+/** Pet do Colono: anda com o dono pelo mapa e vive no quintal dele (lib/pet.ts). */
+export type PetNoMapa = { codigo: string; pos_x: number; pos_y: number; especie: 'cachorro' | 'gato' | 'macaco' };
 /** Cratera batizada por um colono (resgate aprovado de "Nomeie sua Cratera"). */
 export type CrateraNoMapa = { id: number; nome: string; dono: string; codigo: string; x: number; y: number; r: number };
 export type EstadoColonia = {
@@ -63,7 +66,7 @@ export async function estadoColonia(): Promise<EstadoColonia> {
       .not('publicado_em', 'is', null).order('numero', { ascending: false }).limit(1).maybeSingle()
       .then((r) => (r.error ? db().from('episodios').select('numero, titulo, publicado_em')   // sem a coluna resumo (falta a 006)
         .not('publicado_em', 'is', null).order('numero', { ascending: false }).limit(1).maybeSingle() : r)),
-    db().from('pedidos').select('opcao, produtos(slug), personagens!inner(codigo, pos_x, pos_y, seed, oculto)')
+    db().from('pedidos').select('id, opcao, texto_personalizado, produtos(slug), personagens!inner(codigo, nome, apelido, pos_x, pos_y, seed, oculto)')
       .eq('status', 'aprovado').eq('personagens.oculto', false).order('id', { ascending: false }).limit(400),
     db().from('resgates').select('id, texto, produtos!inner(slug), personagens!inner(codigo, nome, apelido, oculto)')
       .eq('status', 'aprovado').eq('produtos.slug', 'nomeie-sua-cratera').eq('personagens.oculto', false)
@@ -92,28 +95,42 @@ export async function estadoColonia(): Promise<EstadoColonia> {
         heroi: resumo.problema.heroi ?? null, heroi_codigo: resumo.problema.heroi_codigo ?? null }
     : null;
 
-  type LinhaCompra = { opcao: string | null; produtos: { slug: string } | null; personagens: { codigo: string; pos_x: number; pos_y: number; seed: number } | null };
+  type LinhaCompra = { id: number; opcao: string | null; texto_personalizado: string | null; produtos: { slug: string } | null;
+    personagens: { codigo: string; nome: string; apelido: string | null; pos_x: number; pos_y: number; seed: number } | null };
   const compras: CompraNoMapa[] = [];
   const pets: PetNoMapa[] = [];
-  const capsulas: CapsulaNoMapa[] = [];
   const vistos = new Set<string>();
-  for (const c of (comprasDb.data ?? []) as unknown as LinhaCompra[]) {
+  // cápsulas: a variante vale a da compra mais recente; o lote na Vila sai da ordem da 1ª compra (id menor)
+  const capsulaDe = new Map<string, { primeiro: number; variante: string; linha: NonNullable<LinhaCompra['personagens']> }>();
+  for (const c of (comprasDb.data ?? []) as unknown as LinhaCompra[]) {   // vem do mais novo para o mais antigo
     if (!c.produtos || !c.personagens) continue;
-    if (c.produtos.slug === 'eventos-furia-marte' || c.produtos.slug === 'destaque-proximo-ep') continue;   // não são objeto na casa
-    if (c.produtos.slug === 'capsula-habitacional') {   // a casa vira a cápsula (a compra mais recente vale)
-      if (!capsulas.some((k) => k.pos_x === c.personagens!.pos_x && k.pos_y === c.personagens!.pos_y))
-        capsulas.push({ pos_x: c.personagens.pos_x, pos_y: c.personagens.pos_y, variante: varianteDaCapsula(c.opcao) });
+    const slug = c.produtos.slug, p = c.personagens;
+    if (slug === 'eventos-furia-marte' || slug === 'destaque-proximo-ep') continue;   // não são objeto na casa
+    if (slug === 'capsula-habitacional') {
+      const k = capsulaDe.get(p.codigo);
+      if (!k) capsulaDe.set(p.codigo, { primeiro: c.id, variante: varianteDaCapsula(c.opcao), linha: p });
+      else k.primeiro = Math.min(k.primeiro, c.id);
       continue;
     }
-    if (/pet/i.test(c.produtos.slug)) {        // um pet por dono
-      if (!pets.some((p) => p.codigo === c.personagens!.codigo)) pets.push({ codigo: c.personagens.codigo, pos_x: c.personagens.pos_x, pos_y: c.personagens.pos_y });
+    if (/pet/i.test(slug)) {        // um pet por dono (o mais recente); macaco é um produto próprio
+      if (!pets.some((x) => x.codigo === p.codigo)) {
+        const especie = /macaco/.test(slug) ? 'macaco' : c.opcao === 'gato' ? 'gato' : 'cachorro';
+        pets.push({ codigo: p.codigo, pos_x: p.pos_x, pos_y: p.pos_y, especie });
+      }
       continue;
     }
-    const k = `${c.personagens.pos_x},${c.personagens.pos_y}`;
-    if (vistos.has(k)) continue;      // um item por casa (o mais recente)
+    const k = `${p.codigo}:${slug}`;
+    if (vistos.has(k)) continue;      // um de cada item por colono (o mais recente)
     vistos.add(k);
-    compras.push({ pos_x: c.personagens.pos_x, pos_y: c.personagens.pos_y, produto_slug: c.produtos.slug, seed: c.personagens.seed });
+    compras.push({ codigo: p.codigo, pos_x: p.pos_x, pos_y: p.pos_y, produto_slug: slug, seed: p.seed, opcao: c.opcao, texto: textoPublico(c.texto_personalizado, 40) });
   }
+  const capsulas: CapsulaNoMapa[] = [...capsulaDe.entries()]
+    .sort((a, b) => a[1].primeiro - b[1].primeiro)
+    .map(([codigo, k], i) => {
+      const v = loteDaVila(i);
+      return { codigo, nome: k.linha.apelido?.trim() || nomeExibicao(k.linha.nome), pos_x: k.linha.pos_x, pos_y: k.linha.pos_y,
+               x: v.x, y: v.y, variante: k.variante };
+    });
 
   type LinhaCratera = { id: number; texto: string; personagens: { codigo: string; nome: string; apelido?: string | null } | null };
   const crateras: CrateraNoMapa[] = ((crateraDb.data ?? []) as unknown as LinhaCratera[])

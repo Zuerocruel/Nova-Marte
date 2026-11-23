@@ -9,7 +9,7 @@
  *   · passeio pelas ruas · ficar em casa. Quem fica sem dupla faz algo sozinho.
  * Andam pelas ruas do bairro (a cada 4 casas), conversam com balões e acenam.
  */
-import { CENTRO, casaDoId } from './mundo';
+import { CENTRO, moradiaDe } from './mundo';
 
 export const RODADA_S = 40;
 const CASA = 16;
@@ -72,10 +72,10 @@ function tipoDaRodada(id: number, k: number, total: number): { tipo: Tipo; parce
   return { tipo: 'casa', parceiro: null };
 }
 
-/** Pés do colono parado na porta de casa. */
+/** Pés do colono parado na porta de casa (ou da cápsula). */
 export function portaDe(id: number) {
-  const c = casaDoId(id);
-  return { x: c.x * CASA + 11, y: c.y * CASA + 15 };
+  const c = moradiaDe(id);   // cápsula (2x2, porta embaixo no meio) ou casinha do lote
+  return c.grande ? { x: c.x * CASA + 16, y: c.y * CASA + 31 } : { x: c.x * CASA + 11, y: c.y * CASA + 15 };
 }
 
 // ruas: linhas/colunas a cada 4 casas a partir do centro

@@ -119,6 +119,7 @@ export function spriteEstatua(seed: number): HTMLCanvasElement {
 
 export function iconeDoProduto(slug: string): string {
   const s = (slug || '').toLowerCase();
+  if (s.includes('comercio')) return 'comercio';
   for (const k of ['pet', 'rover', 'foguete', 'monumento', 'capsula', 'outdoor', 'traje']) if (s.includes(k)) return k;
   if (/bandeira|satelite|festa/.test(s)) return 'bandeira';
   return 'presente';
@@ -538,4 +539,201 @@ export function desenharCapsula(c: Ctx, x: number, y: number, variante: string, 
     R(7, -2, 1, 3, '#9a9db0'); R(7, -3, 1, 1, '#e04f5f');
     R(12, 11, 4, 2, '#3f5fae'); R(12, 11, 4, 1, '#8fb3ff');
   }
+}
+
+// ------------------------------------------------------------------ itens comprados no mapa (arte nova)
+// Tudo em pixels do mundo (1 casa = 16 px). O colono tem 12 px de altura: o rover e o foguete são bem maiores.
+const CONT = '#1b1530';
+const cacheItens = new Map<string, HTMLCanvasElement>();
+/** Desenha num canvas próprio e passa o contorno escuro de 1 px em volta (fica legível no chão vermelho). */
+function comContorno(chave: string, w: number, h: number, pintar: (R: (x: number, y: number, w: number, h: number, k: string) => void, c: Ctx) => void) {
+  let s = cacheItens.get(chave);
+  if (s) return s;
+  const base = document.createElement('canvas'); base.width = w; base.height = h;
+  const b = base.getContext('2d')!;
+  pintar((x, y, ww, hh, k) => { b.fillStyle = k; b.fillRect(x, y, ww, hh); }, b);
+  s = document.createElement('canvas'); s.width = w; s.height = h;
+  const x = s.getContext('2d')!;
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) x.drawImage(base, dx, dy);
+  x.globalCompositeOperation = 'source-in'; x.fillStyle = CONT; x.fillRect(0, 0, w, h);
+  x.globalCompositeOperation = 'source-over'; x.drawImage(base, 0, 0);
+  cacheItens.set(chave, s);
+  return s;
+}
+
+/** Rover (30x20, de lado, frente para a direita). `roda` = quadro do giro das rodas (0..3). */
+function spriteRover(roda: number) {
+  return comContorno(`rover:${roda}`, 30, 20, (R, c) => {
+    R(5, 4, 1, 4, '#9aa0b5'); R(3, 3, 5, 1, '#c9cde0');                    // antena de prato
+    R(10, 2, 1, 6, '#9aa0b5'); R(9, 1, 3, 2, '#eef0f8'); R(11, 1, 1, 1, '#2b2350');   // mastro da câmera
+    R(3, 7, 11, 2, '#3f5fae'); R(3, 7, 11, 1, '#8fb3ff');                  // painel solar
+    R(15, 3, 11, 6, '#eef0f8'); R(16, 4, 9, 4, '#3fd0c9'); R(17, 4, 3, 1, '#bff6f2');   // cabine e janela
+    R(2, 9, 26, 5, '#eef0f8'); R(2, 13, 26, 1, '#9aa0b5');                 // carroceria
+    R(2, 11, 26, 1, '#e2603b');                                            // faixa
+    R(27, 10, 1, 1, '#ffd85a'); R(27, 12, 1, 1, '#ffd85a');                // faróis
+    for (const cx of [7, 15, 23]) {                                        // três rodas
+      disco(c, cx, 16, 3, '#2e323b'); disco(c, cx, 16, 1, '#c9cde0');
+      const [dx, dy] = [[0, -2], [2, 0], [0, 2], [-2, 0]][(roda + cx) % 4];
+      R(cx + dx, 16 + dy, 1, 1, '#6b6f86');
+    }
+  });
+}
+/** Onde fica a janela da cabine no rover (relativo aos pés do rover, virado para a direita). */
+export const JANELA_ROVER = { x: 1, y: -15, w: 9, h: 4 };
+/**
+ * Rover com os pés (chão, no meio) em (x, y). `cabeca`: sprite 12x12 do colono dirigindo (só a cabeça aparece
+ * na janela). Andando: rodas giram, chacoalha e solta poeira.
+ */
+export function desenharRover(c: Ctx, x: number, y: number, dir: 1 | -1, t: number, andando: boolean, cabeca?: HTMLCanvasElement | null) {
+  const roda = andando ? Math.floor(t * 10) % 4 : 0, sacode = andando && Math.floor(t * 8) % 2 ? -1 : 0;
+  c.fillStyle = 'rgba(0,0,0,0.28)'; c.fillRect(Math.round(x - 14), Math.round(y - 1), 28, 2);
+  if (andando) for (let i = 0; i < 3; i++) {   // poeira atrás
+    const k = (t * 2 + i / 3) % 1;
+    c.globalAlpha = 0.5 * (1 - k); c.fillStyle = '#e8b48c';
+    c.fillRect(Math.round(x - dir * (15 + k * 8)), Math.round(y - 3 - k * 4), 2 + Math.round(k * 2), 2); c.globalAlpha = 1;
+  }
+  c.save(); c.translate(Math.round(x), Math.round(y + sacode)); if (dir < 0) c.scale(-1, 1);
+  c.drawImage(spriteRover(roda), -15, -20);
+  if (cabeca) {   // motorista na janela (cabeça do boneco, linhas 0..5 do sprite)
+    const j = JANELA_ROVER;
+    c.save(); c.beginPath(); c.rect(j.x, j.y, j.w, j.h); c.clip();
+    c.drawImage(cabeca, 0, 0, 12, 6, j.x + 1, j.y - 1, 12, 6);
+    c.fillStyle = 'rgba(63,208,201,0.35)'; c.fillRect(j.x, j.y, j.w, j.h);
+    c.restore();
+  }
+  c.restore();
+}
+
+/** Foguete na plataforma (14x30), com a cor do colono na faixa. Pés da plataforma em (x, y). */
+export function desenharFoguete(c: Ctx, x: number, y: number, t: number, cor: string) {
+  const s = comContorno(`foguete:${cor}`, 14, 30, (R) => {
+    R(1, 27, 12, 2, '#5a5f84'); R(2, 26, 10, 1, '#9aa0b5'); R(2, 27, 1, 1, '#ffc83d'); R(11, 27, 1, 1, '#ffc83d');
+    R(5, 8, 4, 17, '#eef0f8'); R(8, 8, 1, 17, '#c9cde0');               // corpo
+    R(5, 5, 4, 3, '#e2603b'); R(6, 3, 2, 2, '#e2603b'); R(6, 2, 1, 1, '#ff9a73');   // bico
+    R(6, 11, 2, 2, '#3fd0c9'); R(6, 11, 1, 1, '#bff6f2');               // janelinha
+    R(5, 17, 4, 2, cor);                                                // faixa com a cor do dono
+    R(3, 20, 2, 5, '#e2603b'); R(9, 20, 2, 5, '#e2603b'); R(6, 21, 2, 4, '#a83d22');   // aletas
+    R(6, 25, 2, 1, '#6b6f86');
+  });
+  c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(Math.round(x - 7), Math.round(y - 1), 14, 2);
+  c.drawImage(s, Math.round(x - 7), Math.round(y - 30));
+  if (Math.floor(t * 1.5) % 2 === 0) { c.fillStyle = '#ff4d4d'; c.fillRect(Math.round(x - 1), Math.round(y - 29), 1, 1); }   // luz do bico
+  if (Math.floor(t * 3) % 6 === 0) { c.fillStyle = '#ffffff66'; c.fillRect(Math.round(x - 3), Math.round(y - 3), 6, 1); }   // vapor
+}
+
+/** Outdoor holográfico (22 px de largura) com o texto do comprador; pés das colunas em (x, y). */
+export function desenharOutdoor(c: Ctx, x: number, y: number, t: number, texto: string | null) {
+  const x0 = Math.round(x - 11), y0 = Math.round(y - 22);
+  c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(x0 + 1, Math.round(y - 1), 20, 2);
+  c.fillStyle = CONT; c.fillRect(x0 + 4, y0 + 11, 3, 11); c.fillRect(x0 + 15, y0 + 11, 3, 11);
+  c.fillStyle = '#6b6f86'; c.fillRect(x0 + 5, y0 + 11, 1, 11); c.fillRect(x0 + 16, y0 + 11, 1, 11);
+  c.fillStyle = '#2e323b'; c.fillRect(x0 + 2, y0 + 20, 18, 2);                       // base com o projetor
+  c.fillStyle = '#3fd0c9'; c.fillRect(x0 + 10, y0 + 19, 2, 1);
+  const pisca = Math.floor(t * 6) % 23 === 0 ? 0.45 : 1;                              // falha de holograma de vez em quando
+  c.globalAlpha = 0.85 * pisca;
+  c.fillStyle = '#0b3a4a'; c.fillRect(x0, y0, 22, 11);
+  c.fillStyle = '#3fd0c9'; c.fillRect(x0, y0, 22, 1); c.fillRect(x0, y0 + 10, 22, 1); c.fillRect(x0, y0, 1, 11); c.fillRect(x0 + 21, y0, 1, 11);
+  c.fillStyle = '#3fd0c933'; for (let i = 2; i < 10; i += 2) c.fillRect(x0 + 1, y0 + i, 20, 1);   // linhas de varredura
+  c.fillStyle = '#3fd0c955'; c.beginPath(); c.moveTo(x0 + 10, y0 + 19); c.lineTo(x0 + 3, y0 + 11); c.lineTo(x0 + 19, y0 + 11); c.fill();   // feixe
+  c.globalAlpha = pisca;
+  const msg = (texto || 'OPERAÇÃO MARTE ZERO').toUpperCase();
+  c.font = '3px monospace'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#e8fffd';
+  const largura = c.measureText(msg).width;
+  if (largura <= 19) c.fillText(msg, x0 + 11, y0 + 5.6);
+  else {   // texto comprido: corre da direita para a esquerda dentro do painel
+    c.save(); c.beginPath(); c.rect(x0 + 1, y0 + 1, 20, 9); c.clip();
+    const passo = (t * 6) % (largura + 22);
+    c.textAlign = 'left'; c.fillText(msg, x0 + 21 - passo, y0 + 5.6); c.restore();
+  }
+  c.globalAlpha = 1;
+}
+
+// cores das bandeiras mais pedidas (listras na ordem); o resto usa duas cores sorteadas pelo código
+const BANDEIRAS: Record<string, string[]> = {
+  br: ['#229e45', '#f8e509', '#2b49a3'], pt: ['#046a38', '#da291c', '#da291c'], us: ['#b22234', '#ffffff', '#3c3b6e'],
+  ar: ['#74acdf', '#ffffff', '#74acdf'], es: ['#aa151b', '#f1bf00', '#aa151b'], it: ['#009246', '#ffffff', '#ce2b37'],
+  fr: ['#0055a4', '#ffffff', '#ef4135'], de: ['#000000', '#dd0000', '#ffce00'], jp: ['#ffffff', '#bc002d', '#ffffff'],
+  mx: ['#006847', '#ffffff', '#ce1126'], co: ['#fcd116', '#003893', '#ce1126'], cl: ['#ffffff', '#0039a6', '#d52b1e'],
+  uy: ['#ffffff', '#0038a8', '#ffffff'], py: ['#d52b1e', '#ffffff', '#0038a8'], gb: ['#012169', '#c8102e', '#ffffff'],
+  ca: ['#d80621', '#ffffff', '#d80621'], ao: ['#cc092f', '#000000', '#cc092f'], mz: ['#007168', '#000000', '#fce100'],
+  ve: ['#ffcc00', '#00247d', '#cf142b'], pe: ['#d91023', '#ffffff', '#d91023'], bo: ['#d52b1e', '#f9e300', '#007934'],
+};
+/** Bandeira tremulando no mastro (pé do mastro em x, y). opcao = código do país ou "cores". */
+export function desenharBandeira(c: Ctx, x: number, y: number, t: number, opcao: string | null, cor: string) {
+  const cores = BANDEIRAS[opcao ?? ''] ?? (opcao === 'cores' || !opcao ? [cor, '#ffffff', cor]
+    : [`hsl(${Math.floor(hash(opcao.charCodeAt(0), opcao.charCodeAt(1) || 0) * 360)},70%,50%)`, '#ffffff', cor]);
+  const px = Math.round(x), py = Math.round(y);
+  c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(px - 2, py - 1, 5, 2);
+  c.fillStyle = CONT; c.fillRect(px - 1, py - 18, 3, 18);
+  c.fillStyle = '#c9cde0'; c.fillRect(px, py - 18, 1, 18);
+  c.fillStyle = '#ffd85a'; c.fillRect(px, py - 19, 1, 1);
+  for (let i = 0; i < 10; i++) {   // tecido ondulando
+    const onda = Math.round(Math.sin(t * 5 - i * 0.7) * 1.2 * (i / 10));
+    const fx = px + 1 + i, fy = py - 17 + onda;
+    c.fillStyle = CONT; c.fillRect(fx, fy - 1, 1, 8);
+    for (let j = 0; j < 6; j++) { c.fillStyle = cores[Math.floor(j / 2)]; c.fillRect(fx, fy + j, 1, 1); }
+  }
+}
+
+/** Quiosque de comércio (16x14): toldo listrado com a cor do dono, balcão e luz acesa. Pés em (x, y). */
+export function desenharComercio(c: Ctx, x: number, y: number, t: number, cor: string) {
+  const s = comContorno(`comercio:${cor}`, 18, 16, (R) => {
+    R(2, 6, 14, 9, '#cfd3dc'); R(2, 14, 14, 1, '#9aa0b5');              // casinha
+    R(4, 8, 10, 3, '#2b2350');                                          // vitrine
+    R(1, 11, 16, 2, '#a0613f'); R(1, 11, 16, 1, '#c98a5e');             // balcão
+    for (let i = 0; i < 8; i++) R(1 + i * 2, 3, 2, 3, i % 2 ? '#ffffff' : cor);   // toldo
+    R(1, 6, 16, 1, '#00000033');
+    R(6, 0, 6, 3, '#ffd85a'); R(8, 1, 2, 1, '#a83d22');                 // plaquinha
+  });
+  c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(Math.round(x - 8), Math.round(y - 1), 16, 2);
+  c.drawImage(s, Math.round(x - 9), Math.round(y - 16));
+  const luz = 0.6 + 0.4 * Math.sin(t * 2);
+  c.globalAlpha = luz; c.fillStyle = '#ffe58a'; c.fillRect(Math.round(x - 4), Math.round(y - 8), 2, 2); c.fillRect(Math.round(x + 1), Math.round(y - 8), 3, 2); c.globalAlpha = 1;
+}
+
+/**
+ * Cápsula habitacional GRANDE (2x2 casas = 32x32) na Vila das Cápsulas. (x, y) = canto do lote.
+ * Variantes iguais às da loja: clássica, estufa, observatório, dupla. `cor` = cor do colono, `luz` = tem gente.
+ */
+export function desenharCapsulaGrande(c: Ctx, x: number, y: number, variante: string, cor: string, luz: boolean, t: number) {
+  const R = (a: number, b: number, w: number, h: number, k: string) => { c.fillStyle = k; c.fillRect(x + a, y + b, w, h); };
+  const D = (a: number, b: number, r: number, k: string) => disco(c, x + a, y + b, r, k);
+  const janela = luz ? '#ffe58a' : '#2b2350';
+  // lote: piso de placas e calçada
+  R(0, 0, 32, 32, '#9a4a2e'); R(1, 1, 30, 30, '#b05a3a');
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if ((i + j) % 2) R(1 + i * 7.5, 1 + j * 7.5, 7, 7, '#a95536');
+  R(13, 27, 6, 5, '#cd8a62');                                          // caminho até a porta
+  R(2, 29, 28, 3, 'rgba(0,0,0,0.25)');
+  if (variante === 'estufa') {                                          // grande cúpula de vidro com horta
+    D(16, 18, 13, '#2f6b7e'); D(16, 18, 12, '#9fe7ff');
+    for (let i = 0; i < 6; i++) D(6 + i * 4, 20 + (i % 2) * 2, 2, i % 2 ? '#2bb673' : '#5fd38a');
+    R(9, 15, 1, 1, '#ff7f50'); R(20, 14, 1, 1, '#ffd85a'); R(15, 12, 1, 1, '#ff7f50');
+    for (const a of [10, 16, 22]) R(a, 7, 1, 16, '#2f6b7ecc');           // armação
+    R(9, 8, 3, 1, '#ffffff'); R(7, 10, 2, 1, '#ffffff');
+    R(2, 24, 28, 4, '#6b6f86'); R(2, 24, 28, 1, cor); R(13, 21, 6, 7, '#3a2f63'); R(14, 22, 4, 5, '#2b2350');
+  } else if (variante === 'observatorio') {                             // cúpula escura, fenda aberta e telescópio
+    R(2, 21, 28, 7, '#6b6f86'); R(2, 21, 28, 1, cor);
+    D(16, 17, 12, '#3b3f5c'); D(16, 17, 11, '#5a5f84');
+    R(14, 5, 5, 13, '#22253a');
+    c.fillStyle = '#c9cde0'; for (let i = 0; i < 7; i++) c.fillRect(x + 15 + i, y + 13 - i * 1.6, 3, 3);   // tubo
+    R(23, 1, 2, 2, '#ffe58a');
+    if (Math.floor(t * 2) % 2) R(27, 3, 1, 1, '#ffffff');                // estrela piscando no céu
+    R(5, 22, 3, 3, janela); R(24, 22, 3, 3, janela); R(13, 21, 6, 7, '#22253a'); R(14, 22, 4, 5, '#3a2f63');
+  } else if (variante === 'dupla') {                                    // duas cúpulas ligadas por um túnel
+    R(8, 17, 16, 6, '#b9bccc'); R(8, 17, 16, 1, '#e4e6f0');
+    D(9, 17, 8, '#6b6f86'); D(9, 17, 7, '#e4e6f0'); D(23, 15, 8, '#6b6f86'); D(23, 15, 7, '#e4e6f0');
+    R(2, 17, 14, 2, cor); R(16, 15, 14, 2, cor);
+    R(6, 20, 5, 7, '#3a2f63'); R(7, 21, 3, 5, '#2b2350');
+    R(5, 11, 3, 3, janela); R(21, 9, 3, 3, janela); R(25, 9, 3, 3, janela);
+    R(27, 2, 1, 6, '#9a9db0'); R(27, 1, 1, 1, Math.floor(t * 1.5) % 2 ? '#e04f5f' : '#7a2030');
+  } else {                                                              // clássica: cúpula grande, faixa dourada, antena
+    D(16, 18, 14, '#6b6f86'); D(16, 18, 13, '#f2f3f8');
+    R(3, 17, 26, 3, cor); R(3, 20, 26, 1, '#ffd85a');
+    R(2, 24, 28, 4, '#6b6f86'); R(2, 24, 28, 1, '#9aa0b5');
+    R(13, 19, 6, 9, '#3a2f63'); R(14, 20, 4, 7, '#2b2350'); R(17, 23, 1, 1, '#ffd85a');
+    R(7, 10, 4, 4, '#3a2f63'); R(8, 11, 2, 2, janela); R(21, 10, 4, 4, '#3a2f63'); R(22, 11, 2, 2, janela);
+    R(10, 6, 3, 1, '#ffffff'); R(8, 7, 2, 1, '#ffffff');                // brilho
+    R(16, 0, 1, 5, '#9a9db0'); R(15, 0, 3, 1, '#c9cde0'); R(16, -1, 1, 1, Math.floor(t * 1.5) % 2 ? '#e04f5f' : '#7a2030');
+  }
+  R(26, 25, 6, 3, '#3f5fae'); R(26, 25, 6, 1, '#8fb3ff');               // painel solar no canto
 }

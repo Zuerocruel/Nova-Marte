@@ -2,12 +2,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { gerarSprite } from '@/lib/sprite';
 import {
-  CENTRO, CHUNK, LIMITE_CHUNKS, anelMaximo, ehRua, fioDaCasa, idDoCodigo, limitesDoBairro, noBairro,
+  CENTRO, CHUNK, LIMITE_CHUNKS, VILA, anelMaximo, definirMoradias, ehRua, fioDaCasa, idDoCodigo, limitesDoBairro, moradiaDe, noBairro,
   type PersonagemPublico,
 } from '@/lib/mundo';
 import {
   BLOCO, CASA, COR, blocoDeTerreno, crateraBatizada, desenharBase, desenharClima, desenharObra, desenharPraca, desenharTrilha,
-  desenharCapsula, disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
+  desenharBandeira, desenharCapsulaGrande, desenharComercio, desenharFoguete, desenharOutdoor, desenharRover,
+  disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
 } from '@/lib/colonia-arte';
 import { situacao, type Situacao } from '@/lib/vida';
 import { descricaoPet, situacaoPet } from '@/lib/pet';
@@ -176,7 +177,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
   const selecionar = useCallback((p: PersonagemPublico | null, centralizar = true) => {
     selecionadoRef.current = p;
     setSelecionado(p);
-    if (p && centralizar) centralizarEm((p.pos_x + 0.5) * CASA, (p.pos_y + 0.5) * CASA, 4);
+    if (p && centralizar) { const m = moradiaDe(idDoCodigo(p.codigo)); centralizarEm((m.x + (m.grande ? 1 : 0.5)) * CASA, (m.y + (m.grande ? 1 : 0.5)) * CASA, 4); }
   }, [centralizarEm]);
 
   // ---------- dados ----------
@@ -207,7 +208,10 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       }).catch(() => {});
     const colonia = () =>
       fetch('/api/colonia').then((r) => r.json()).then((j) => {
-        if (j && j.base) { estadoRef.current = j; setEstado(j); }
+        if (j && j.base) {
+          definirMoradias((j.capsulas ?? []).map((k: { codigo: string; x: number; y: number }) => ({ id: idDoCodigo(k.codigo), x: k.x, y: k.y })));
+          estadoRef.current = j; setEstado(j);
+        }
       }).catch(() => {});
     resumo(); colonia();
     const t1 = setInterval(resumo, 15_000), t2 = setInterval(colonia, 30_000);
@@ -239,7 +243,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       const id = idDoCodigo(selecionado.codigo);
       const pet = temPet ? situacaoPet(id, Date.now() / 1000, (tt) => {
         const so = situacao(id, Math.max(totalRef.current, 1), tt, e?.praca ?? null, obra, cantina);
-        return { x: so.x, y: so.y, dir: so.dir, passeando: so.rodada === 'passeio' && (so.andando || so.tipo === 'passeio') };
+        return { x: so.x, y: so.y, dir: so.dir, fora: so.tipo !== 'casa' && so.tipo !== 'recebe', andando: so.andando };
       }) : null;
       setFazendo(s.descricao((id) => nomes.current.get(id) ?? null) + (pet ? ` · Pet: ${descricaoPet(pet)}` : ''));
     };
@@ -354,23 +358,57 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
             pessoas.push({ p, id, s });
           }
         }
+      {   // quem mora na Vila das Cápsulas: carrega o chunk do lote antigo (os dados dele) mesmo fora da vista
+        const ja = new Set(pessoas.map((x) => x.p.codigo));
+        for (const k of e?.capsulas ?? []) {
+          if (ja.has(k.codigo)) continue;
+          const cx = Math.floor(k.pos_x / CHUNK), cy = Math.floor(k.pos_y / CHUNK);
+          carregarChunk(cx, cy);
+          const ch = chunks.current.get(`${cx},${cy}`);
+          if (!ch || ch === 'carregando') continue;
+          const p = ch.dados.find((d) => d.codigo === k.codigo);
+          if (!p) continue;
+          const id = idDoCodigo(p.codigo);
+          pessoas.push({ p, id, s: situacao(id, Math.max(n, 1), agoraS, e?.praca ?? null, obraAtual, cantina) });
+        }
+      }
+      const naCapsula = new Set((e?.capsulas ?? []).map((k) => k.codigo));
       // fios de energia: cada casa recebe do módulo (ou de uma construção ligada, ou da casa vizinha)
       if (e) {
         const fontes = [e.base, ...e.obras.filter((o) => o.status !== 'planejada')]
           .map((o) => ({ x0: o.x, y0: o.y, x1: o.x + o.w, y1: o.y + o.h }));
-        for (const p of casas) desenharFio(ctx, p, fioDaCasa(idDoCodigo(p.codigo), Math.max(n, 1), fontes), t);
+        for (const p of casas) if (!naCapsula.has(p.codigo)) desenharFio(ctx, p, fioDaCasa(idDoCodigo(p.codigo), Math.max(n, 1), fontes), t);
       }
-      const capsulas = new Map((e?.capsulas ?? []).map((k) => [`${k.pos_x},${k.pos_y}`, k.variante]));
+      // a casinha grátis some do lote de quem comprou a cápsula (o colono se mudou para a Vila)
       for (const p of casas) {
+        if (naCapsula.has(p.codigo)) continue;
         const pessoa = pessoas.find((x) => x.p === p);
-        const luz = !!pessoa && pessoa.s.tipo === 'casa', cap = capsulas.get(`${p.pos_x},${p.pos_y}`);
-        if (cap) desenharCapsula(ctx, p.pos_x * CASA, p.pos_y * CASA, cap, TELHADOS[p.seed % TELHADOS.length], luz);
-        else desenharCasinha(ctx, p.pos_x, p.pos_y, p.seed, luz);
+        desenharCasinha(ctx, p.pos_x, p.pos_y, p.seed, !!pessoa && pessoa.s.tipo === 'casa');
       }
-      if (e) for (const cp of e.compras) {
-        if (cp.pos_x < vx0 - 1 || cp.pos_x > vx1 + 1 || cp.pos_y < vy0 - 1 || cp.pos_y > vy1 + 1) continue;
-        if (iconeDoProduto(cp.produto_slug) === 'monumento') ctx.drawImage(spriteEstatua(cp.seed || 1), cp.pos_x * CASA - 4, cp.pos_y * CASA + 4, 10, 12);   // estátua do colono
-        else ctx.drawImage(spriteContornado(iconeDoProduto(cp.produto_slug)), cp.pos_x * CASA - 4, cp.pos_y * CASA + 7, 9, 9);
+      // Vila das Cápsulas: placa na entrada e uma cápsula grande (2x2) em cada lote ocupado
+      if (e && e.capsulas?.length) {
+        const vx = VILA.x * CASA, vy = VILA.y * CASA;
+        if (vx < (vx1 + 2) * CASA && vx + 15 * CASA > (vx0 - 2) * CASA) {
+          ctx.fillStyle = '#1b1530'; ctx.fillRect(vx - 22, vy - 2, 3, 18);
+          ctx.fillStyle = '#6b6f86'; ctx.fillRect(vx - 21, vy - 2, 1, 18);
+          ctx.fillStyle = '#1b1530'; ctx.fillRect(vx - 34, vy - 12, 27, 11);
+          ctx.fillStyle = '#ffd85a'; ctx.fillRect(vx - 33, vy - 11, 25, 9);
+          ctx.fillStyle = '#1b1530'; ctx.font = 'bold 3px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('VILA DAS', vx - 20.5, vy - 8.6); ctx.fillText('CÁPSULAS', vx - 20.5, vy - 4.8);
+          ctx.textBaseline = 'alphabetic';
+        }
+        for (const k of e.capsulas) {
+          if (k.x < vx0 - 3 || k.x > vx1 + 1 || k.y < vy0 - 3 || k.y > vy1 + 1) continue;
+          const dono = pessoas.find((x) => x.p.codigo === k.codigo);
+          const cor = TELHADOS[((dono?.p.seed ?? idDoCodigo(k.codigo)) >>> 0) % TELHADOS.length];
+          desenharCapsulaGrande(ctx, k.x * CASA, k.y * CASA, k.variante, cor, !!dono && dono.s.tipo === 'casa', t);
+          if (zoom >= 2.2) {   // plaquinha com o nome do dono
+            ctx.font = '3px monospace'; ctx.textAlign = 'center';
+            const lw = ctx.measureText(k.nome).width + 3;
+            ctx.fillStyle = '#140f26dd'; ctx.fillRect(k.x * CASA + 16 - lw / 2, k.y * CASA + 32, lw, 4.5);
+            ctx.fillStyle = '#ffd85a'; ctx.fillText(k.nome, k.x * CASA + 16, k.y * CASA + 35.4);
+          }
+        }
       }
 
       // Vega e Lia: vão da casa até a obra, trabalham e voltam
@@ -399,27 +437,62 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
         });
       });
 
+      // itens da casa: cada tipo num canto da moradia (casinha 1x1 ou cápsula 2x2); o rover anda com o dono
+      const comRover = new Set<string>(), comTraje = new Set<string>();
+      if (e) {
+        const porDono = new Map<string, typeof e.compras>();
+        for (const cp of e.compras) {
+          if (/rover/.test(cp.produto_slug)) { comRover.add(cp.codigo); continue; }
+          if (/traje/.test(cp.produto_slug)) { comTraje.add(cp.codigo); continue; }
+          porDono.set(cp.codigo, [...(porDono.get(cp.codigo) ?? []), cp]);
+        }
+        const ORDEM = ['monumento', 'foguete', 'outdoor', 'bandeira', 'comercio'];
+        for (const [codigo, itens] of porDono) {
+          const m = moradiaDe(idDoCodigo(codigo));
+          if (m.x < vx0 - 3 || m.x > vx1 + 3 || m.y < vy0 - 3 || m.y > vy1 + 3) continue;
+          const bx = m.x * CASA, by = m.y * CASA;
+          const cantos = m.grande
+            ? [[4, 34], [29, 34], [-3, 26], [36, 26], [16, 37]]
+            : [[-3, 16], [19, 16], [-4, 9], [20, 9], [8, 20]];
+          itens.sort((a, b) => ORDEM.indexOf(iconeDoProduto(a.produto_slug)) - ORDEM.indexOf(iconeDoProduto(b.produto_slug)));
+          itens.slice(0, cantos.length).forEach((cp, i) => {
+            const ix = bx + cantos[i][0], iy = by + cantos[i][1], tipo = iconeDoProduto(cp.produto_slug);
+            const cor = TELHADOS[(cp.seed >>> 0) % TELHADOS.length];
+            atores.push({ x: ix, y: iy, desenha: () => {
+              if (tipo === 'monumento') ctx.drawImage(spriteEstatua(cp.seed || 1), ix - 7, iy - 17, 14, 17);   // estátua do colono
+              else if (tipo === 'foguete') desenharFoguete(ctx, ix, iy, t, cor);
+              else if (tipo === 'outdoor') desenharOutdoor(ctx, ix, iy, t, cp.texto);
+              else if (tipo === 'bandeira') desenharBandeira(ctx, ix, iy, t, cp.opcao, cor);
+              else if (tipo === 'comercio') desenharComercio(ctx, ix, iy, t, cor);
+              else ctx.drawImage(spriteContornado(tipo), ix - 5, iy - 10, 10, 10);
+            } });
+          });
+        }
+      }
+
       // Pets: vivem no quintal do dono (comem, fazem xixi e cocô, brincam, cochilam) e vão junto no passeio
       const emotesPet: { x: number; y: number; emote: string }[] = [];
       if (e) for (const pt of e.pets) {
-        if (pt.pos_x < vx0 - 3 || pt.pos_x > vx1 + 3 || pt.pos_y < vy0 - 3 || pt.pos_y > vy1 + 3) continue;
         const idDono = idDoCodigo(pt.codigo);
         const sp = situacaoPet(idDono, agoraS, (tt) => {
           const so = situacao(idDono, Math.max(n, 1), tt, e.praca ?? null, obraAtual, cantina);
-          return { x: so.x, y: so.y, dir: so.dir, passeando: so.rodada === 'passeio' && (so.andando || so.tipo === 'passeio') };
+          return { x: so.x, y: so.y, dir: so.dir, fora: so.tipo !== 'casa' && so.tipo !== 'recebe', andando: so.andando };
         });
+        if (sp.x < camX - 40 || sp.x > camX + w / zoom + 40 || sp.y < camY - 40 || sp.y > camY + h / zoom + 40) continue;
         // chão: tigela, poça de xixi secando, cocô esperando o dono limpar
         const tg = sp.tigela;
+        if (tg.x > camX - 20 && tg.x < camX + w / zoom + 20 && tg.y > camY - 20 && tg.y < camY + h / zoom + 20) {
         ctx.fillStyle = '#5b6b8c'; ctx.fillRect(tg.x - 2, tg.y - 1, 4, 2);
         if (tg.racao > 0) { ctx.fillStyle = '#a0613f'; ctx.fillRect(tg.x - 2 + (1 - tg.racao) * 2, tg.y - 2, Math.max(1, 4 * tg.racao), 1); }
         if (sp.poca) { ctx.globalAlpha = 0.75 * (1 - sp.poca.seca); ctx.fillStyle = '#f2d14b'; ctx.fillRect(sp.poca.x - 2, sp.poca.y - 1, 4, 2); ctx.fillRect(sp.poca.x - 1, sp.poca.y, 3, 1); ctx.globalAlpha = 1; }
         if (sp.coco) { ctx.fillStyle = '#5a3a22'; ctx.fillRect(sp.coco.x - 1, sp.coco.y - 1, 3, 2); ctx.fillRect(sp.coco.x, sp.coco.y - 2, 1, 1); }
+        }
         // arte e animação em fabrica/pet.js (a mesma do vídeo); pelagem pelo id do dono
         atores.push({
           x: sp.x, y: sp.y,
           desenha: () => {
             if (sp.bola) desenharBola(ctx, sp.bola.x, sp.bola.y, sp.bola.alt);
-            desenharPet(ctx, Math.round(sp.x * 2) / 2, Math.round(sp.y * 2) / 2, { pose: sp.pose, dir: sp.dir, t: agoraS, seed: idDono, pulo: sp.pulo });
+            desenharPet(ctx, Math.round(sp.x * 2) / 2, Math.round(sp.y * 2) / 2, { pose: sp.pose, dir: sp.dir, t: agoraS, seed: idDono, pulo: sp.pulo, especie: pt.especie });
           },
         });
         if (sp.emote) emotesPet.push({ x: sp.x, y: sp.y - 6, emote: sp.emote });
@@ -444,10 +517,26 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
         });
       }
 
+      // rover: estacionado na moradia quando o dono está em casa (quem está fora leva o rover junto, logo abaixo)
+      for (const pe of pessoas) {
+        if (!comRover.has(pe.p.codigo) || (pe.s.tipo !== 'casa' && pe.s.tipo !== 'recebe')) continue;
+        const m = moradiaDe(pe.id);
+        const rx = m.x * CASA + (m.grande ? 44 : 30), ry = m.y * CASA + (m.grande ? 30 : 15);
+        if (rx < camX - 40 || rx > camX + w / zoom + 40 || ry < camY - 40 || ry > camY + h / zoom + 40) continue;
+        atores.push({ x: rx, y: ry, desenha: () => desenharRover(ctx, rx, ry, -1, t, false, null) });
+      }
+
       // colonos (onde estão agora, segundo a rotina)
       for (const pe of pessoas) {
         const { s, p } = pe;
         if (s.x < camX - 40 || s.x > camX + w / zoom + 40 || s.y < camY - 40 || s.y > camY + h / zoom + 40) continue;
+        const fora = s.tipo !== 'casa' && s.tipo !== 'recebe';
+        if (comRover.has(p.codigo) && fora) {   // saiu de casa: vai de rover (dirigindo) e estaciona do lado dele
+          const cabeca = spriteColono(p.seed, p.lideranca, p.traje_moedas);
+          if (s.andando) { atores.push({ x: s.x, y: s.y, desenha: () => desenharRover(ctx, s.x, s.y, s.dir, t, true, cabeca) }); continue; }
+          const rx = s.x - s.dir * 20, ry = s.y + 2;
+          atores.push({ x: rx, y: ry, desenha: () => desenharRover(ctx, rx, ry, s.dir, t, false, null) });
+        }
         atores.push({
           x: s.x, y: s.y,
           desenha: () => {
@@ -463,6 +552,13 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
             if (img && img.complete && img.naturalWidth && !p.lideranca && !p.traje_moedas) ctx.drawImage(img, -6, -12, 12, 12);
             else ctx.drawImage(spriteColono(p.seed, p.lideranca, p.traje_moedas), -6, -12, 12, 12);
             ctx.restore();
+            if (comTraje.has(p.codigo)) {   // traje espacial: capacete de vidro em volta da cabeça
+              const hx = Math.round(s.x), hy = Math.round(s.y + pulo) - 13;
+              ctx.globalAlpha = 0.28; ctx.fillStyle = '#bfe9ff'; ctx.fillRect(hx - 5, hy, 10, 8); ctx.globalAlpha = 0.9;
+              ctx.fillStyle = '#e8f6ff'; ctx.fillRect(hx - 4, hy - 1, 8, 1); ctx.fillRect(hx - 6, hy + 1, 1, 6); ctx.fillRect(hx + 5, hy + 1, 1, 6);
+              ctx.fillStyle = '#ffffff'; ctx.fillRect(hx - 4, hy + 1, 1, 2);
+              ctx.fillStyle = '#9aa0b5'; ctx.fillRect(hx - 5, hy + 7, 10, 1); ctx.globalAlpha = 1;
+            }
             if (onlineRef.current.has(p.codigo)) { ctx.fillStyle = '#4ed37a'; ctx.fillRect(s.x - 1, s.y - 16, 2.5, 2.5); }   // online agora
             if (p.status === 'estreou') { ctx.fillStyle = '#ffd84a'; ctx.fillRect(s.x + 4, s.y - 13, 2.5, 2.5); }
             if (s.tipo === 'obra' && Math.floor(t * 4 + pe.id) % 3 === 0) { ctx.fillStyle = COR.ouro; ctx.fillRect(s.x + 5 * s.dir, s.y - 7, 2, 2); }
@@ -557,8 +653,9 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
 
       if (sel) {
         const pe = pessoas.find((x) => x.p.codigo === sel.codigo);
-        const casa = tela(sel.pos_x * CASA, sel.pos_y * CASA);
-        if (Math.floor(ms / 400) % 2 === 0) { ctx.strokeStyle = COR.agua; ctx.lineWidth = 2; ctx.strokeRect(casa.x + 1, casa.y + 1, CASA * zoom - 2, CASA * zoom - 2); }
+        const mor = moradiaDe(idDoCodigo(sel.codigo)), lado = (mor.grande ? 2 : 1) * CASA * zoom;
+        const casa = tela(mor.x * CASA, mor.y * CASA);
+        if (Math.floor(ms / 400) % 2 === 0) { ctx.strokeStyle = COR.agua; ctx.lineWidth = 2; ctx.strokeRect(casa.x + 1, casa.y + 1, lado - 2, lado - 2); }
         const s = pe ? tela(pe.s.x, pe.s.y - 14) : tela((sel.pos_x + 0.5) * CASA, sel.pos_y * CASA);
         const rot = `${sel.nome} @${sel.handle}`;
         ctx.font = 'bold 13px system-ui, sans-serif'; ctx.textAlign = 'center';
@@ -741,7 +838,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
             </span><br />
             <a href={`/colono/${selecionado.codigo}`}>Ver perfil →</a>
             {' · '}
-            <button type="button" className="link" onClick={() => centralizarEm((selecionado.pos_x + 0.5) * CASA, (selecionado.pos_y + 0.5) * CASA, 4)}>ver a casa</button>
+            <button type="button" className="link" onClick={() => { const m = moradiaDe(idDoCodigo(selecionado.codigo)); centralizarEm((m.x + (m.grande ? 1 : 0.5)) * CASA, (m.y + (m.grande ? 1 : 0.5)) * CASA, 4); }}>ver a casa</button>
           </div>
         )}
       </div>
