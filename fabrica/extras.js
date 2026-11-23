@@ -102,6 +102,12 @@ function quebrar(str, tam, maxW) {
   if (at) linhas.push(at);
   return linhas;
 }
+/** Quebra em até maxL linhas, diminuindo a fonte até caber (nunca corta palavra do título). */
+function caber(str, tam, maxW, maxL) {
+  let t = tam, l = quebrar(str, t, maxW);
+  while (l.length > maxL && t > 20) { t -= 4; l = quebrar(str, t, maxW); }
+  return { linhas: l, tam: t };
+}
 const png = () => SAI.toDataURL('image/png');
 
 // ------------------------------------------------------------------ momentos do episódio
@@ -124,9 +130,9 @@ function thumbYoutube(info) {
   sx.fillStyle = g; sx.fillRect(0, 0, w, h);
   selo(`EP ${EP.numero}`, 48, 44, 44, COR.ouro);
   if (info.estacao) selo(`${info.estacao.nome.toUpperCase()} ${info.estacao.temp}°C`, 48 + 250, 52, 22, COR.agua);
-  const linhas = quebrar(info.manchete, 64, 700).slice(0, 3);
-  linhas.forEach((l, i) => escrever(l, 52, 250 + i * 92, 64, i === linhas.length - 1 ? COR.ouro : '#ffffff', { alinhar: 'left', maxW: 720 }));
-  if (info.problema) selo(`! ${info.problema.titulo.toUpperCase()}`, 52, 250 + linhas.length * 92 + 10, 26, COR.alerta, '#fff');
+  const { linhas, tam } = caber(info.manchete, 64, 600, 3);
+  linhas.forEach((l, i) => escrever(l, 52, 250 + i * tam * 1.42, tam, i === linhas.length - 1 ? COR.ouro : '#ffffff', { alinhar: 'left', maxW: 620 }));
+  const yTag = 250 + linhas.length * tam * 1.42 + 10;
   escrever('OPERAÇÃO MARTE ZERO', 52, h - 52, 26, COR.areia, { alinhar: 'left' });
   // heróis do dia em tamanho grande
   const f = EP.mundo.fundadores;
@@ -134,6 +140,11 @@ function thumbYoutube(info) {
   boneco(spriteMapa((heroi || f[0]).sprite), w - 250, h - 260, 26, true);
   const vizinhos = info.novos.slice(0, 2);
   vizinhos.forEach((c, i) => boneco(spriteDe(colonoPorCodigo.get(c.codigo) || c), w - 470 - i * 150, h - 150, 13, i % 2 === 0));
+  if (info.problema) {
+    let ft = 26; const txt = `! ${info.problema.titulo.toUpperCase()}`;
+    sx.font = `${ft}px ${FONTE}`; while (sx.measureText(txt).width > 560 && ft > 14) { ft -= 2; sx.font = `${ft}px ${FONTE}`; }
+    selo(txt, 52, yTag, ft, COR.alerta, '#fff');
+  }
   return png();
 }
 
@@ -167,7 +178,7 @@ function slideCapa(info) {
   escrever('OPERAÇÃO', w / 2, 120, 58, '#fff');
   escrever('MARTE ZERO', w / 2, 210, 80, COR.ouro);
   selo(`EPISÓDIO ${EP.numero}`, w / 2 - 175, 280, 36, COR.agua);
-  quebrar(info.manchete, 48, w - 140).slice(0, 2).forEach((l, i) => escrever(l, w / 2, 1130 + i * 70, 48, i ? COR.ouro : '#fff'));
+  { const { linhas, tam } = caber(info.manchete, 48, w - 140, 3); linhas.forEach((l, i) => escrever(l, w / 2, 1150 - (linhas.length - 1) * tam * 0.7 + i * tam * 1.42, tam, i ? COR.ouro : '#fff')); }
   escrever('ARRASTE PARA O LADO  >>', w / 2, 1280, 24, COR.areia);
   return png();
 }
