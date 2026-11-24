@@ -180,31 +180,51 @@ def fila_de_servicos(db: Supabase, campos: str, numero: int) -> dict[str, list[d
     return fila
 
 
-def com_pet(db: Supabase) -> set[str]:
-    """Códigos dos colonos que têm Pet do Colono (pedido pago de QUALQUER data): o pet aparece em todo episódio."""
+def especie_do_pet(slug: str, opcao: str | None) -> str:
+    """Mesma regra de lib/colonia.ts: macaco é um produto próprio; no Pet do Colono a opção escolhe cachorro ou gato."""
+    return "macaco" if "macaco" in slug else "gato" if opcao == "gato" else "cachorro"
+
+
+def com_pet(db: Supabase) -> dict[str, str]:
+    """codigo do colono → espécie do pet (pedido pago de QUALQUER data; vale o mais recente): o pet aparece em
+    todo episódio."""
     linhas = db.get("pedidos", {
-        "select": "id,produto:produtos!inner(slug),personagem:personagens(codigo,oculto)",
-        "status": f"in.({','.join(STATUS_PAGOS)})", "produto.slug": "ilike.*pet*",
+        "select": "id,opcao,produto:produtos!inner(slug),personagem:personagens(codigo,oculto)",
+        "status": f"in.({','.join(STATUS_PAGOS)})", "produto.slug": "ilike.*pet*", "order": "id.asc",
     })
-    return {c["personagem"]["codigo"] for c in linhas if c.get("personagem") and not c["personagem"].get("oculto")}
+    return {c["personagem"]["codigo"]: especie_do_pet(c["produto"]["slug"], c.get("opcao"))
+            for c in linhas if c.get("personagem") and not c["personagem"].get("oculto")}
 
 
 CAPSULA = "capsula-habitacional"
 VARIANTES_CAPSULA = ("classica", "estufa", "observatorio", "dupla")   # mesma lista de lib/colonia-arte.ts
 
 
-def capsulas(db: Supabase) -> dict[str, str]:
-    """codigo do colono → variante da cápsula comprada (a mais recente), de QUALQUER data: a casa fica trocada
-    para sempre. Só pedidos pagos; pedido sem opção (antes das variantes) = clássica."""
+# Vila das Cápsulas: MESMA conta de lib/mundo.ts (VILA / loteDaVila). Quem compra a cápsula sai da casinha grátis
+# e ganha um lote 2x2 na vila, na ordem da 1ª compra de cada um.
+VILA = {"x": bairro.CENTRO[0] + 27, "y": bairro.CENTRO[1] - 7, "colunas": 5, "passo": 3}
+
+
+def lote_da_vila(i: int) -> tuple[int, int]:
+    return (VILA["x"] + (i % VILA["colunas"]) * VILA["passo"], VILA["y"] + (i // VILA["colunas"]) * VILA["passo"])
+
+
+def capsulas(db: Supabase) -> dict[str, dict]:
+    """codigo do colono → {"variante", "vila": [x, y]} da cápsula comprada, de QUALQUER data: a casa fica trocada
+    para sempre. A variante vale a da compra mais recente (sem opção = clássica); o lote na vila, a ordem da 1ª."""
     linhas = db.get("pedidos", {
         "select": "id,opcao,produto:produtos!inner(slug),personagem:personagens(codigo,oculto)",
         "status": f"in.({','.join(STATUS_PAGOS)})", "produto.slug": f"eq.{CAPSULA}", "order": "id.asc",
     })
-    saida = {}
+    saida: dict[str, dict] = {}
     for c in linhas:
         p = c.get("personagem")
-        if p and not p.get("oculto"):
-            saida[p["codigo"]] = c.get("opcao") if c.get("opcao") in VARIANTES_CAPSULA else "classica"
+        if not p or p.get("oculto"):
+            continue
+        variante = c.get("opcao") if c.get("opcao") in VARIANTES_CAPSULA else "classica"
+        if p["codigo"] not in saida:
+            saida[p["codigo"]] = {"vila": list(lote_da_vila(len(saida)))}
+        saida[p["codigo"]]["variante"] = variante
     return saida
 
 
@@ -296,7 +316,8 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
         if c["produto"]["slug"] in SERVICOS:
             continue  # Fúria e Destaque não viram objeto na casa: têm o momento deles (fila_de_servicos)
         compras.append({**colono_publico(p), "produto": c["produto"]["nome"], "produto_slug": c["produto"]["slug"],
-                        "opcao": c.get("opcao")})
+                        "opcao": c.get("opcao"),
+                        **({"especie": especie_do_pet(c["produto"]["slug"], c.get("opcao"))} if "pet" in c["produto"]["slug"] else {})})
 
     lista_obras, fonte_obras = obras(db, col["obras"])
     if ultimo and fonte_obras != "supabase":
@@ -333,8 +354,9 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
             "novos": [colono_publico(p) for p in novos],
             "compras_total": len(compras_linhas),
             "compras": compras,
-            "mundo": [colono_publico(p) | ({"capsula": cap[p["codigo"]]} if p["codigo"] in cap else {})
-                      | ({"pet": True} if p["codigo"] in pets else {}) for p in mundo],
+            "mundo": [colono_publico(p)
+                      | ({"capsula": cap[p["codigo"]]["variante"], "vila": cap[p["codigo"]]["vila"]} if p["codigo"] in cap else {})
+                      | ({"pet": pets[p["codigo"]]} if p["codigo"] in pets else {}) for p in mundo],
             "populacao_anterior": len(col["fundadores"]) + total_colonos - novos_total,
         }
     dados["populacao"] = len(col["fundadores"]) + dados["colonos_total"]

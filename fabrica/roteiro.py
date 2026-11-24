@@ -94,7 +94,7 @@ class Fala:
 
 # como cada item é dito quando várias pessoas compram o mesmo ("três colonos compraram uma cápsula")
 PRODUTO_FALADO = {
-    "capsula-habitacional": "uma cápsula", "capsula-comercio": "uma cápsula de comércio", "pet-do-colono": "um pet",
+    "capsula-habitacional": "uma cápsula", "capsula-comercio": "uma cápsula de comércio", "pet-do-colono": "um pet", "pet-macaco": "um macaco",
     "seu-foguete": "um foguete", "rover": "um rover", "outdoor-holografico": "um outdoor", "traje-espacial": "um traje espacial",
     "monumento-dourado": "um monumento dourado", "bandeira": "uma bandeira",
 }
@@ -106,6 +106,8 @@ CAPSULA_FALADA = {"estufa": "uma cápsula estufa", "observatorio": "uma cápsula
 def produto_falado(slug: str, nome: str, opcao: str | None = None) -> str:
     if slug == "capsula-habitacional" and opcao in CAPSULA_FALADA:
         return CAPSULA_FALADA[opcao]
+    if slug == "pet-do-colono" and opcao == "gato":
+        return "um gato"
     if slug in PRODUTO_FALADO:
         return PRODUTO_FALADO[slug]
     curto = produto_curto(nome)
@@ -129,6 +131,8 @@ def curto_com_variante(c: dict, slug: str) -> str:
         return f"Bandeira: {pais(c['opcao'])}"
     if slug == "capsula-habitacional" and c.get("opcao") in CAPSULA_FALADA:
         return CAPSULA_FALADA[c["opcao"]].removeprefix("uma ").title()   # "Cápsula Estufa"
+    if slug == "pet-do-colono" and c.get("opcao") in ("cachorro", "gato"):
+        return f"Pet {c['opcao'].title()}"   # "Pet Gato"
     return produto_curto(c["produto"])
 
 

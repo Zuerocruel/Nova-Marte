@@ -498,6 +498,24 @@ function agendaFundador(f, i, c) {
   }
 }
 
+// Vila das Cápsulas (lib/mundo.ts → VILA): quem comprou a cápsula deixa a casinha grátis e mora num lote 2x2 na
+// vila. Para o resto do diretor (porta, pet, itens, câmera, fio) ele passa a ter uma "casa" de 1x1 na frente da
+// porta da cápsula; a cápsula em si é desenhada em c.vila e a casinha antiga (c.lote) some quando ela aparece.
+function mudarParaAVila(ep) {
+  const vila = new Map();
+  for (const c of ep.mundo.colonos) {
+    if (!c.capsula || !Array.isArray(c.vila)) continue;
+    c.lote = { x: c.x, y: c.y };
+    c.vila = { x: c.vila[0], y: c.vila[1] };
+    c.x = c.vila.x + 0.5; c.y = c.vila.y + 1.2;
+    vila.set(c.codigo, c);
+  }
+  for (const k of ep.mundo.compras) {
+    const c = vila.get(k.codigo);
+    if (c) { k.x = c.x; k.y = c.y; k.vila = c.vila; }
+  }
+}
+
 function prepararCamera() {
   cameraKeys = [];
   const zoomFoco = { colono: 7, fundador: 6.5, compra: 7, ator: 7, cratera: 3.4 };
@@ -523,6 +541,7 @@ function prepararCamera() {
 
 window.carregarEpisodio = async function (ep) {
   EP = ep;
+  mudarParaAVila(ep);
   colonoPorCodigo = new Map(ep.mundo.colonos.map((c) => [c.codigo, c]));
   for (const c of ep.mundo.compras) if (!colonoPorCodigo.has(c.codigo)) colonoPorCodigo.set(c.codigo, c);
   prepararTerreno();
@@ -761,7 +780,7 @@ function desenharPet(c, t) {
   if (t0 >= 0 && t < t0 + 0.4) {   // chegou no episódio: aparece com um pulinho
     r = { ...r, pose: 'pulando', pulo: Math.sin(clamp((t - t0) / 0.4) * Math.PI) * 5 };
   }
-  PetArte.desenhar(ctx, r.x, r.y, { pose: r.pose, dir: r.dir, t, seed, pulo: r.pulo });
+  PetArte.desenhar(ctx, r.x, r.y, { pose: r.pose, dir: r.dir, t, seed, pulo: r.pulo, especie: c.especie });
 }
 
 // ------------------------------------------------------------------ posições
@@ -1513,17 +1532,81 @@ function desenharCasas(view, t, energia) {
       ret(Math.round(bx + (ax - bx) * k), Math.round(by + (ay - by) * k), 1, 1, 'rgba(255,216,90,0.8)');
     }
   }
+  if (EP.mundo.colonos.some((c) => c.vila)) placaDaVila(view);
   for (const c of EP.mundo.colonos) {
+    if (c.vila) {   // mora na Vila das Cápsulas
+      if (t >= trocaDaCapsula(c)) {
+        if (!fora(c.vila.x + 1, c.vila.y + 1)) desenharCapsulaGrande(ctx, c.vila.x * CASA, c.vila.y * CASA, c.capsula, TELHADOS[c.seed % TELHADOS.length], energia, t);
+      } else if (!fora(c.lote.x, c.lote.y)) casinha(c.lote.x * CASA, c.lote.y * CASA, c, energia);   // comprou neste episódio: a casinha some quando a cápsula aparece
+      continue;
+    }
     if (fora(c.x, c.y)) continue;
     const x = c.x * CASA, y = c.y * CASA;
     if (c.capsula && t >= trocaDaCapsula(c)) { desenharCapsula(ctx, x, y, c.capsula, TELHADOS[c.seed % TELHADOS.length], energia); continue; }
-    ret(x + 1, y + 12, 12, 2, 'rgba(0,0,0,0.22)');
-    disco(x + 7, y + 8, 6, '#6b6f86');
-    disco(x + 7, y + 8, 5, '#e4e6f0');
-    ret(x + 2, y + 8, 11, 2, TELHADOS[c.seed % TELHADOS.length]);
-    ret(x + 6, y + 9, 3, 4, '#3a2f63');
-    ret(x + 4, y + 5, 2, 2, energia ? '#ffe58a' : '#2b2350');
+    casinha(x, y, c, energia);
   }
+}
+function casinha(x, y, c, energia) {
+  ret(x + 1, y + 12, 12, 2, 'rgba(0,0,0,0.22)');
+  disco(x + 7, y + 8, 6, '#6b6f86');
+  disco(x + 7, y + 8, 5, '#e4e6f0');
+  ret(x + 2, y + 8, 11, 2, TELHADOS[c.seed % TELHADOS.length]);
+  ret(x + 6, y + 9, 3, 4, '#3a2f63');
+  ret(x + 4, y + 5, 2, 2, energia ? '#ffe58a' : '#2b2350');
+}
+// placa na entrada da vila (como no Mundo ao vivo)
+function placaDaVila(view) {
+  const vx = CENTRO.x + 27, vy = CENTRO.y - 7;
+  if (vx < view.x0 - 4 || vx > view.x1 + 4 || vy < view.y0 - 4 || vy > view.y1 + 4) return;
+  const x = vx * CASA - 46, y = vy * CASA + 2;
+  ret(x + 10, y + 6, 2, 12, '#5a3a20'); ret(x + 30, y + 6, 2, 12, '#5a3a20');
+  ret(x, y - 4, 42, 11, CONTORNO); ret(x + 1, y - 3, 40, 9, '#f3ece0');
+  ctx.fillStyle = '#1a1020'; ctx.font = '4px "Press Start 2P", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('VILA DAS', x + 21, y - 0.5); ctx.fillText('CÁPSULAS', x + 21, y + 3.5);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+}
+
+// Cápsula da Vila (2x2 casas): MESMA arte de lib/colonia-arte.ts → desenharCapsulaGrande. Mude as duas juntas.
+function desenharCapsulaGrande(c, x, y, variante, cor, luz, t) {
+  const R = (a, b, w, h, k) => { c.fillStyle = k; c.fillRect(x + a, y + b, w, h); };
+  const D = (a, b, r, k) => discoEm(c, x + a, y + b, r, k);
+  const janela = luz ? '#ffe58a' : '#2b2350';
+  R(0, 0, 32, 32, '#9a4a2e'); R(1, 1, 30, 30, '#b05a3a');
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if ((i + j) % 2) R(1 + i * 7.5, 1 + j * 7.5, 7, 7, '#a95536');
+  R(13, 27, 6, 5, '#cd8a62');
+  R(2, 29, 28, 3, 'rgba(0,0,0,0.25)');
+  if (variante === 'estufa') {
+    D(16, 18, 13, '#2f6b7e'); D(16, 18, 12, '#9fe7ff');
+    for (let i = 0; i < 6; i++) D(6 + i * 4, 20 + (i % 2) * 2, 2, i % 2 ? '#2bb673' : '#5fd38a');
+    R(9, 15, 1, 1, '#ff7f50'); R(20, 14, 1, 1, '#ffd85a'); R(15, 12, 1, 1, '#ff7f50');
+    for (const a of [10, 16, 22]) R(a, 7, 1, 16, '#2f6b7ecc');
+    R(9, 8, 3, 1, '#ffffff'); R(7, 10, 2, 1, '#ffffff');
+    R(2, 24, 28, 4, '#6b6f86'); R(2, 24, 28, 1, cor); R(13, 21, 6, 7, '#3a2f63'); R(14, 22, 4, 5, '#2b2350');
+  } else if (variante === 'observatorio') {
+    R(2, 21, 28, 7, '#6b6f86'); R(2, 21, 28, 1, cor);
+    D(16, 17, 12, '#3b3f5c'); D(16, 17, 11, '#5a5f84');
+    R(14, 5, 5, 13, '#22253a');
+    c.fillStyle = '#c9cde0'; for (let i = 0; i < 7; i++) c.fillRect(x + 15 + i, y + 13 - i * 1.6, 3, 3);
+    R(23, 1, 2, 2, '#ffe58a');
+    if (Math.floor(t * 2) % 2) R(27, 3, 1, 1, '#ffffff');
+    R(5, 22, 3, 3, janela); R(24, 22, 3, 3, janela); R(13, 21, 6, 7, '#22253a'); R(14, 22, 4, 5, '#3a2f63');
+  } else if (variante === 'dupla') {
+    R(8, 17, 16, 6, '#b9bccc'); R(8, 17, 16, 1, '#e4e6f0');
+    D(9, 17, 8, '#6b6f86'); D(9, 17, 7, '#e4e6f0'); D(23, 15, 8, '#6b6f86'); D(23, 15, 7, '#e4e6f0');
+    R(2, 17, 14, 2, cor); R(16, 15, 14, 2, cor);
+    R(6, 20, 5, 7, '#3a2f63'); R(7, 21, 3, 5, '#2b2350');
+    R(5, 11, 3, 3, janela); R(21, 9, 3, 3, janela); R(25, 9, 3, 3, janela);
+    R(27, 2, 1, 6, '#9a9db0'); R(27, 1, 1, 1, Math.floor(t * 1.5) % 2 ? '#e04f5f' : '#7a2030');
+  } else {
+    D(16, 18, 14, '#6b6f86'); D(16, 18, 13, '#f2f3f8');
+    R(3, 17, 26, 3, cor); R(3, 20, 26, 1, '#ffd85a');
+    R(2, 24, 28, 4, '#6b6f86'); R(2, 24, 28, 1, '#9aa0b5');
+    R(13, 19, 6, 9, '#3a2f63'); R(14, 20, 4, 7, '#2b2350'); R(17, 23, 1, 1, '#ffd85a');
+    R(7, 10, 4, 4, '#3a2f63'); R(8, 11, 2, 2, janela); R(21, 10, 4, 4, '#3a2f63'); R(22, 11, 2, 2, janela);
+    R(10, 6, 3, 1, '#ffffff'); R(8, 7, 2, 1, '#ffffff');
+    R(16, 0, 1, 5, '#9a9db0'); R(15, 0, 3, 1, '#c9cde0'); R(16, -1, 1, 1, Math.floor(t * 1.5) % 2 ? '#e04f5f' : '#7a2030');
+  }
+  R(26, 25, 6, 3, '#3f5fae'); R(26, 25, 6, 1, '#8fb3ff');
 }
 
 // Cápsulas compradas (variantes da casa): MESMA arte de lib/colonia-arte.ts → desenharCapsula. Mude as duas juntas.
@@ -1573,14 +1656,17 @@ function aparicaoCompra(c) {
 function desenharCompras(t) {
   // pets comprados em episódios anteriores moram no quintal do dono para sempre
   const novos = new Set(EP.mundo.compras.filter((c) => /pet/.test(c.produto_slug)).map((c) => c.codigo));
-  for (const c of EP.mundo.colonos) if (c.pet && !novos.has(c.codigo)) desenharPet({ codigo: c.codigo, x: c.x, y: c.y, produto_slug: 'pet-do-colono' }, t);
+  for (const c of EP.mundo.colonos) if (c.pet && !novos.has(c.codigo)) desenharPet({ codigo: c.codigo, x: c.x, y: c.y, produto_slug: 'pet-do-colono', especie: typeof c.pet === 'string' ? c.pet : 'cachorro' }, t);
   for (const c of EP.mundo.compras) {
-    if (/pet/.test(c.produto_slug)) { desenharPet(c, t); continue; }
+    if (/pet/.test(c.produto_slug)) {   // espécie: macaco é produto próprio; no Pet do Colono a opção escolhe
+      desenharPet({ ...c, especie: c.especie || (/macaco/.test(c.produto_slug) ? 'macaco' : c.opcao === 'gato' ? 'gato' : 'cachorro') }, t);
+      continue;
+    }
     const t0 = aparicaoCompra(c);
     if (t < t0) continue;
     const k = clamp((t - t0) / 0.45);
     const esc = k < 1 ? saida(k) * 1.3 - Math.max(0, k - 0.7) : 1;
-    const x = c.x * CASA + 4, y = c.y * CASA + 14, s = 10 * esc;   // logo abaixo da casa do comprador
+    const x = c.vila ? c.vila.x * CASA + 36 : c.x * CASA + 4, y = c.vila ? c.vila.y * CASA + 20 : c.y * CASA + 14, s = 10 * esc;   // logo abaixo da casa (vila: ao lado da cápsula)
     if (c.produto_slug === 'capsula-habitacional') { /* a própria casa vira a cápsula (desenharCasas) */ }
     else if (iconeDoProduto(c.produto_slug) === 'monumento') {   // estátua do próprio colono
       const seed = (colonoPorCodigo.get(c.codigo) || c).seed || 1, w = s * 1.1, h = w * 17 / 14;
@@ -1590,8 +1676,9 @@ function desenharCompras(t) {
     if (kb < 1) for (let i = 0; i < 6; i++) {
       const a = i / 6 * Math.PI * 2;
       ctx.globalAlpha = 1 - kb;
-      const cy = c.produto_slug === 'capsula-habitacional' ? y - 6 : y + 4;   // cápsula: o brilho sai da casa
-      ret(x + 4 + Math.cos(a) * 14 * kb, cy + Math.sin(a) * 14 * kb, 2, 2, COR.ouro);
+      const cy = c.produto_slug === 'capsula-habitacional' ? (c.vila ? c.vila.y * CASA + 16 : y - 6) : y + 4;   // cápsula: o brilho sai da casa
+      const cx = c.produto_slug === 'capsula-habitacional' && c.vila ? c.vila.x * CASA + 12 : x, raio = c.vila && c.produto_slug === 'capsula-habitacional' ? 24 : 14;
+      ret(cx + 4 + Math.cos(a) * raio * kb, cy + Math.sin(a) * raio * kb, 2, 2, COR.ouro);
     }
     ctx.globalAlpha = 1;
   }
