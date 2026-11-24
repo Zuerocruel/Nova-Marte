@@ -582,3 +582,19 @@ details { margin-top: 8px; }
 @media (max-width: 640px) { .chat-gaveta { left: 8px; right: 60px; width: auto; } }
 .chat-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .chat-fechar { background: none; border: 0; color: var(--texto); font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
+
+/* ---- redes sociais (rodapé, home, mundo) ---- */
+.redes { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; margin: 14px 0; }
+.redes-titulo { font-family: var(--pixel); font-size: 10px; color: var(--areia); flex-basis: 100%; text-align: center; }
+.redes-compacto { justify-content: flex-start; margin: 0 0 12px; }
+.redes-compacto .redes-titulo { flex-basis: auto; text-align: left; font-family: system-ui, sans-serif; font-size: 15px; color: var(--texto-2); }
+.rede {
+  display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; text-decoration: none; color: var(--texto);
+  background: #140f26; border: 3px solid var(--cor); box-shadow: 3px 3px 0 #000a;
+}
+.rede svg { color: var(--cor); flex: none; }
+.rede span { display: grid; line-height: 1.15; text-align: left; }
+.rede b { font-family: var(--pixel); font-size: 10px; font-weight: normal; color: #fff; }
+.rede small { font-size: 14px; color: var(--texto-2); }
+.rede:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 #000a; }
+.redes-compacto .rede { padding: 6px 8px; }

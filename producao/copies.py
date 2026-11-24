@@ -31,6 +31,9 @@ import os  # noqa: E402
 YT_LINK_NA_DESCRICAO = (os.environ.get("YOUTUBE_LINK_NA_DESCRICAO") or "0").strip() == "1"
 
 HASHTAGS = ["#operacaomartezero", "#pixelart", "#marte", "#colonia", "#jogoindie"]
+PERFIS = {"instagram": "https://www.instagram.com/operacaomartezero/", "tiktok": "https://www.tiktok.com/@operao.marte.zero",
+          "youtube": "https://www.youtube.com/channel/UCKSkHV2WKpfezCBBi6BeFUQ"}
+CORREIO = "💬 A Vega e a Lia leem os comentários e respondem os melhores no próximo episódio!"
 
 
 def slug_link(plataforma: str, numero: int) -> str:
@@ -98,6 +101,9 @@ def pauta(d: dict, r: dict) -> list[str]:
         if prob.get("furia"):
             out.append(f"🔥 Fúria de Marte chamada por {prob['furia']['nome']}: {prob['titulo']}!")
         out.append(f"⚠️ Problema do dia: {prob['titulo']}. Resolvido por {prob['heroi']}!")
+    respondidos = [c["correio"]["autor"] for c in r["cenas"] if c["tipo"] == "correio" and c["correio"].get("fase") == "resposta"]
+    if respondidos:
+        out.append("💬 Correio da colônia: Vega e Lia responderam " + " e ".join(f"@{a}" for a in respondidos) + "!")
     if r.get("obra_progresso"):
         p0, p1 = r["obra_progresso"]
         out.append(f"🎉 {_obra(r)} INAUGURADA!" if r.get("obra_concluida") else f"🏗️ {_obra(r)}: {p0}% → {p1}%")
@@ -145,6 +151,7 @@ def ganchos(d: dict, r: dict) -> dict:
         "curtir": "Curte se você quer ver a colônia crescer! ❤️",
         "seguir": "Segue o perfil para não perder o episódio de amanhã 🚀",
         "inscrever": "Inscreva-se e ative o 🔔 para acompanhar a colônia todo dia",
+        "correio": CORREIO.replace('"', ""),
     }
 
 
@@ -155,7 +162,9 @@ def montar(n: int, r: dict, lt: dict | None, linhas_pauta: list[str], g: dict, t
     corpo = "\n".join(linhas_pauta)
 
     yt_desc = [f"Episódio {n} da {NOME}: {missao}.", "", corpo, "", f"➡️ {g['historia']}", "",
-               f"💬 {g['comentar']}", g["inscrever"], g["curtir"], "",
+               f"💬 {g['comentar']}", g.get("correio", ""), g["inscrever"], g["curtir"], "",
+               *([f"📸 Instagram: {PERFIS['instagram']}", f"🎵 TikTok: {PERFIS['tiktok']}", ""] if YT_LINK_NA_DESCRICAO
+                 else ["📸 Instagram @operacaomartezero · 🎵 TikTok @operao.marte.zero", ""]),
                (f"🚀 Vire personagem e procure seu nome no mapa: https://{link('youtube', n)}" if YT_LINK_NA_DESCRICAO
                 else "🚀 Vire personagem e procure seu nome no mapa: link no perfil do canal 👆")]
     if diario:
@@ -165,11 +174,13 @@ def montar(n: int, r: dict, lt: dict | None, linhas_pauta: list[str], g: dict, t
     yt_desc += ["", tags]
 
     ig = [f"🚀 {titulo}", f"{NOME} · Episódio {n} · Missão do Dia: {missao}.", "", corpo, "",
-          f"➡️ {g['historia']}", "", f"💬 {g['comentar']}", g["curtir"], g["seguir"], "",
+          f"➡️ {g['historia']}", "", f"💬 {g['comentar']}", g.get("correio", ""), g["curtir"], g["seguir"], "",
+          "🎵 Também no TikTok @operao.marte.zero e no YouTube: Operação Marte Zero", "",
           *(["📺 Episódio novo todo dia!"] if diario else []),
           "Quer virar personagem? Link na bio 👆 Cadastre-se e procure seu nome no mapa.", "", tags]
 
-    tt = (f"{titulo} 🚀 Ep. {n} da {NOME}. {g['historia']} {g['comentar']} {g['seguir']} "
+    tt = (f"{titulo} 🚀 Ep. {n} da {NOME}. {g['historia']} {g['comentar']} {g.get('correio', '')} {g['seguir']} "
+          f"Também no Insta @operacaomartezero e no YouTube! "
           f"Vire personagem: link na bio! {tags}")
 
     return {

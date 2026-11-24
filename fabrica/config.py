@@ -65,6 +65,15 @@ ELEVEN_AJUSTES = {             # narrador grave, firme e claro
     "speed": 1.0,
 }
 
+# ---------- vozes dos fundadores (Correio da colônia: respondem os comentários) ----------
+# Vozes padrão da ElevenLabs (qualquer plano), no mesmo modelo do narrador; mais "style" e menos
+# "stability" = fala mais animada e expressiva.
+VOZES_PERSONAGENS = {
+    "vega": {"voice_id": "nPczCjzI2devNBz1zQrb", "nome": "Brian (Comandante Vega)"},
+    "lia": {"voice_id": "cgSgspJ2msm6clMCkdW9", "nome": "Jessica (Doutora Lia)"},
+}
+AJUSTES_PERSONAGEM = {"stability": 0.35, "similarity_boost": 0.80, "style": 0.55, "use_speaker_boost": True, "speed": 1.05}
+
 # ---------- vozes dos POVs (vídeos em primeira pessoa) ----------
 # Flash v2.5 custa metade dos créditos por caractere do multilingual_v2. Vozes padrão da
 # ElevenLabs (funcionam em qualquer plano e não precisam de voices_read na chave).

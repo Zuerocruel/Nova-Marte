@@ -2,6 +2,7 @@ import Cadastro from '@/components/Cadastro';
 import Contador from '@/components/Contador';
 import FaixaChegadas from '@/components/FaixaChegadas';
 import PaisagemHero from '@/components/PaisagemHero';
+import RedesSociais from '@/components/RedesSociais';
 
 const PASSOS = [
   { n: '01', titulo: 'Crie seu colono', texto: 'Nome, nick e seu @. Em um minuto você ganha um personagem em pixel art com o seu nome.' },
@@ -32,6 +33,9 @@ export default function Home() {
         </div>
       </div>
       <FaixaChegadas />
+      <div className="wrap" style={{ paddingTop: 20, paddingBottom: 4 }}>
+        <RedesSociais titulo="EPISÓDIO NOVO TODO DIA EM:" />
+      </div>
 
       <section className="faixa-ferrugem">
         <div className="wrap">

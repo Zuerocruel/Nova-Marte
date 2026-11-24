@@ -189,8 +189,12 @@ def gerar_falas(roteiro: dict, sem_voz: bool = False) -> dict:
     voz = api.escolher_voz()
     print(f"  voz: {voz['nome']} ({voz['voice_id']})")
 
+    def voz_da_cena(c: dict) -> tuple[dict, dict | None]:   # narrador ou um fundador (Correio da colônia)
+        p = config.VOZES_PERSONAGENS.get(c.get("voz") or "")
+        return (p, config.AJUSTES_PERSONAGEM) if p else (voz, None)
+
     pendentes = [c for c in roteiro["cenas"]
-                 if not (config.CACHE_VOZ / f"{chave_cache(voz['voice_id'], c['fala'])}.json").exists()]
+                 if not (config.CACHE_VOZ / f"{chave_cache(voz_da_cena(c)[0]['voice_id'], c['fala'], None, voz_da_cena(c)[1])}.json").exists()]
     if pendentes:
         custo = sum(len(c["fala"]) for c in pendentes)
         conta = api.creditos()
@@ -204,17 +208,18 @@ def gerar_falas(roteiro: dict, sem_voz: bool = False) -> dict:
 
     falas = {}
     for c in roteiro["cenas"]:
-        h = chave_cache(voz["voice_id"], c["fala"])
+        vc, ajustes = voz_da_cena(c)
+        h = chave_cache(vc["voice_id"], c["fala"], None, ajustes)
         mp3, meta = config.CACHE_VOZ / f"{h}.mp3", config.CACHE_VOZ / f"{h}.json"
         if meta.exists() and mp3.exists():
             print(f"  [{c['id']}] cache")
         else:
             print(f"  [{c['id']}] gerando ({len(c['fala'])} caracteres)…")
-            r = api.sintetizar(voz["voice_id"], c["fala"])
+            r = api.sintetizar(vc["voice_id"], c["fala"], None, ajustes)
             mp3.write_bytes(base64.b64decode(r["audio_base64"]))
             al = r.get("alignment") or r["normalized_alignment"]
             config.gravar_json(meta, {
-                "texto": c["fala"], "voz": voz,
+                "texto": c["fala"], "voz": vc,
                 "duracao": round(duracao_mp3(mp3), 3),
                 "caracteres": al["characters"],
                 "inicio_caracteres": al["character_start_times_seconds"],

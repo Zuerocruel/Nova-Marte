@@ -371,6 +371,20 @@ def montar(d: dict) -> dict:
         cenas.append(cena("resultado", "resultado", Fala().add(res["fala"]), camera=res.get("camera") or {"alvo": "colonia", "zoom": 3.4},
                           votacao={k: res[k] for k in ("id", "tela", "resultado")}))
 
+    # 2c. Correio da colônia: o narrador lê o comentário e a Vega ou a Lia responde, com a voz dela/dele
+    #     (correio.py grava saida/epNNN/correio.json na coleta; sem ele, o episódio segue sem o quadro)
+    arq_correio = config.SAIDA / f"ep{n:03d}" / "correio.json"
+    escolhidos = config.ler_json(arq_correio).get("escolhidos", []) if arq_correio.exists() else []
+    REDES_FALADAS = {"youtube": "no YouTube", "instagram": "no Instagram", "tiktok": "no TikTok"}
+    for i, e in enumerate(escolhidos[:2], 1):
+        info = {"rede": e["rede"], "autor": e["autor"], "texto": e["comentario_tela"], "quem": e["quem"], "indice": i}
+        abre = rnd.choice(["Correio da colônia! ", "Abrindo o correio da colônia! "]) if i == 1 else "E tem mais! "
+        cenas.append(cena(f"correio_{i}a", "correio", Fala().add(f"{abre}{e['autor_falado']} comentou {REDES_FALADAS.get(e['rede'], '')}: "
+                                                                 f"{e['comentario_falado']}"),
+                          camera={"alvo": "base", "zoom": 4.5}, correio={**info, "fase": "comentario"}))
+        cenas.append(cena(f"correio_{i}b", "correio", Fala().add(e["resposta"]), voz=e["quem"],
+                          camera={"alvo": f"ator:{e['quem']}", "zoom": 6.5}, correio={**info, "fase": "resposta"}))
+
     # 3. boas-vindas (chamando pelo nome; câmera vai em cada um quando o nome é dito)
     if d["novos"]:
         mostrados = d["novos"][:6]

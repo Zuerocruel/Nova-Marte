@@ -896,6 +896,80 @@ function tomadaFundacao(t, k) {
   };
 }
 
+// ---- CORREIO DA COLÔNIA: estúdio da rádio. O comentário aparece no telão (rede, @autor, texto); enquanto o
+// narrador lê, Vega e Lia olham o telão curiosos; quando um deles responde, ele fala animado (pula, gesticula,
+// notinhas e corações saindo) e o outro ri junto. No fim da resposta, chuva de confete.
+const COR_REDE = { youtube: ['#ff3d3d', 'YOUTUBE'], instagram: ['#e1306c', 'INSTAGRAM'], tiktok: ['#25f4ee', 'TIKTOK'] };
+function tomadaCorreio(t, k, cena) {
+  TREMOR = 0;
+  const atual = (typeof cenaEm === 'function' && cenaEm(t)) || cena;
+  const c = (atual && atual.correio) || cena.correio || {};
+  const resposta = c.fase === 'resposta';
+  const kc = atual ? clamp((t - atual.inicio) / Math.max(0.5, atual.fim - atual.inicio)) : k;
+  const chao = sala(t, { janela: false });
+  tx.globalAlpha = 0.25; R(0, 0, TW, TH, '#1a0f2e'); tx.globalAlpha = 1;
+  // placa NO AR piscando
+  const noAr = Math.floor(t * 2) % 2 === 0;
+  R(TW / 2 - 34, 12, 68, 16, '#1b1530'); R(TW / 2 - 32, 14, 64, 12, noAr ? '#e04f5f' : '#7a2a2a');
+  // telão do comentário
+  const [corRede] = COR_REDE[c.rede] || ['#9b59b6'];
+  const sx = 16, sy = 36, sw = TW - 32, sh = 150;
+  R(sx - 5, sy - 5, sw + 10, sh + 10, '#1b1530'); R(sx, sy, sw, sh, '#f3eefe'); R(sx, sy, sw, 6, corRede);
+  const entra = saida(clamp(kc / 0.2));
+  if (!resposta) { tx.globalAlpha = 1 - entra; R(sx, sy + 6, sw, sh - 6, '#f3eefe'); tx.globalAlpha = 1; }
+  // mesa da rádio (tampo na altura da cintura; a frente cobre as pernas depois)
+  const tampo = Math.round(TH * 0.63), mesa = tampo + 30;   // mesa = onde ficam os pés (escondidos)
+  // Vega (esquerda) e Lia (direita) atrás da mesa
+  const E = 5, quem = c.quem;
+  const pose = (id, x, dir) => {
+    const fala = resposta && quem === id, ri = resposta && quem !== id && Math.sin(t * 3) > 0.2;
+    const a = Math.sin(t * 9), pul = fala ? Math.abs(Math.sin(t * 7)) * 10 : ri ? Math.abs(Math.sin(t * 11)) * 4 : 0;
+    const P = { x, chao: mesa + 2, dir, pulo: pul, alegre: resposta || kc > 0.7, cabeca: resposta ? 0 : -4,
+      maoF: fala ? { x: x + dir * (28 + a * 8), y: tampo - 70 - a * 16 } : (ri ? { x: x + dir * 8, y: tampo - 34 } : { x: x + dir * 16, y: tampo - 2 }),
+      maoT: fala ? { x: x - dir * 20, y: tampo - 50 + a * 10 } : { x: x - dir * 4, y: tampo - 2 } };
+    return { r: ator(FUNDADOR_PAL[id], P, t, E), fala };
+  };
+  const v = pose('vega', TW * 0.26, 1), l = pose('lia', TW * 0.74, -1);
+  R(8, tampo, TW - 16, 6, '#8a5a30'); R(8, tampo + 6, TW - 16, TH - tampo, '#5a3a20');   // tampo + frente da mesa (cobre as pernas)
+  for (let x = 30; x < TW - 30; x += 54) R(x, tampo + 16, 30, 3, '#6b4a2e');
+  for (const [mx, d] of [[TW * 0.26 + 24, -1], [TW * 0.74 - 24, 1]]) {   // microfones na mesa, virados para cada um
+    R(mx - 1, tampo - 22, 3, 22, '#4a4466'); R(mx - 6 + d * 2, tampo - 34, 12, 13, '#2a2140'); R(mx - 5 + d * 2, tampo - 33, 10, 4, '#6b6f86');
+  }
+  if (Math.floor(t * 2) % 2) R(TW / 2 - 3, tampo + 26, 6, 6, '#e04f5f');   // luz de gravação
+  // notinhas e corações saindo de quem fala
+  const falante = v.fala ? v.r : l.fala ? l.r : null;
+  if (falante) for (let i = 0; i < 6; i++) {
+    const q = (t * 0.7 + i / 6) % 1, x = falante.cab.x + Math.sin(i * 2.3 + t * 2) * 18, y = falante.cab.y - 6 - q * 70;
+    tx.globalAlpha = 1 - q;
+    if (i % 2) { R(x, y, 3, 3, '#ff8fa3'); R(x + 3, y, 3, 3, '#ff8fa3'); R(x - 1, y + 2, 9, 3, '#ff8fa3'); R(x + 1, y + 5, 5, 2, '#ff8fa3'); }
+    else { R(x, y, 2, 8, '#ffd84a'); R(x - 3, y + 6, 5, 4, '#ffd84a'); }
+  }
+  tx.globalAlpha = 1;
+  // confete no fim da resposta
+  if (resposta && kc > 0.72) for (let i = 0; i < 36; i++) {
+    const q = clamp((kc - 0.72) / 0.28), x = hashT(i, 81) * TW, y = -10 + q * (TH * 0.8) * (0.6 + hashT(i, 82) * 0.6);
+    R(x + Math.sin(t * 6 + i) * 6, y, 3, 2, ['#ffd84a', '#3fd0c9', '#e04f5f', '#4ed37a', '#9b59b6'][i % 5]);
+  }
+  return () => {
+    // título e telão em pixels da tela (texto nítido)
+    texto('CORREIO DA COLÔNIA', W / 2, 78, 26, noAr ? '#ffffff' : COR.areia, { contorno: false });
+    const [cor, nomeRede] = COR_REDE[c.rede] || ['#9b59b6', ''];
+    const x0 = sx * TE + 26, y0 = sy * TE + 52;
+    ctx.save(); ctx.globalAlpha = resposta ? 1 : entra;
+    texto(nomeRede, x0, y0, 26, cor, { alinhar: 'left', contorno: false });
+    texto(`@${c.autor || ''}`, x0, y0 + 50, 40, '#1b1530', { alinhar: 'left', contorno: false, maxW: sw * TE - 60 });
+    // texto do comentário quebrado em linhas
+    ctx.font = `32px ${FONTE}`;
+    const maxW = sw * TE - 60, palavras = String(c.texto || '').split(/\s+/), linhas = [];
+    let lin = '';
+    for (const p of palavras) { const tenta = lin ? `${lin} ${p}` : p; if (ctx.measureText(tenta).width > maxW && lin) { linhas.push(lin); lin = p; } else lin = tenta; }
+    if (lin) linhas.push(lin);
+    linhas.slice(0, 6).forEach((l, i) => texto(l, x0, y0 + 112 + i * 48, 32, '#3a2f63', { alinhar: 'left', contorno: false, maxW }));
+    ctx.restore();
+    etiquetaT('Vega', v.r.cab, E)(); etiquetaT('Lia', l.r.cab, E)();
+  };
+}
+
 // ------------------------------------------------------------------ roteiro dos cortes
 function prepararTomadas() {
   TOMADAS = [];
@@ -929,6 +1003,9 @@ function prepararTomadas() {
     add(Math.max(ninguem - 0.1, DUNAS_MAPA.t0 + 1.8), r.fim - 0.2, 'curiosos', r);
   }
   if (FUND) add(FUND.ini, FUND.fim, 'fundacao', FUND.c);
+  // Correio da colônia: uma tomada só do primeiro ao último comentário respondido (o estúdio não corta no meio)
+  const correio = EP.cenas.filter((c) => c.tipo === 'correio');
+  if (correio.length) add(correio[0].inicio + 0.25, correio[correio.length - 1].fim - 0.15, 'correio', correio[0]);
   const constr = EP.cenas.filter((c) => c.tipo === 'missao' && c.acao === 'construir');
   const c = constr[Math.min(constr.length - 1, 1)] || constr[0];
   if (c && !EP.cenas.some((x) => x.acao === 'plantar' && x === c)) add(c.inicio + (c.fim - c.inicio) * 0.2, c.fim - (c.fim - c.inicio) * 0.12, 'obra', c);
@@ -941,7 +1018,8 @@ function desenharTomada(tm, t) {
   TREMOR = 0;
   const extra = { monitor: tomadaMonitor, alarme: tomadaAlarme, conserto: tomadaConserto, objeto: tomadaObjeto, obra: tomadaObra,
                   redemoinho: tomadaRedemoinho, alertaHeroi: tomadaAlertaHeroi, corrida: tomadaCorrida, abrigo: tomadaAbrigo,
-                  rover: tomadaRover, marcas: tomadaMarcas, curiosos: tomadaCuriosos, fundacao: tomadaFundacao }[tm.tipo](t, k, tm.cena);
+                  rover: tomadaRover, marcas: tomadaMarcas, curiosos: tomadaCuriosos, fundacao: tomadaFundacao,
+                  correio: tomadaCorreio }[tm.tipo](t, k, tm.cena);
   tx.globalAlpha = 1;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;

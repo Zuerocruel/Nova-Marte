@@ -17,6 +17,7 @@ import time
 
 import audio
 import config
+import correio
 import episodio
 import navegador
 import roteiro
@@ -45,6 +46,11 @@ def main() -> None:
         d = episodio.coletar(n, a.so_fundadores)
         config.gravar_json(pasta / "dados.json", d)
         print("  " + episodio.resumo(d).replace("\n", "\n  "))
+        print("1b correio da colônia (comentários das redes → respostas da Vega e da Lia)")
+        try:
+            correio.gerar(n)
+        except Exception as e:   # o correio é um extra: nunca derruba o episódio
+            print(f"  correio: pulei ({type(e).__name__}: {str(e)[:150]})")
     d = config.ler_json(pasta / "dados.json")
 
     if faz("roteiro"):

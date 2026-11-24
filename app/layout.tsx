@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import RedesSociais from '@/components/RedesSociais';
 import { Press_Start_2P, VT323 } from 'next/font/google';
 import Link from 'next/link';
 import BloqueioInspecao from '@/components/BloqueioInspecao';
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer className="rodape">
           <p className="rodape-logo">OPERAÇÃO MARTE ZERO</p>
           <p>A colônia cresce a cada seguidor. Siga a série e venha morar em Marte.</p>
+          <RedesSociais titulo="SIGA A COLÔNIA" />
           <p className="rodape-links">
             <Link href="/mundo">Mundo ao vivo</Link> · <Link href="/loja">Loja</Link> · <Link href="/central">Central</Link> · <Link href="/privacidade">Privacidade</Link>
           </p>
