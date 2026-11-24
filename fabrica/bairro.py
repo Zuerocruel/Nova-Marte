@@ -1,6 +1,7 @@
 """Onde mora cada colono: a MESMA conta de lib/mundo.ts (casaDoId) e da função casa_pos() do banco
-(supabase/migrations/009_bairro_perto.sql). Bairro em espiral colado no Módulo de Pouso, pulando os lotes
-que caem nas construções (colonia.json) ou a até MARGEM casas delas.
+(supabase/migrations/016_vilarejo.sql). VILAREJO ESPALHADO: células de CEL x CEL casas numa espiral em volta do
+Módulo de Pouso, uma casa por célula num ponto sorteado dentro dela, 1 em cada 5 células vira clareira, e
+células cuja casa cai nas construções (colonia.json) ou a até MARGEM casas delas são puladas.
 
     python bairro.py 20      # mostra as 20 primeiras casas e um mapinha
 """
@@ -13,16 +14,13 @@ from functools import lru_cache
 import config
 
 CENTRO = (5, -8)
+CEL = 3
 ANEL_INICIAL = 2
 MARGEM = 2
-ANEL_RESERVAS = 12
+ANEL_RESERVAS = 30
 
 
-def _expandir(u: int) -> int:
-    return u + u // 3          # // arredonda para baixo, igual a Math.floor
-
-
-def _lote(m: int) -> tuple[int, int, int]:
+def _celula(m: int) -> tuple[int, int, int]:
     r = (math.isqrt(m) + 1) // 2
     t = m - (2 * r - 1) ** 2
     if t < r:
@@ -38,9 +36,23 @@ def _lote(m: int) -> tuple[int, int, int]:
     return u, v, r
 
 
-def _casa_do_lote(m: int) -> tuple[int, int]:
-    u, v, _ = _lote(m)
-    return CENTRO[0] + _expandir(u), CENTRO[1] + _expandir(v)
+def _sorteio(u: int, v: int) -> int:
+    s = u * 7919 + v * 104729
+    return abs(s * s + 31 * s + 13 * u * v) % 1009
+
+
+def _casa_da_celula(u: int, v: int) -> tuple[int, int]:
+    h = _sorteio(u, v)
+    return CENTRO[0] + CEL * u - 1 + h % 2, CENTRO[1] + CEL * v - 1 + (h // 2) % 2   # 2x2 posições: sempre 1 casa livre entre vizinhos
+
+
+def _clareira(u: int, v: int) -> bool:
+    return (_sorteio(u, v) // 10) % 5 == 0
+
+
+def _casa_do_indice(m: int) -> tuple[int, int]:
+    u, v, _ = _celula(m)
+    return _casa_da_celula(u, v)
 
 
 @lru_cache(maxsize=1)
@@ -50,6 +62,7 @@ def reservas() -> list[tuple[int, int, int, int]]:
     rs = [(o["x"] - MARGEM, o["y"] - MARGEM, o["x"] + o["w"] + MARGEM, o["y"] + o["h"] + MARGEM)
           for o in [b, p, *col["obras"]]]
     rs.append((CENTRO[0], b["y"] + b["h"], CENTRO[0] + 1, p["y"]))   # trilha do módulo até a praça
+    rs.append((CENTRO[0] + 25, CENTRO[1] - 9, CENTRO[0] + 43, CENTRO[1] + 23))   # Vila das Cápsulas (até 50 cápsulas)
     return rs
 
 
@@ -60,13 +73,18 @@ def reservado(x: int, y: int) -> bool:
 @lru_cache(maxsize=1)
 def _livres() -> list[int]:
     m0, mfim = (2 * ANEL_INICIAL - 1) ** 2, (2 * ANEL_RESERVAS + 1) ** 2
-    return [m for m in range(m0, mfim) if not reservado(*_casa_do_lote(m))]
+    out = []
+    for m in range(m0, mfim):
+        u, v, _ = _celula(m)
+        if not _clareira(u, v) and not reservado(*_casa_da_celula(u, v)):
+            out.append(m)
+    return out
 
 
 def casa_do_id(id_: int) -> tuple[int, int]:
     id_ = max(1, int(id_))
     livres, mfim = _livres(), (2 * ANEL_RESERVAS + 1) ** 2
-    return _casa_do_lote(livres[id_ - 1] if id_ <= len(livres) else mfim + (id_ - len(livres)) - 1)
+    return _casa_do_indice(livres[id_ - 1] if id_ <= len(livres) else mfim + (id_ - len(livres)) - 1)
 
 
 def casa_do_codigo(codigo: str) -> tuple[int, int]:
@@ -75,8 +93,8 @@ def casa_do_codigo(codigo: str) -> tuple[int, int]:
 
 # ---------- crateras batizadas (item "Nomeie sua Cratera") ----------
 # Ficam num anel FORA da colônia (as obras vão até ~14 casas do módulo), cada uma num ângulo (ângulo áureo, sem
-# empilhar). A mesma conta está em lib/crateras.ts. O bairro só chega nesse anel perto de ~800 colonos.
-CRATERA_RAIO = 20
+# empilhar). A mesma conta está em lib/crateras.ts. O vilarejo só chega nesse anel perto de ~850 colonos.
+CRATERA_RAIO = 60   # longe do vilarejo (que só chega a 60 casas com ~850 colonos)
 
 
 def pos_cratera(id_: int) -> dict:

@@ -2,12 +2,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { gerarSprite } from '@/lib/sprite';
 import {
-  CENTRO, CHUNK, LIMITE_CHUNKS, VILA, anelMaximo, definirMoradias, ehRua, fioDaCasa, idDoCodigo, limitesDoBairro, moradiaDe, noBairro,
+  CENTRO, CHUNK, LIMITE_CHUNKS, VILA, anelMaximo, definirMoradias, ehCasa, fioDaCasa, idDoCodigo, limitesDoBairro, moradiaDe, noBairro,
   type PersonagemPublico,
 } from '@/lib/mundo';
 import {
   BLOCO, CASA, COR, TRILHA_DUNAS_DESDE, blocoDeTerreno, crateraBatizada, desenharBase, desenharClima, desenharObra, desenharPraca,
-  desenharTrilha, desenharTrilhaDunas,
+  desenharTrilha, desenharTrilhaDunas, trilhaDaCasa,
   desenharBandeira, desenharCapsulaGrande, desenharComercio, desenharFoguete, desenharOutdoor, desenharRover,
   disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
 } from '@/lib/colonia-arte';
@@ -267,10 +267,10 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       const n = totalRef.current;
       const reservados = e ? [e.base, ...e.obras, ...(e.praca ? [e.praca] : [])]
         .map((o) => ({ x0: o.x - 1, y0: o.y - 1, x1: o.x + o.w + 1, y1: o.y + o.h + 1 })) : [];
-      const lote = (x: number, y: number) => noBairro(x, y, n);
+      const casa = (x: number, y: number) => ehCasa(x, y, n);
       const livre = (x: number, y: number) => !reservados.some((r) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1)
         && !noBairro(x, y, n) && !(n > 0 && noBairro(x, y, n + 400));   // sem cratera no bairro nem logo em volta
-      c = blocoDeTerreno(bx, by, livre, lote, ehRua);
+      c = blocoDeTerreno(bx, by, livre, casa);
       if (terreno.current.size > 160) terreno.current.clear();
       terreno.current.set(k, c);
       return c;
@@ -379,7 +379,9 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       if (e) {
         const fontes = [e.base, ...e.obras.filter((o) => o.status !== 'planejada')]
           .map((o) => ({ x0: o.x, y0: o.y, x1: o.x + o.w, y1: o.y + o.h }));
-        for (const p of casas) if (!naCapsula.has(p.codigo)) desenharFio(ctx, p, fioDaCasa(idDoCodigo(p.codigo), Math.max(n, 1), fontes), t);
+        const fios = casas.filter((p) => !naCapsula.has(p.codigo)).map((p) => [p, fioDaCasa(idDoCodigo(p.codigo), Math.max(n, 1), fontes)] as const);
+        for (const [p, f] of fios) trilhaDaCasa(ctx, p.pos_x, p.pos_y, f);   // trilha de terra até o vizinho (sem fio: pedido do dono)
+        void desenharFio;
       }
       // a casinha grátis some do lote de quem comprou a cápsula (o colono se mudou para a Vila)
       for (const p of casas) {

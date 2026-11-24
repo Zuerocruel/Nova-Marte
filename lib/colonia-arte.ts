@@ -172,22 +172,34 @@ function pintarDuna(t: Ctx, x: number, y: number, px: number, py: number) {   //
   }
 }
 
+// Vilarejo: chão batido em volta de cada casa e uma trilha de terra torta da porta até o vizinho de onde vem o
+// fio de energia (curva sorteada pela casa). MESMA arte em lib/colonia-arte.ts e fabrica/diretor.js.
+export function chaoDaCasa(t: Ctx, px: number, py: number) {   // px, py = canto da casa em pixels
+  t.fillStyle = '#c26d45'; t.beginPath(); t.ellipse(px + 8, py + 10, 13, 10, 0, 0, Math.PI * 2); t.fill();
+  t.fillStyle = '#cd7a50'; t.beginPath(); t.ellipse(px + 8, py + 11, 9, 6, 0, 0, Math.PI * 2); t.fill();
+}
+export function trilhaDaCasa(c: Ctx, x: number, y: number, alvo: { x: number; y: number }) {   // casa (x, y) e alvo em casas
+  const ax = x * CASA + 8, ay = y * CASA + 15, bx = alvo.x * CASA, by = alvo.y * CASA;
+  const d = Math.hypot(bx - ax, by - ay);
+  if (d < 4) return;
+  const nx = -(by - ay) / d, ny = (bx - ax) / d, curva = (hash(x, y, 41) - 0.5) * Math.min(30, d * 0.45);
+  const mx = (ax + bx) / 2 + nx * curva, my = (ay + by) / 2 + ny * curva, n = Math.ceil(d / 2);
+  c.fillStyle = '#c98058';
+  for (let i = 0; i <= n; i++) {
+    const k = i / n, q = 1 - k;
+    c.fillRect(Math.round(q * q * ax + 2 * q * k * mx + k * k * bx) - 1, Math.round(q * q * ay + 2 * q * k * my + k * k * by) - 1, 3, 3);
+  }
+}
+
+/** Bloco do chão. `casa(x, y)`: tem casa ocupada ali (ganha o chão batido em volta). */
 export function blocoDeTerreno(bx: number, by: number, livre: (x: number, y: number) => boolean,
-                               lote: (x: number, y: number) => boolean,
-                               rua: (x: number, y: number) => boolean = () => false): HTMLCanvasElement {
+                               casa: (x: number, y: number) => boolean): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = c.height = BLOCO * CASA;
   const t = c.getContext('2d')!;
   const x0 = bx * BLOCO, y0 = by * BLOCO;
   for (let y = y0; y < y0 + BLOCO; y++) for (let x = x0; x < x0 + BLOCO; x++) {
     const px = (x - x0) * CASA, py = (y - y0) * CASA;
-    if (lote(x, y)) {   // bairro: ruas de terra batida e lotes em xadrez
-      if (rua(x, y)) {
-        t.fillStyle = '#cd8a62'; t.fillRect(px, py, CASA, CASA);
-        t.fillStyle = '#d99a72'; if (hash(x, y, 5) < 0.5) t.fillRect(px + Math.floor(hash(x, y, 6) * 13), py + Math.floor(hash(x, y, 7) * 13), 2, 1);
-      } else { t.fillStyle = (x + y) % 2 ? '#c4693f' : '#b85f39'; t.fillRect(px, py, CASA, CASA); }
-      continue;
-    }
     t.fillStyle = SOLOS[Math.floor(hash(x, y) * SOLOS.length)];
     t.fillRect(px, py, CASA, CASA);
     for (let k = 0; k < 3; k++) {
@@ -206,6 +218,9 @@ export function blocoDeTerreno(bx: number, by: number, livre: (x: number, y: num
     if (cx < -k.rx * CASA - 20 || cy < -k.ry * CASA - 20 || cx > BLOCO * CASA + k.rx * CASA + 20 || cy > BLOCO * CASA + k.ry * CASA + 20) continue;
     colinaEm(t, cx, cy, k.rx * CASA, k.ry * CASA, o.x);
   }
+  // chão batido em volta das casas do vilarejo (pode passar da borda do bloco)
+  for (let y = y0 - 1; y < y0 + BLOCO + 1; y++) for (let x = x0 - 1; x < x0 + BLOCO + 1; x++)
+    if (casa(x, y)) chaoDaCasa(t, (x - x0) * CASA, (y - y0) * CASA);
   // crateras e pedras (podem passar da borda do bloco: o vizinho desenha a parte dele)
   for (let y = y0 - 2; y < y0 + BLOCO + 2; y++) for (let x = x0 - 2; x < x0 + BLOCO + 2; x++) {
     if (!livre(x, y)) continue;

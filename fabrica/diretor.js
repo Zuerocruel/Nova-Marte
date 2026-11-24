@@ -266,9 +266,9 @@ function carregarImagem(url) {
   });
 }
 
-// Bairro em espiral colado na base (igual a lib/mundo.ts, fabrica/bairro.py e à casa_pos do banco): rua a cada
-// 4 casas a partir do centro da base; lotes em cima (ou a até 2 casas) das construções e da trilha ficam vazios
-const CENTRO = { x: 5, y: -8 }, ANEL_INICIAL = 2, MARGEM_CASA = 2;
+// Vilarejo espalhado em volta da base (igual a lib/mundo.ts, fabrica/bairro.py e à casa_pos do banco): células de
+// 3x3 casas numa espiral, uma casa por célula; as posições vêm prontas do banco/bairro.py, aqui só o anel e a arte
+const CENTRO = { x: 5, y: -8 }, ANEL_INICIAL = 2, MARGEM_CASA = 2, CEL = 3;
 let RESERVAS = [];
 function prepararReservas() {
   const m = EP.mundo, b = m.base, p = m.praca;
@@ -276,9 +276,26 @@ function prepararReservas() {
   if (p) RESERVAS.push({ x0: CENTRO.x, y0: b.y + b.h, x1: CENTRO.x + 1, y1: p.y });   // trilha do módulo até a praça
 }
 const reservadoCasa = (x, y) => RESERVAS.some((r) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1);
-const ehRua = (x, y) => ((((x - CENTRO.x) % 4) + 4) % 4) === 3 || ((((y - CENTRO.y) % 4) + 4) % 4) === 3;
-const loteDe = (d) => d - Math.floor((d + 1) / 4);
-const anelDe = (x, y) => Math.max(Math.abs(loteDe(x - CENTRO.x)), Math.abs(loteDe(y - CENTRO.y)));
+const anelDe = (x, y) => Math.max(Math.abs(Math.floor((x - CENTRO.x + 1) / CEL)), Math.abs(Math.floor((y - CENTRO.y + 1) / CEL)));
+// Vilarejo: chão batido em volta de cada casa e uma trilha de terra torta da porta até o vizinho de onde vem o
+// fio de energia (curva sorteada pela casa). MESMA arte em lib/colonia-arte.ts e fabrica/diretor.js.
+function chaoDaCasa(t, px, py) {   // px, py = canto da casa em pixels
+  t.fillStyle = '#c26d45'; t.beginPath(); t.ellipse(px + 8, py + 10, 13, 10, 0, 0, Math.PI * 2); t.fill();
+  t.fillStyle = '#cd7a50'; t.beginPath(); t.ellipse(px + 8, py + 11, 9, 6, 0, 0, Math.PI * 2); t.fill();
+}
+function trilhaDaCasa(c, x, y, alvo) {   // casa (x, y) e alvo em casas
+  const ax = x * CASA + 8, ay = y * CASA + 15, bx = alvo.x * CASA, by = alvo.y * CASA;
+  const d = Math.hypot(bx - ax, by - ay);
+  if (d < 4) return;
+  const nx = -(by - ay) / d, ny = (bx - ax) / d, curva = (hash(x, y, 41) - 0.5) * Math.min(30, d * 0.45);
+  const mx = (ax + bx) / 2 + nx * curva, my = (ay + by) / 2 + ny * curva, n = Math.ceil(d / 2);
+  c.fillStyle = '#c98058';
+  for (let i = 0; i <= n; i++) {
+    const k = i / n, q = 1 - k;
+    c.fillRect(Math.round(q * q * ax + 2 * q * k * mx + k * k * bx) - 1, Math.round(q * q * ay + 2 * q * k * my + k * k * by) - 1, 3, 3);
+  }
+}
+
 
 function retanguloDe(o) { return { x0: o.x * CASA, y0: o.y * CASA, x1: (o.x + o.w) * CASA, y1: (o.y + o.h) * CASA }; }
 
@@ -364,12 +381,9 @@ function prepararTerreno() {
     const c = o.colina, cx = (o.x + o.w / 2 + (c.dx || 0) - tx0) * CASA, cy = (o.y + o.h / 2 + (c.dy || 0) - ty0) * CASA;
     colinaEm(t, cx, cy, c.rx * CASA, c.ry * CASA, o.x);
   }
-  // bairro em espiral: lotes em xadrez e ruas de terra batida (igual ao site)
-  if (EP.lotes) for (let y = ty0; y < ty1; y++) for (let x = tx0; x < tx1; x++) {
-    if (!noBairro(x, y)) continue;
-    t.fillStyle = ehRua(x, y) ? '#cd8a62' : ((x + y) % 2 ? '#c4693f' : '#b85f39');
-    t.fillRect((x - tx0) * CASA, (y - ty0) * CASA, CASA, CASA);
-  }
+  // vilarejo: chão batido em volta de cada casa (igual ao site); quem foi para a Vila das Cápsulas deixa o lote
+  for (const c of m.colonos) if (!c.vila) chaoDaCasa(t, (c.x - tx0) * CASA, (c.y - ty0) * CASA);
+  void noBairro;
   // praça da colônia
   if (m.praca) for (let y = m.praca.y; y < m.praca.y + m.praca.h; y++) for (let x = m.praca.x; x < m.praca.x + m.praca.w; x++) {
     t.fillStyle = (x + y) % 2 ? '#d9a47e' : '#cf9670';
@@ -1703,10 +1717,12 @@ function prepararFios() {
     c.fio = melhor;
   }
 }
+const FIOS_NAS_CASAS = false;
 function desenharCasas(view, t, energia) {
   const fora = (x, y) => x < view.x0 - 3 || x > view.x1 + 3 || y < view.y0 - 3 || y > view.y1 + 3;
-  for (const c of EP.mundo.colonos) {
-    if (!c.fio || (fora(c.x, c.y) && fora(c.fio.x, c.fio.y))) continue;
+  for (const c of EP.mundo.colonos) if (c.fio && !c.vila && !(fora(c.x, c.y) && fora(c.fio.x, c.fio.y))) trilhaDaCasa(ctx, c.x, c.y, c.fio);
+  for (const c of EP.mundo.colonos) {   // fios das casas desligados (pedido do dono: ficava bagunçado); só a trilha
+    if (FIOS_NAS_CASAS === false || !c.fio || (fora(c.x, c.y) && fora(c.fio.x, c.fio.y))) continue;
     const ax = c.x * CASA + 8, ay = c.y * CASA + 12, bx = c.fio.x * CASA, by = c.fio.y * CASA;
     const dist = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.round(dist / 1.2));
     ctx.fillStyle = 'rgba(46,30,48,0.5)';
