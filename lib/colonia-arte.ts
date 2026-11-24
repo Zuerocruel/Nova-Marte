@@ -221,6 +221,55 @@ export function blocoDeTerreno(bx: number, by: number, livre: (x: number, y: num
   return c;
 }
 
+/**
+ * Dunas do Norte mapeadas (votação do ep. 5 → SIM; mostrado a partir do ep. 6): área mapeada em grade, rota do rover
+ * saindo do módulo, o rover estacionado e a TRILHA DESCONHECIDA (pneus em V, vermelha) com o "?" piscando.
+ * MESMA arte de desenharMapaDunas em fabrica/diretor.js (lá ela se desenha aos poucos no episódio).
+ */
+export const TRILHA_DUNAS_DESDE = 6;
+export function desenharTrilhaDunas(c: Ctx, base: Geo, t: number) {
+  const D = { x: 5 * CASA, y: (DUNAS_Y - 13) * CASA }, porta = { x: (base.x + base.w / 2) * CASA, y: base.y * CASA - 2 };
+  const pts = [porta, { x: porta.x, y: D.y + 170 }, { x: D.x - 120, y: D.y + 110 }];
+  for (let i = 0; i < 6; i++) {
+    const y = D.y + 110 - i * 50, a = i % 2 ? D.x + 120 : D.x - 120, b = i % 2 ? D.x - 120 : D.x + 120;
+    if (i) pts.push({ x: a, y });
+    pts.push({ x: b, y });
+  }
+  c.globalAlpha = 0.1; ret(c, D.x - 135, D.y - 160, 270, 290, '#3fd0c9');
+  c.globalAlpha = 0.22; c.fillStyle = '#8fe6ff';
+  for (let x = D.x - 135; x <= D.x + 135; x += 30) c.fillRect(x, D.y - 160, 1, 290);
+  for (let y = D.y - 160; y <= D.y + 130; y += 30) c.fillRect(D.x - 135, y, 270, 1);
+  c.globalAlpha = 1; c.fillStyle = '#3fd0c9';
+  for (let x = D.x - 135; x < D.x + 135; x += 8) { c.fillRect(x, D.y - 160, 4, 2); c.fillRect(x, D.y + 128, 4, 2); }
+  for (let y = D.y - 160; y < D.y + 130; y += 8) { c.fillRect(D.x - 135, y, 2, 4); c.fillRect(D.x + 133, y, 2, 4); }
+  c.fillStyle = '#bff8ff'; c.globalAlpha = 0.55;   // rota do rover (discreta: passa por cima do bairro)
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], d = Math.hypot(b.x - a.x, b.y - a.y);
+    for (let s = 0; s <= d; s += 8) c.fillRect(Math.round(a.x + (b.x - a.x) * s / d) - 1, Math.round(a.y + (b.y - a.y) * s / d) - 1, 2, 2);
+  }
+  c.globalAlpha = 1;
+  const fim = pts[pts.length - 1];
+  ret(c, fim.x - 5, fim.y - 3, 10, 6, '#eef0f8'); ret(c, fim.x - 4, fim.y + 3, 3, 2, '#2a2140'); ret(c, fim.x + 2, fim.y + 3, 3, 2, '#2a2140');
+  if (Math.floor(t * 3) % 2) ret(c, fim.x - 1, fim.y - 6, 2, 2, '#ff4d4d');
+  const A = { x: D.x - 170, y: D.y + 80 }, B = { x: D.x + 190, y: D.y - 260 };
+  const dl = Math.hypot(B.x - A.x, B.y - A.y), u = { x: (B.x - A.x) / dl, y: (B.y - A.y) / dl }, n = { x: -u.y, y: u.x };
+  for (const lado of [-1, 1]) for (let s = 0; s < dl; s += 7) {
+    const cx = A.x + u.x * s + n.x * lado * 9, cy = A.y + u.y * s + n.y * lado * 9;
+    for (const j of [-1, 1]) for (let m = 0; m < 3; m++) {
+      c.fillStyle = m === 2 ? '#7a2030' : '#e04f5f';
+      c.fillRect(Math.round(cx - u.x * m * 1.4 + n.x * j * m * 1.6), Math.round(cy - u.y * m * 1.4 + n.y * j * m * 1.6), 2, 2);
+    }
+  }
+  const P = { x: A.x + u.x * dl * 0.42, y: A.y + u.y * dl * 0.42 }, pul = 1 + 0.25 * Math.sin(t * 6);
+  c.strokeStyle = '#ff4d4d'; c.lineWidth = 2; c.beginPath(); c.arc(P.x, P.y, 16 * pul, 0, Math.PI * 2); c.stroke();
+  ret(c, P.x - 9, P.y - 36, 18, 18, '#140f26'); ret(c, P.x - 9, P.y - 36, 18, 2, '#ff4d4d');
+  c.fillStyle = '#ff4d4d'; c.font = '12px "Press Start 2P", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText('?', P.x, P.y - 26);
+  c.font = '5px "Press Start 2P", monospace'; c.fillStyle = '#f3eefe';
+  c.fillText('TRILHA DESCONHECIDA', P.x, P.y + 26);
+  c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+}
+
 /** Cratera batizada (item "Nomeie sua Cratera"): mesma arte de crateraBatizada em fabrica/diretor.js. */
 export function crateraBatizada(t: Ctx, px: number, py: number, r: number, id: number) {
   disco(t, px, py + 3, r + 4, '#d98a62', 0.62);
@@ -282,7 +331,7 @@ function cabo(c: Ctx, r: Ret, base: Geo, t: number, energia: boolean) {
   }
 }
 
-export function desenharObra(c: Ctx, o: Geo & { tipo: string }, st: EstadoObra, base: Geo, t: number) {
+export function desenharObra(c: Ctx, o: Geo & { tipo: string; colina?: { dy?: number } }, st: EstadoObra, base: Geo, t: number) {
   const r = retanguloDe(o);
   if (st.dem && st.p < 1) demarcacao(c, r, t);
   if (o.tipo === 'solar') {
@@ -300,7 +349,9 @@ export function desenharObra(c: Ctx, o: Geo & { tipo: string }, st: EstadoObra, 
     if (st.p >= 1) cabo(c, r, base, t, st.energia);
   } else if (o.tipo === 'antena') {
     if (st.p <= 0) return;
-    const cx = (r.x0 + r.x1) / 2, chao = r.y1 - 4, alt = (r.y1 - r.y0 - 14) * clamp(st.p / 0.85);
+    // com colina (colonia.json), a torre fica no TOPO dela: o degrau mais alto está 12 px acima do centro
+    const cx = (r.x0 + r.x1) / 2, alt = (r.y1 - r.y0 - 14) * clamp(st.p / 0.85);
+    const chao = o.colina ? Math.round((o.y + o.h / 2 + (o.colina.dy || 0)) * CASA) - 10 : r.y1 - 4;
     ret(c, cx - 10, chao, 20, 4, '#6b6f86');
     for (let y = 0; y < alt; y += 2) {
       const w = lerp(8, 2, y / (r.y1 - r.y0));
@@ -347,8 +398,28 @@ function fumaca(c: any, x: any, y: any, t: any, n: any) {
   c.globalAlpha = 1;
 }
 
+// Até 15% a obra é só a FUNDAÇÃO (como a do Extrator de Gelo no fim do ep. 6): vala → fôrmas e malha de aço → laje
+// de concreto com os chumbadores da estrutura. MESMA arte em lib/colonia-arte.ts e fabrica/diretor.js.
+const FUNDACAO = 0.16;
+function fundacaoDaObra(c: any, r: any, p: number) {
+  const k = Math.min(1, p / 0.15), x0 = r.x0 + 3, y0 = r.y0 + 6, w = r.x1 - r.x0 - 6, h = r.y1 - r.y0 - 9;
+  PR(c, x0 - 1, y0 - 1, w + 2, h + 2, '#5a2a18'); PR(c, x0, y0, w, h, '#2a120a');
+  if (k > 0.35) {
+    c.fillStyle = '#c99a1f'; c.fillRect(x0, y0, w, 1); c.fillRect(x0, y0 + h - 1, w, 1); c.fillRect(x0, y0, 1, h); c.fillRect(x0 + w - 1, y0, 1, h);
+    c.fillStyle = '#e2603b';
+    for (let x = x0 + 5; x < x0 + w - 2; x += 5) c.fillRect(Math.round(x), y0 + 1, 1, h - 2);
+    for (let y = y0 + 5; y < y0 + h - 2; y += 5) c.fillRect(x0 + 1, Math.round(y), w - 2, 1);
+  }
+  if (k > 0.6) {
+    const cw = (w - 2) * Math.min(1, (k - 0.6) / 0.4);
+    PR(c, x0 + 1, y0 + 1, cw, h - 2, '#9aa0b5'); PR(c, x0 + 1, y0 + 1, cw, 1, '#c9ced9');
+  }
+  if (k >= 1) for (let i = 0; i < 4; i++) PR(c, x0 + 3 + i * (w - 8) / 3, y0 + 3, 2, 2, '#e2603b');
+}
+
 export function predioEmObra(c: any, r: any, st: any, t: any, pintar: any) {
   if (st.p <= 0) return;
+  if (st.p < FUNDACAO) { fundacaoDaObra(c, r, st.p); return; }
   const W = r.x1 - r.x0, H = r.y1 - r.y0;
   PR(c, r.x0 + 1, r.y1 - 4, W - 2, 4, '#7a7f96');                       // fundação
   const topo = r.y1 - Math.max(4, st.p * H);

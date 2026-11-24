@@ -6,7 +6,7 @@ dos Reels/TikTok e o carrossel do Instagram.
 Saída em saida/epNNN/imagens/:
     thumb_youtube.png          1280x720   miniatura do vídeo no YouTube
     capa_vertical.png          1080x1920  capa dos Reels / TikTok
-    carrossel_1_capa.png       1080x1350  carrossel do Instagram (4:5), 3 ou 4 imagens
+    carrossel_1_capa.png       1080x1080  carrossel do Instagram (1:1, inteiro na grade do perfil), 3 ou 4 imagens
     carrossel_2_boletim.png
     carrossel_3_bem_vindos.png (só quando chegou gente nova)
     carrossel_N_vire_personagem.png

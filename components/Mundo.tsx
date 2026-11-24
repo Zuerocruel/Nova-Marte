@@ -6,7 +6,8 @@ import {
   type PersonagemPublico,
 } from '@/lib/mundo';
 import {
-  BLOCO, CASA, COR, blocoDeTerreno, crateraBatizada, desenharBase, desenharClima, desenharObra, desenharPraca, desenharTrilha,
+  BLOCO, CASA, COR, TRILHA_DUNAS_DESDE, blocoDeTerreno, crateraBatizada, desenharBase, desenharClima, desenharObra, desenharPraca,
+  desenharTrilha, desenharTrilhaDunas,
   desenharBandeira, desenharCapsulaGrande, desenharComercio, desenharFoguete, desenharOutdoor, desenharRover,
   disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
 } from '@/lib/colonia-arte';
@@ -330,6 +331,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       const oficina = e?.obras.find((o) => o.slug === 'oficina' && o.status === 'concluida') ?? null;
       if (e) {
         desenharTrilha(ctx, e.base, e.praca ? e.praca.y : CENTRO.y + 6);
+        if ((e.episodio?.numero ?? 0) >= TRILHA_DUNAS_DESDE) desenharTrilhaDunas(ctx, e.base, t);   // o que o rover achou (ep. 6)
         if (e.praca) desenharPraca(ctx, e.praca, t);
         const energia = e.obras.some((o) => o.tipo === 'solar' && o.status === 'concluida');
         for (const o of e.obras) {

@@ -10,7 +10,8 @@ import { loteDaVila, posCratera, varianteDaCapsula } from '@/lib/mundo';
  * o estágio das obras (colonia_obras), o episódio mais recente (estação e problema do dia,
  * gravados pela fábrica em episodios.resumo) e os itens comprados que aparecem nas casas.
  */
-export type Obra = { slug: string; nome: string; tipo: string; x: number; y: number; w: number; h: number; status: string; progresso: number };
+export type Obra = { slug: string; nome: string; tipo: string; x: number; y: number; w: number; h: number; status: string; progresso: number;
+  colina?: { dx?: number; dy?: number; rx: number; ry: number } };
 export type Fundador = { id: string; curto: string; casa: [number, number]; sprite: string };
 export type Estacao = { id: string; nome: string; dia: number; temp: number | null; efeito: string };
 export type ProblemaDoDia = { titulo: string; rotulo: string; categoria: string; heroi: string | null; heroi_codigo: string | null };
@@ -82,7 +83,8 @@ export async function estadoColonia(): Promise<EstadoColonia> {
     // sem a tabela colonia_obras: o episódio 1 já construiu a Fazenda Solar
     if (!obrasDb.data?.length && numero >= 1 && o.slug === 'fazenda-solar' && ep) est = { status: 'concluida', progresso: 100 };
     return { slug: o.slug, nome: o.nome, tipo: o.tipo, x: o.x, y: o.y, w: o.w, h: o.h,
-             status: est.status, progresso: Number(est.progresso) || 0 };
+             status: est.status, progresso: Number(est.progresso) || 0,
+             ...('colina' in o && o.colina ? { colina: o.colina as Obra['colina'] } : {}) };
   });
   const atual = obras.find((o) => o.status !== 'concluida');
 

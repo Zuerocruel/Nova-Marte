@@ -168,88 +168,88 @@ function capaVertical(info) {
 }
 
 function slideCapa(info) {
-  const w = 1080, h = 1350;
+  const w = 1080, h = 1080;   // 1:1: aparece inteira na grade do perfil
   novo(w, h);
   fotoMundo(EP.duracao - 2, 'colonia', 4.2);
   fundoMundo(w, h, 0.15);
   const g = sx.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, 'rgba(20,15,38,0.9)'); g.addColorStop(0.32, 'rgba(20,15,38,0)'); g.addColorStop(0.75, 'rgba(20,15,38,0)'); g.addColorStop(1, 'rgba(20,15,38,0.92)');
   sx.fillStyle = g; sx.fillRect(0, 0, w, h);
-  escrever('OPERAÇÃO', w / 2, 120, 58, '#fff');
-  escrever('MARTE ZERO', w / 2, 210, 80, COR.ouro);
-  selo(`EPISÓDIO ${EP.numero}`, w / 2 - 175, 280, 36, COR.agua);
-  { const { linhas, tam } = caber(info.manchete, 48, w - 140, 3); linhas.forEach((l, i) => escrever(l, w / 2, 1150 - (linhas.length - 1) * tam * 0.7 + i * tam * 1.42, tam, i ? COR.ouro : '#fff')); }
-  escrever('ARRASTE PARA O LADO  >>', w / 2, 1280, 24, COR.areia);
+  escrever('OPERAÇÃO', w / 2, 100, 54, '#fff');
+  escrever('MARTE ZERO', w / 2, 184, 76, COR.ouro);
+  selo(`EPISÓDIO ${EP.numero}`, w / 2 - 175, 246, 34, COR.agua);
+  { const { linhas, tam } = caber(info.manchete, 48, w - 140, 3); linhas.forEach((l, i) => escrever(l, w / 2, 900 - (linhas.length - 1) * tam * 0.7 + i * tam * 1.42, tam, i ? COR.ouro : '#fff')); }
+  escrever('ARRASTE PARA O LADO  >>', w / 2, 1030, 24, COR.areia);
   return png();
 }
 
 function slideBoletim(info) {
-  const w = 1080, h = 1350;
+  const w = 1080, h = 1080;   // 1:1: aparece inteira na grade do perfil
   novo(w, h);
   fotoMundo(cenaT('missao', 0.9) ?? EP.duracao * 0.6, 'obra', 5.5);
   fundoMundo(w, h, 0.55);
-  escrever('BOLETIM DA COLÔNIA', w / 2, 110, 52, COR.ouro);
-  escrever(`DIA ${EP.numero} EM MARTE`, w / 2, 180, 28, COR.areia);
-  let y = 260;
+  escrever('BOLETIM DA COLÔNIA', w / 2, 90, 52, COR.ouro);
+  escrever(`DIA ${EP.numero} EM MARTE`, w / 2, 152, 28, COR.areia);
+  let y = 200;
   const linha = (rot, valor, cor, extra) => {
-    painel(70, y, w - 140, 170, cor);
-    escrever(rot, 110, y + 52, 26, COR.areia, { alinhar: 'left', contorno: false, sombra: false });
-    escrever(valor, 110, y + 112, 38, '#fff', { alinhar: 'left', contorno: false, sombra: false, maxW: w - 220 });
+    painel(70, y, w - 140, 150, cor);
+    escrever(rot, 110, y + 46, 26, COR.areia, { alinhar: 'left', contorno: false, sombra: false });
+    escrever(valor, 110, y + 100, 38, '#fff', { alinhar: 'left', contorno: false, sombra: false, maxW: w - 220 });
     if (extra) extra(y);
-    y += 200;
+    y += 172;
   };
   if (info.estacao) linha('CLIMA', `${info.estacao.nome.toUpperCase()} · ${info.estacao.temp}°C`, COR.agua);
   linha('POPULAÇÃO', `${info.populacao} COLONOS${info.novos.length ? `  (+${info.novos_total})` : ''}`, COR.ok);
   if (info.obra) {   // nome da obra em cima, barra de andamento embaixo (largura toda)
-    painel(70, y, w - 140, 170, COR.ouro);
-    escrever(`OBRA: ${info.obra.nome.toUpperCase()}`, 110, y + 52, 26, COR.areia, { alinhar: 'left', contorno: false, sombra: false, maxW: w - 380 });
-    escrever(`${info.obra.progresso}%`, w - 110, y + 52, 34, COR.ouro, { alinhar: 'right', contorno: false, sombra: false });
-    barra(110, y + 96, w - 220, 44, info.obra.progresso / 100, COR.ouro);
-    y += 200;
+    painel(70, y, w - 140, 150, COR.ouro);
+    escrever(`OBRA: ${info.obra.nome.toUpperCase()}`, 110, y + 46, 26, COR.areia, { alinhar: 'left', contorno: false, sombra: false, maxW: w - 380 });
+    escrever(`${info.obra.progresso}%`, w - 110, y + 46, 34, COR.ouro, { alinhar: 'right', contorno: false, sombra: false });
+    barra(110, y + 84, w - 220, 40, info.obra.progresso / 100, COR.ouro);
+    y += 172;
   }
   if (info.problema) linha('PROBLEMA DO DIA', info.problema.titulo.toUpperCase(), COR.alerta, (yy) => {
-    escrever(`RESOLVIDO POR ${(info.problema.heroi || '').toUpperCase()}`, w - 110, yy + 52, 20, COR.ok, { alinhar: 'right', contorno: false, sombra: false });
+    escrever(`RESOLVIDO POR ${(info.problema.heroi || '').toUpperCase()}`, w - 110, yy + 46, 20, COR.ok, { alinhar: 'right', contorno: false, sombra: false });
   });
-  escrever('EPISÓDIO NOVO TODO DIA', w / 2, h - 90, 30, COR.ouro);
+  escrever('EPISÓDIO NOVO TODO DIA', w / 2, h - 50, 30, COR.ouro);
   return png();
 }
 
 function slideBemVindos(info) {
-  const w = 1080, h = 1350;
+  const w = 1080, h = 1080;   // 1:1: aparece inteira na grade do perfil
   novo(w, h);
   fotoMundo(cenaT('boas_vindas', 0.5) ?? 20, 'colonia', 5);
   fundoMundo(w, h, 0.6);
-  escrever('BEM-VINDOS!', w / 2, 120, 72, COR.ouro);
-  escrever('NOVOS COLONOS DE MARTE', w / 2, 200, 26, COR.areia);
+  escrever('BEM-VINDOS!', w / 2, 96, 68, COR.ouro);
+  escrever('NOVOS COLONOS DE MARTE', w / 2, 168, 26, COR.areia);
   const lista = info.novos.slice(0, 6);
   const cols = lista.length <= 2 ? lista.length : lista.length <= 4 ? 2 : 3;
   const cw = (w - 120) / Math.max(1, cols), lin = Math.ceil(lista.length / Math.max(1, cols));
-  const ch = Math.min(440, (h - 420) / Math.max(1, lin));
+  const ch = Math.min(400, (h - 340) / Math.max(1, lin));
   lista.forEach((c, i) => {
-    const cx = 60 + (i % cols) * cw + cw / 2, cy = 300 + Math.floor(i / cols) * ch;
+    const cx = 60 + (i % cols) * cw + cw / 2, cy = 220 + Math.floor(i / cols) * ch;
     painel(cx - cw / 2 + 14, cy, cw - 28, ch - 24, COR.borda, 0.82);
     boneco(spriteDe(colonoPorCodigo.get(c.codigo) || c), cx, cy + ch * 0.36, Math.min(14, ch / 30));
-    escrever(c.nome, cx, cy + ch - 120, 30, '#fff', { maxW: cw - 70 });
-    if (c.cargo_nome) escrever(c.cargo_nome.toUpperCase(), cx, cy + ch - 72, 16, COR.agua, { maxW: cw - 70, contorno: false });
+    escrever(c.nome, cx, cy + ch - 104, 30, '#fff', { maxW: cw - 70 });
+    if (c.cargo_nome) escrever(c.cargo_nome.toUpperCase(), cx, cy + ch - 62, 16, COR.agua, { maxW: cw - 70, contorno: false });
   });
-  if (info.novos_total > lista.length) escrever(`E MAIS ${info.novos_total - lista.length}!`, w / 2, h - 150, 30, COR.ouro);
-  escrever('PROCURE SEU NOME NO MAPA', w / 2, h - 80, 28, COR.ouro);
+  if (info.novos_total > lista.length) escrever(`E MAIS ${info.novos_total - lista.length}!`, w / 2, h - 100, 30, COR.ouro);
+  escrever('PROCURE SEU NOME NO MAPA', w / 2, h - 50, 28, COR.ouro);
   return png();
 }
 
 function slideChamada() {
-  const w = 1080, h = 1350;
+  const w = 1080, h = 1080;   // 1:1: aparece inteira na grade do perfil
   novo(w, h);
   fotoMundo(EP.duracao - 1, 'panorama', 2.6);
   fundoMundo(w, h, 0.35);
-  painel(80, 360, w - 160, 560, COR.marte, 0.92);
-  escrever('CADA SEGUIDOR', w / 2, 460, 46, '#fff');
-  escrever('VIRA PERSONAGEM', w / 2, 540, 46, COR.ouro);
+  painel(80, 170, w - 160, 540, COR.marte, 0.92);
+  escrever('CADA SEGUIDOR', w / 2, 270, 46, '#fff');
+  escrever('VIRA PERSONAGEM', w / 2, 350, 46, COR.ouro);
   quebrar('Cadastre-se, ganhe sua casa na colônia e apareça nos próximos episódios.', 26, w - 300)
-    .forEach((l, i) => escrever(l, w / 2, 650 + i * 48, 26, COR.areia, { contorno: false }));
-  selo('LINK NA BIO', w / 2 - 190, 800, 40, COR.ouro);
-  EP.mundo.fundadores.forEach((f, i) => boneco(spriteMapa(f.sprite), w / 2 + (i ? 170 : -170), 1110, 14, i === 1));
-  escrever(EP.site_tela, w / 2, h - 80, 26, '#fff');
+    .forEach((l, i) => escrever(l, w / 2, 460 + i * 48, 26, COR.areia, { contorno: false }));
+  selo('LINK NA BIO', w / 2 - 190, 610, 40, COR.ouro);
+  EP.mundo.fundadores.forEach((f, i) => boneco(spriteMapa(f.sprite), w / 2 + (i ? 170 : -170), 930, 12, i === 1));
+  escrever(EP.site_tela, w / 2, h - 50, 26, '#fff');
   return png();
 }
 

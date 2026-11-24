@@ -49,7 +49,8 @@ def _mmss(s: float) -> str:
 ROTULO_CENA = {"abertura": "Abertura", "populacao": "População", "boas_vindas": "Boas-vindas",
                "compras": "Novidades na vizinhança", "cratera": "Nome novo no mapa", "destaque": "Destaque do dia",
                "problema": "Alerta: problema do dia", "solucao": "Problema resolvido", "gancho": "Próximo episódio",
-               "votacao": "Votação: SIM ou NÃO?", "resultado": "A colônia decidiu"}
+               "votacao": "Votação: SIM ou NÃO?", "resultado": "A colônia decidiu",
+               "fundacao": "Fundação da próxima obra"}
 
 
 def capitulos(lt: dict) -> list[str]:

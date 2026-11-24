@@ -431,7 +431,33 @@ function prepararVinheta() {
   v.fillStyle = g; v.fillRect(0, 0, W, H);
 }
 
+// primeira palavra da fala (depois de "depois") que casa com re → instante em que é dita (ou null)
+function palavraEm(c, re, depois = -Infinity) {
+  const w = (c && c.palavras || []).find((x) => x.i >= depois && re.test(x.p));
+  return w ? w.i : null;
+}
+// FUND: fundação da PRÓXIMA obra no fim do episódio (cena "fundacao"): ini/fim = a tomada da obra (tomadas.js);
+// no mapa o buraco, a malha e o concreto avançam nesse intervalo. DUNAS_MAPA: resultado SIM do "mapear as dunas"
+// (o mapa ganha a rota do rover e a trilha desconhecida a partir de t0).
+let FUND = null, DUNAS_MAPA = null;
+function prepararExtras() {
+  const f = EP.cenas.find((c) => c.tipo === 'fundacao');
+  FUND = null;
+  if (f) {
+    const ini = palavraEm(f, /^escavadeira/i) ?? f.fala_inicio + (f.fim - f.fala_inicio) * 0.3;
+    const fim = palavraEm(f, /^fim\b/i, ini) ?? f.fim - (f.fim - f.fala_inicio) * 0.2;
+    FUND = { c: f, ini: ini - 0.25, fim: Math.max(ini + 3, fim - 0.1), obra: EP.mundo.obras.find((o) => o.slug === f.obra) };
+  }
+  const r = EP.cenas.find((c) => c.tipo === 'resultado' && c.votacao && c.votacao.id === 'mapa-dunas' && c.votacao.resultado === 'sim');
+  DUNAS_MAPA = null;
+  if (r) {
+    const marcas = palavraEm(r, /^marcas/i) ?? r.fala_inicio;
+    DUNAS_MAPA = { c: r, t0: (palavraEm(r, /^mapa/i, marcas) ?? r.fala_inicio + (r.fim - r.fala_inicio) * 0.6) - 0.15 };
+  }
+}
+
 function prepararTempos() {
+  prepararExtras();
   cenaMissao = EP.cenas.filter((c) => c.tipo === 'missao');
   const dem = cenaMissao.find((c) => c.acao === 'demarcar');
   tempoDemarcar = dem ? dem.fala_inicio + 0.4 : (cenaMissao[0] ? cenaMissao[0].inicio : Infinity);
@@ -990,7 +1016,9 @@ function desenharAntena(o, st, t) {
   const r = retanguloDe(o);
   if (st.dem && st.p < 1) desenharDemarcacao(r, t);
   if (st.p <= 0) return;
-  const cx = (r.x0 + r.x1) / 2, base = r.y1 - 4, alt = (r.y1 - r.y0 - 14) * clamp(st.p / 0.85);
+  // com colina (colonia.json), a torre fica no TOPO dela (mesma regra de lib/colonia-arte.ts)
+  const cx = (r.x0 + r.x1) / 2, alt = (r.y1 - r.y0 - 14) * clamp(st.p / 0.85);
+  const base = o.colina ? Math.round((o.y + o.h / 2 + (o.colina.dy || 0)) * CASA) - 10 : r.y1 - 4;
   ret(cx - 10, base, 20, 4, '#6b6f86');
   for (let y = 0; y < alt; y += 2) {
     const w = lerp(8, 2, y / (r.y1 - r.y0));
@@ -1021,8 +1049,28 @@ function fumaca(c, x, y, t, n) {
   c.globalAlpha = 1;
 }
 
+// Até 15% a obra é só a FUNDAÇÃO (como a do Extrator de Gelo no fim do ep. 6): vala → fôrmas e malha de aço → laje
+// de concreto com os chumbadores da estrutura. MESMA arte em lib/colonia-arte.ts e fabrica/diretor.js.
+const FUNDACAO = 0.16;
+function fundacaoDaObra(c, r, p) {
+  const k = Math.min(1, p / 0.15), x0 = r.x0 + 3, y0 = r.y0 + 6, w = r.x1 - r.x0 - 6, h = r.y1 - r.y0 - 9;
+  PR(c, x0 - 1, y0 - 1, w + 2, h + 2, '#5a2a18'); PR(c, x0, y0, w, h, '#2a120a');
+  if (k > 0.35) {
+    c.fillStyle = '#c99a1f'; c.fillRect(x0, y0, w, 1); c.fillRect(x0, y0 + h - 1, w, 1); c.fillRect(x0, y0, 1, h); c.fillRect(x0 + w - 1, y0, 1, h);
+    c.fillStyle = '#e2603b';
+    for (let x = x0 + 5; x < x0 + w - 2; x += 5) c.fillRect(Math.round(x), y0 + 1, 1, h - 2);
+    for (let y = y0 + 5; y < y0 + h - 2; y += 5) c.fillRect(x0 + 1, Math.round(y), w - 2, 1);
+  }
+  if (k > 0.6) {
+    const cw = (w - 2) * Math.min(1, (k - 0.6) / 0.4);
+    PR(c, x0 + 1, y0 + 1, cw, h - 2, '#9aa0b5'); PR(c, x0 + 1, y0 + 1, cw, 1, '#c9ced9');
+  }
+  if (k >= 1) for (let i = 0; i < 4; i++) PR(c, x0 + 3 + i * (w - 8) / 3, y0 + 3, 2, 2, '#e2603b');
+}
+
 function predioEmObra(c, r, st, t, pintar) {
   if (st.p <= 0) return;
+  if (st.p < FUNDACAO) { fundacaoDaObra(c, r, st.p); return; }
   const W = r.x1 - r.x0, H = r.y1 - r.y0;
   PR(c, r.x0 + 1, r.y1 - 4, W - 2, 4, '#7a7f96');                       // fundação
   const topo = r.y1 - Math.max(4, st.p * H);
@@ -1169,7 +1217,8 @@ function desenharProximaObra(o, t) {
     for (let y = r.y0; y < r.y1; y += 8) { ctx.fillRect(r.x0, y, 1, 4); ctx.fillRect(r.x1 - 1, y, 1, 4); }
     ctx.globalAlpha = 1;
   }
-  if (t >= DEMARCA.cava) {                           // buraco da fundação crescendo no meio
+  if (FUND && FUND.obra === o && t >= FUND.ini) desenharFundacaoMapa(r, t);
+  else if (t >= DEMARCA.cava) {                      // buraco da fundação crescendo no meio
     const k = clamp((t - DEMARCA.cava) / 8), cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2 + 6;
     const w = 6 + k * 20, h = 3 + k * 7;
     ret(cx - w / 2, cy - h / 2, w, h, '#5a2a18'); ret(cx - w / 2 + 1, cy - h / 2 + 1, w - 2, h - 2, '#2a120a');
@@ -1185,6 +1234,141 @@ function desenharProximaObra(o, t) {
   ctx.fillText('PRÓXIMA OBRA', px, py - 12);
   ctx.fillStyle = '#f3eefe'; ctx.font = `5px ${FONTE}`; ctx.fillText((o.nome || '').toUpperCase().slice(0, 24), px, py - 3);
   ctx.globalAlpha = 1;
+}
+
+// fundação da próxima obra vista de cima: vala do tamanho do terreno → fôrmas e malha de aço → concreto
+function desenharFundacaoMapa(r, t) {
+  const k = clamp((t - FUND.ini) / (FUND.fim - FUND.ini));
+  const kc = clamp((k - 0.38) / 0.24), kk = clamp((k - 0.62) / 0.33);
+  const x0 = r.x0 + 3, y0 = r.y0 + 6, w = r.x1 - r.x0 - 6, h = r.y1 - r.y0 - 9;
+  const cava = saida(clamp(k / 0.38));
+  const cw = Math.max(8, w * cava), ch = Math.max(4, h * cava), cx0 = x0 + (w - cw) / 2, cy0 = y0 + (h - ch) / 2;
+  ret(cx0 - 1, cy0 - 1, cw + 2, ch + 2, '#5a2a18'); ret(cx0, cy0, cw, ch, '#2a120a');
+  for (let i = 0; i < 7; i++) ret(r.x1 + 3 + (i % 3) * 3, r.y1 - 4 - i * 2 - cava * 3, 4, 3 + cava * 3, '#8f4129');   // monte de terra
+  if (kc > 0) {   // fôrmas de madeira na borda + malha de aço laranja
+    ctx.fillStyle = '#c99a1f';
+    ctx.fillRect(cx0, cy0, cw, 1); ctx.fillRect(cx0, cy0 + ch - 1, cw, 1); ctx.fillRect(cx0, cy0, 1, ch); ctx.fillRect(cx0 + cw - 1, cy0, 1, ch);
+    ctx.fillStyle = '#e2603b';
+    const nx = Math.floor(cw / 5), ny = Math.floor(ch / 5), n = Math.floor((nx + ny) * kc);
+    for (let i = 1; i < nx && i <= n; i++) ctx.fillRect(Math.round(cx0 + i * 5), cy0 + 1, 1, ch - 2);
+    for (let j = 1; j < ny && nx + j <= n + nx * 0.5; j++) ctx.fillRect(cx0 + 1, Math.round(cy0 + j * 5), cw - 2, 1);
+  }
+  if (kk > 0) {   // concreto entrando de um lado ao outro
+    const cwk = (cw - 2) * kk;
+    ret(cx0 + 1, cy0 + 1, cwk, ch - 2, '#9aa0b5');
+    ret(cx0 + 1, cy0 + 1, cwk, 1, '#c9ced9');
+    if (kk < 1) ret(cx0 + cwk - 1, cy0 + 1, 2, ch - 2, '#6b6f86');
+  }
+  if (k >= 1) {   // laje pronta: chumbadores para a estrutura de amanhã
+    for (let i = 0; i < 4; i++) ret(cx0 + 3 + i * (cw - 8) / 3, cy0 + 3, 2, 2, '#e2603b');
+  }
+}
+
+// Mapa das Dunas do Norte (votação SIM): rota do rover saindo da base, a varredura em zigue-zague, a área
+// mapeada em grade e, cruzando tudo, a trilha de pneus que não é nossa, com o "?" piscando.
+const TRILHA_DUNAS_DESDE = 6;   // a partir do ep. 7 a trilha já está no mapa desde o começo (= site)
+function desenharMapaDunas(t) {
+  const M = DUNAS_MAPA || (EP.numero > TRILHA_DUNAS_DESDE ? { t0: -100 } : null);
+  if (!M || t < M.t0) return;
+  const D = posAlvo('dunas', t), b = EP.mundo.base, k = t - M.t0;
+  const porta = { x: (b.x + b.w / 2) * CASA, y: b.y * CASA - 2 };
+  const pts = [porta, { x: porta.x, y: D.y + 170 }, { x: D.x - 120, y: D.y + 110 }];
+  for (let i = 0; i < 6; i++) {
+    const y = D.y + 110 - i * 50, a = i % 2 ? D.x + 120 : D.x - 120, c = i % 2 ? D.x - 120 : D.x + 120;
+    if (i) pts.push({ x: a, y });
+    pts.push({ x: c, y });
+  }
+  // área mapeada (grade ciano)
+  const ka = clamp(k / 0.6);
+  ctx.globalAlpha = 0.1 * ka; ret(D.x - 135, D.y - 160, 270, 290, '#3fd0c9');
+  ctx.globalAlpha = 0.22 * ka; ctx.fillStyle = '#8fe6ff';
+  for (let x = D.x - 135; x <= D.x + 135; x += 30) ctx.fillRect(x, D.y - 160, 1, 290);
+  for (let y = D.y - 160; y <= D.y + 130; y += 30) ctx.fillRect(D.x - 135, y, 270, 1);
+  ctx.globalAlpha = ka; ctx.fillStyle = '#3fd0c9';
+  for (let x = D.x - 135; x < D.x + 135; x += 8) { ctx.fillRect(x, D.y - 160, 4, 2); ctx.fillRect(x, D.y + 128, 4, 2); }
+  for (let y = D.y - 160; y < D.y + 130; y += 8) { ctx.fillRect(D.x - 135, y, 2, 4); ctx.fillRect(D.x + 133, y, 2, 4); }
+  ctx.globalAlpha = 1;
+  // rota do rover (pontilhado se desenhando)
+  let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  let falta = L * saida(clamp(k / 1.8)), fim = pts[0];
+  ctx.fillStyle = '#bff8ff';
+  for (let i = 1; i < pts.length && falta > 0; i++) {
+    const a = pts[i - 1], c = pts[i], d = Math.hypot(c.x - a.x, c.y - a.y), q = Math.min(1, falta / d);
+    for (let s = 0; s <= d * q; s += 6) ctx.fillRect(Math.round(a.x + (c.x - a.x) * s / d) - 1, Math.round(a.y + (c.y - a.y) * s / d) - 1, 3, 3);
+    fim = { x: a.x + (c.x - a.x) * q, y: a.y + (c.y - a.y) * q };
+    falta -= d;
+  }
+  ret(fim.x - 5, fim.y - 3, 10, 6, '#eef0f8'); ret(fim.x - 4, fim.y + 3, 3, 2, '#2a2140'); ret(fim.x + 2, fim.y + 3, 3, 2, '#2a2140');   // o rover
+  if (Math.floor(t * 3) % 2) ret(fim.x - 1, fim.y - 6, 2, 2, '#ff4d4d');
+  // trilha desconhecida (vermelha, com sulcos em V), saindo da área para o norte
+  const kt = clamp((k - 0.7) / 1.2);
+  if (kt <= 0) return;
+  const A = { x: D.x - 170, y: D.y + 80 }, B = { x: D.x + 190, y: D.y - 260 };
+  const dl = Math.hypot(B.x - A.x, B.y - A.y), u = { x: (B.x - A.x) / dl, y: (B.y - A.y) / dl }, n = { x: -u.y, y: u.x };
+  for (const lado of [-1, 1]) for (let s = 0; s < dl * kt; s += 7) {
+    const cx = A.x + u.x * s + n.x * lado * 9, cy = A.y + u.y * s + n.y * lado * 9;
+    for (const j of [-1, 1]) for (let m = 0; m < 3; m++) {
+      ctx.fillStyle = m === 2 ? '#7a2030' : '#e04f5f';
+      ctx.fillRect(Math.round(cx - u.x * m * 1.4 + n.x * j * m * 1.6), Math.round(cy - u.y * m * 1.4 + n.y * j * m * 1.6), 2, 2);
+    }
+  }
+  // "?" no ponto onde a trilha cruza a área
+  if (kt > 0.4) {
+    const P = { x: A.x + u.x * dl * 0.42, y: A.y + u.y * dl * 0.42 }, pul = 1 + 0.25 * Math.sin(t * 6);
+    ctx.globalAlpha = clamp((kt - 0.4) / 0.2);
+    ctx.strokeStyle = '#ff4d4d'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(P.x, P.y, 16 * pul, 0, Math.PI * 2); ctx.stroke();
+    ret(P.x - 9, P.y - 36, 18, 18, '#140f26'); ret(P.x - 9, P.y - 36, 18, 2, '#ff4d4d');
+    ctx.fillStyle = '#ff4d4d'; ctx.font = `12px ${FONTE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('?', P.x, P.y - 26);
+    ctx.font = `5px ${FONTE}`; ctx.fillStyle = '#f3eefe';
+    ctx.fillText('TRILHA DESCONHECIDA', P.x, P.y + 26);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.globalAlpha = 1;
+  }
+}
+
+// Redemoinho de poeira gigante (pixel art, em qualquer contexto): coluna que alarga para cima, faixas girando,
+// grãos orbitando e a "saia" de poeira no chão. cx/base = pé da coluna; alt/larg em px do contexto.
+function funilEm(c, cx, base, alt, larg, t, a = 1) {
+  const passo = Math.max(2, Math.round(alt / 90));
+  const curva = (f) => Math.sin(t * 1.3 + f * 3) * larg * 0.08 * f + f * larg * 0.07;
+  for (let y = 0; y < alt; y += passo) {
+    const f = y / alt, w = larg * (0.16 + 0.84 * Math.pow(f, 1.4)), x = cx + curva(f) - w / 2;
+    const fase = ((f * 9 - t * 2.4) % 1 + 1) % 1;
+    c.globalAlpha = a * (0.6 + 0.3 * f) * (f > 0.9 ? (1 - f) / 0.1 : 1);
+    c.fillStyle = fase < 0.5 ? '#c98a5e' : '#a8643f';
+    c.fillRect(Math.round(x), Math.round(base - y - passo), Math.round(w), passo);
+    c.fillStyle = '#e8b48c';
+    c.fillRect(Math.round(x), Math.round(base - y - passo), Math.max(1, Math.round(w * 0.12)), passo);
+  }
+  const s = Math.max(1, Math.round(larg / 40));
+  for (let i = 0; i < 70; i++) {
+    const f = hash(i, 71), ang = t * (5 - f * 2) + i * 2.4, w = larg * (0.16 + 0.84 * Math.pow(f, 1.4));
+    c.globalAlpha = a * (Math.sin(ang) > 0 ? 0.9 : 0.4);
+    c.fillStyle = i % 3 ? '#8f4129' : '#f2c08e';
+    c.fillRect(Math.round(cx + curva(f) + Math.cos(ang) * w * 0.62), Math.round(base - f * alt + Math.sin(ang) * w * 0.08), s, s);
+  }
+  for (let i = 0; i < 26; i++) {
+    const q = (t * 0.6 + hash(i, 72)) % 1, lado = hash(i, 73) > 0.5 ? 1 : -1, r = larg * (0.15 + q * 0.6);
+    c.globalAlpha = a * 0.5 * (1 - q);
+    c.fillStyle = '#b8754f';
+    c.fillRect(Math.round(cx + lado * r - r * 0.3), Math.round(base - 2 - q * larg * 0.15), Math.round(r * 0.6), Math.max(2, Math.round(larg * 0.06)));
+  }
+  c.globalAlpha = 1;
+}
+// o redemoinho atravessando a tela do mapa: ao longe no alerta, cruzando a colônia na solução até o vento passar
+function redemoinhoNoMapa(t) {
+  const ini = EP.cenas.find((c) => c.tipo === 'problema'), sol = EP.cenas.find((c) => c.tipo === 'solucao');
+  let x = 0, a = 0, esc = 1;
+  if (ini && t >= ini.inicio && t < ini.fim) {
+    const k = (t - ini.inicio) / (ini.fim - ini.inicio);
+    a = clamp((t - ini.inicio) / 0.6) * clamp((ini.fim - t) / 0.4); x = W + 60 - k * 300; esc = 0.75 + k * 0.25;
+  } else if (sol && t >= sol.inicio && t < sol.fim) {
+    const fim = isFinite(VIDA.tSai) ? VIDA.tSai : sol.fim, k = clamp((t - sol.inicio) / Math.max(1, fim - sol.inicio));
+    a = clamp((t - sol.inicio) / 0.5) * clamp((fim + 0.8 - t) / 0.8); x = W * 0.8 - k * W * 1.3; esc = 1.15;
+  }
+  if (a <= 0) return;
+  funilEm(ctx, x, H * 0.68, 1150 * esc, 270 * esc, t, a * 0.9);
+  ctx.globalAlpha = a * 0.16; ret(0, 0, W, H, '#c98a5e'); ctx.globalAlpha = 1;
 }
 
 function desenharObras(t) {
@@ -2175,6 +2359,7 @@ function desenharPlantio25D(t) {
 
 function eventoNoCeu(t) {
   const id = EP.problema && EP.problema.id;
+  if (id === 'redemoinho') { redemoinhoNoMapa(t); return; }
   if (id !== 'chuva-meteoros' && id !== 'nave-alienigena') return;
   const ini = EP.cenas.find((c) => c.tipo === 'problema'), fim = EP.cenas.find((c) => c.tipo === 'solucao');
   if (!ini) return;
@@ -2329,6 +2514,22 @@ function cartao(cena, t, cam) {
       texto(rot, x, y + 2, Math.round(56 * s), aceso ? COR.ceu : cor, { contorno: false });
     });
     texto('RESPONDA NOS COMENTÁRIOS', W / 2, 568 - sobe, 24, COR.agua, { contorno: false });
+  } else if (cena.tipo === 'resultado' && DUNAS_MAPA && cena === DUNAS_MAPA.c && t >= DUNAS_MAPA.t0) {   // mapa atualizado
+    const k = saida(clamp((t - DUNAS_MAPA.t0) / 0.35));
+    ctx.globalAlpha = a * k;
+    caixa(90, 200, W - 180, 180, 0.9, COR.alerta);
+    texto('MAPA ATUALIZADO', W / 2, 252, 34, COR.agua, { contorno: false });
+    if (Math.floor(t * 3) % 3) texto('TRILHA DESCONHECIDA', W / 2, 318, 26, COR.alerta, { contorno: false });
+  } else if (cena.tipo === 'fundacao') {   // a próxima obra já começou: só a fundação hoje
+    caixa(70, 236 - sobe, W - 140, 270, 0.9, COR.ouro);
+    texto('A PRÓXIMA OBRA JÁ COMEÇOU', W / 2, 292 - sobe, 26, COR.agua, { contorno: false, maxW: W - 200 });
+    texto((cena.obra_nome || '').toUpperCase(), W / 2, 350 - sobe, 34, COR.texto, { contorno: false, maxW: W - 200 });
+    const [p0, p1] = cena.progresso || [0, 0.15];
+    const k = FUND ? clamp((t - FUND.ini) / (FUND.fim - FUND.ini)) : 1, p = lerp(p0, p1, k);
+    texto(k >= 1 ? 'FUNDAÇÃO PRONTA!' : 'FUNDAÇÃO', W / 2, 404 - sobe, 24, k >= 1 ? COR.ok : COR.ouro, { contorno: false });
+    ret(140, 446 - sobe, W - 280, 22, COR.borda);
+    ret(140, 446 - sobe, (W - 280) * p, 22, k >= 1 ? COR.ok : COR.marte);
+    texto(`${Math.round(p * 100)}%`, W - 150, 457 - sobe, 18, COR.texto, { alinhar: 'right', contorno: false });
   } else if (cena.tipo === 'resultado') {   // decisão da votação do episódio anterior
     const v = cena.votacao || {}, sim = v.resultado === 'sim';
     caixa(60, 220 - sobe, W - 120, 330, 0.9, sim ? COR.ok : COR.alerta);
@@ -2444,6 +2645,7 @@ function desenhar(t) {
   const energia = t >= tempoEnergia || EP.mundo.obras.some((o) => o.tipo === 'solar' && o.status === 'concluida');
   desenharCanteiro(t);
   desenharObras(t);
+  desenharMapaDunas(t);
   desenharEsqueleto(t);
   desenharCasas(view, t, energia);
   desenharColonos(view, t);

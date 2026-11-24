@@ -116,7 +116,7 @@
       "id": "mapa-dunas",
       "tela": "MAPEAR AS DUNAS DO NORTE?",
       "fala": "Ninguém da colônia foi além das dunas do norte. Mandamos o rover mapear a região? Comenta SIM ou NÃO.",
-      "sim": "Vocês decidiram: SIM. O rover voltou com o mapa das dunas... e com marcas de pneu que não são dele.",
+      "sim": "Vocês decidiram: SIM. O rover atravessou as dunas do norte e mapeou cada metro de areia. Mas, no meio do caminho, ele achou marcas de pneu... que não são dele. O mapa da colônia já mostra a trilha, e ninguém consegue tirar o olho da tela. A pergunta agora é: quem passou por lá?",
       "nao": "Vocês decidiram: NÃO. As dunas do norte continuam sem mapa, e o rover ficou ajudando na obra.",
       "camera": {
         "alvo": "dunas",

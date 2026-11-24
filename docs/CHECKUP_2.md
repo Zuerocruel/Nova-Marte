@@ -93,7 +93,7 @@ Pedido inteiro, com checklist. Conferir a cada passo. `[x]` = feito e conferido 
 - 9.6: aprovar produto novo cria na Cakto pela API (imagem por URL do site) — depende das mesmas credenciais.
 - Migração 013 (jogo, convites, online, loja de moedas) precisa ser rodada para essas partes funcionarem de verdade.
 - Prints do Instagram: o celular estava com a tela bloqueada; refazer com a tela desbloqueada.
-- Tamanhos conferidos: feed/carrossel 1080x1350 (4:5), stories 1080x1920 (9:16), capa dos Reels com textos na área 3:4, thumb 1280x720.
+- Tamanhos conferidos: feed/carrossel 1080x1080 (1:1, pedido do dono: não cortar na grade), stories 1080x1920 (9:16), capa dos Reels com textos na área 3:4, thumb 1280x720.
 - Thumbnail do longo feita no motor pixel (não há acesso ao Higgsfield no projeto).
 - Vídeos com partes que dependem de login/migração 013 usam dados de DEMONSTRAÇÃO (nomes fictícios), total de colonos real.
 - Vídeos (Aprovações → Vídeos explicativos; arquivos em fabrica/saida/divulgacao/videos/): cargos 1min34, convite, chat+online 36 s,

@@ -364,7 +364,8 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
 
 
 def registrar_publicacao(numero: int, titulo: str, obra_slug: str | None,
-                         progresso: int = 100, dias: int | None = None, resumo: dict | None = None) -> None:
+                         progresso: int = 100, dias: int | None = None, resumo: dict | None = None,
+                         obra_extra: dict | None = None) -> None:
     """Marca o episódio como publicado (vira o ponto de corte do próximo) e grava até onde a obra chegou.
     progresso/dias vêm do roteiro (obra_progresso / obra_dia): a obra só fica concluída quando chega a 100."""
     db = Supabase()
@@ -398,6 +399,22 @@ def registrar_publicacao(numero: int, titulo: str, obra_slug: str | None,
             print(f"obra {obra_slug} → {corpo['status']} ({progresso}%)")
         except TabelaAusente:
             print("aviso: rode supabase/migrations/004_colonia_obras.sql para guardar o estágio das obras")
+    if obra_extra and obra_extra.get("slug"):   # obra pronta hoje → a próxima já começou (fundação)
+        registrar_publicacao_obra(db, obra_extra["slug"], obra_extra.get("progresso", 0), obra_extra.get("dias"), agora)
+
+
+def registrar_publicacao_obra(db: "Supabase", slug: str, progresso: int, dias: int | None, agora: str) -> None:
+    """Grava a obra que começou no fim do episódio (só a fundação; status em_obra)."""
+    progresso = max(0, min(99, int(progresso)))
+    nome = next((o["nome"] for o in config.colonia()["obras"] if o["slug"] == slug), slug)
+    linha = {"slug": slug, "nome": nome, "status": "em_obra", "progresso": progresso, "atualizado_em": agora}
+    if dias is not None:
+        linha["dias"] = int(dias)
+    try:
+        db.escrever("POST", "colonia_obras", {"on_conflict": "slug"}, linha, prefer="resolution=merge-duplicates,return=minimal")
+        print(f"obra {slug} → em_obra ({progresso}%, fundação)")
+    except TabelaAusente:
+        print("aviso: rode supabase/migrations/004_colonia_obras.sql para guardar o estágio das obras")
 
 
 def registrar_resumo(db: Supabase, numero: int, resumo: dict) -> None:
@@ -456,7 +473,8 @@ if __name__ == "__main__":
         obra = a.obra or r.get("missao_obra")
         titulo = a.titulo or r.get("titulo") or f"Episódio {n}"
         registrar_publicacao(n, titulo, obra, progresso=(r.get("obra_progresso") or [0, 100])[1], dias=r.get("obra_dia"),
-                             resumo={k: r.get(k) for k in ("estacao", "problema") if r.get(k)} or None)
+                             resumo={k: r.get(k) for k in ("estacao", "problema") if r.get(k)} or None,
+                             obra_extra=r.get("obra_extra"))
     elif a.episodio:
         d = coletar(a.episodio, a.so_fundadores)
         config.gravar_json(config.pasta_episodio(a.episodio) / "dados.json", d)

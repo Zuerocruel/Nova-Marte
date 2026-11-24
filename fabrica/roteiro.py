@@ -202,6 +202,13 @@ def cena(id_: str, tipo: str, fala: Fala, **extra) -> dict:
 
 
 # ---------------------------------------------------------------- templates
+# fundação da próxima obra, no fim do episódio em que uma obra fica pronta (cena "fundacao")
+FUNDACAO_PCT = 15
+FUNDACAO_FALAS = [
+    "Com a obra pronta, ninguém foi descansar: a colônia já começou {art} {obra}. A escavadeira abre o buraco, "
+    "os colonos armam a malha de aço e o caminhão despeja o concreto. Fim do dia: fundação pronta, {pct} por cento!",
+]
+
 ABERTURAS = [
     "Operação Marte Zero, episódio {n}. Mais um dia no planeta vermelho.",
     "Diário da Operação Marte Zero, episódio {n}. O sol nasce de novo sobre a poeira vermelha.",
@@ -440,6 +447,19 @@ def montar(d: dict) -> dict:
                           progresso=mc["progresso"], atores=mc["atores"]))
     proxima = missao["proxima"] if concluida else f"a obra da {obra['nome']} continua"
 
+    # 5a'. obra pronta hoje: no fim do dia a colônia já começa a PRÓXIMA obra e deixa a fundação pronta
+    obra_extra = None
+    seguinte = (next((o for o in d["obras"] if o["status"] != "concluida" and o["slug"] != obra["slug"]), None)
+                if concluida else None)
+    if seguinte:
+        nome2 = seguinte["nome"]
+        art = "a" if nome2.split()[0].lower().endswith("a") else "o"
+        obra_extra = {"slug": seguinte["slug"], "progresso": FUNDACAO_PCT, "dias": 1}
+        f = Fala().add(rnd.choice(FUNDACAO_FALAS).format(obra=nome2, art=art, Art=art.upper(), pct=extenso(FUNDACAO_PCT)))
+        cenas.append(cena("fundacao", "fundacao", f, camera={"alvo": f"obra:{seguinte['slug']}", "zoom": 5},
+                          obra=seguinte["slug"], obra_nome=nome2, progresso=[0, FUNDACAO_PCT / 100]))
+        proxima = f"{art} {nome2} sobe do chão"
+
     # 5b. problema RESOLVIDO (quem resolve é um colono de verdade, chamado pelo nome)
     if problema:
         f = fala_com_heroi("Antes de começar a obra, vamos resolver o problema do dia! " + problema["solucao"], problema["heroi"], **campos)
@@ -495,6 +515,8 @@ def montar(d: dict) -> dict:
         "obra_progresso": [p0, p1],     # % de ontem → % ao fim deste episódio (gravado ao publicar)
         "obra_dia": dia,
         "obra_concluida": concluida,
+        # obra pronta hoje: a próxima já sai com a fundação feita (gravado ao publicar, como obra_progresso)
+        "obra_extra": obra_extra,
         "estacao": {"id": est["id"], "nome": est["nome"], "falado": est["falado"], "dia": dia_est, "temp": temp, "efeito": est["efeito"]},
         "problema": ({k: problema[k] for k in ("id", "categoria", "titulo", "rotulo")}
                      | {"heroi": problema["heroi"]["nome"], "heroi_codigo": problema["heroi"].get("colono")}
