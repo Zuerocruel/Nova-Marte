@@ -55,6 +55,41 @@ ROTEIROS = {
                     "Cada seguidor vira colono na Operação Marte Zero. Link na bio 👆\n\n"
                     "#operacaomartezero #marte #pixelart #comoefeito #colonizarmarte"),
     },
+    "estufa": {
+        "nome": "Estufa Hidropônica",
+        "planoR": 3.7,   # a base da estufa é maior que a da antena: a terraplanagem deixa mais chão plano
+        "etapas": [
+            {"id": "abertura", "min": 6,
+             "fala": "Como se constrói uma estufa hidropônica em Marte, do zero? Volta comigo para o primeiro dia."},
+            {"id": "terraplanagem", "etapa": 1, "sol": 1, "titulo": "TERRAPLANAGEM", "sub": "Terreno plano ao lado da Fazenda Solar", "min": 7.5,
+             "fala": "Etapa um: terraplanagem. O trator nivela o terreno ao lado da Fazenda Solar, pertinho da energia da colônia."},
+            {"id": "fundacao", "etapa": 2, "sol": 3, "titulo": "FUNDAÇÃO", "sub": "Escavação, manta isolante e malha de aço", "min": 19,
+             "fala": "Etapa dois: a fundação. A escavadeira abre a vala, e os colonos montam as fôrmas de madeira. No fundo vai uma manta isolante, porque o chão de Marte chega a sessenta graus negativos. Depois, o guindaste traz o aço, e a turma amarra a malha, ponto por ponto."},
+            {"id": "concretagem", "etapa": 3, "sol": 5, "titulo": "CONCRETAGEM", "sub": "Betoneira, bica e caçamba no guindaste", "min": 16,
+             "fala": "Etapa três: a concretagem. A betoneira chega girando, com concreto feito de regolito. Uma parte desce pela bica, e o guindaste leva a caçamba até a outra ponta. Os colonos espalham e alisam. Laje pronta."},
+            {"id": "estrutura", "etapa": 4, "sol": 8, "titulo": "ESTRUTURA EM ARCO", "sub": "9 arcos de aço içados pelo guindaste", "min": 12,
+             "fala": "Etapa quatro: a estrutura. O guindaste ergue nove arcos de aço, um atrás do outro. O formato de túnel aguenta a pressão do ar lá dentro."},
+            {"id": "cobertura", "etapa": 5, "sol": 11, "titulo": "COBERTURA E PRESSÃO", "sub": "Painéis duplos que barram a radiação", "min": 13,
+             "fala": "Etapa cinco: a cobertura. Painéis duplos deixam a luz entrar e barram a radiação. A eclusa fecha, e o ar é bombeado. Pressão estável, nenhum vazamento."},
+            {"id": "hidroponia", "etapa": 6, "sol": 13, "titulo": "HIDROPONIA", "sub": "Calhas, tanque e água com nutrientes", "min": 12,
+             "fala": "Etapa seis: a hidroponia. Aqui não tem terra. As raízes ficam em calhas por onde corre água com nutrientes, vinda do gelo marciano. E a mesma água circula de novo e de novo."},
+            {"id": "luzes", "etapa": 7, "sol": 15, "titulo": "LUZ DE CULTIVO", "sub": "LEDs vermelhos e azuis", "min": 11,
+             "fala": "Etapa sete: a luz. Em Marte, o sol é menos da metade do da Terra. Então o cabo traz a energia, e acendem os LEDs vermelhos e azuis, as cores que as plantas mais usam."},
+            {"id": "plantio", "etapa": 8, "sol": 16, "titulo": "PLANTIO", "sub": "Legumes e verduras", "min": 10,
+             "fala": "Etapa oito: o plantio. Cada muda vai num furinho da calha. Tomate, pimentão, pepino, morango, alface e rúcula."},
+            {"id": "colheita", "etapa": 9, "sol": 46, "titulo": "COLHEITA", "sub": "30 sóis depois", "min": 12,
+             "fala": "Trinta sóis depois, a primeira colheita! Tomate vermelhinho, pimentão, pepino e salada fresca, tudo plantado em Marte."},
+            {"id": "voo", "sol": 46, "min": 8,
+             "fala": "Estufa Hidropônica: do terreno vazio aos legumes no prato, com a mão de cada colono."},
+            {"id": "convite", "min": 6,
+             "fala": "Qual construção você quer ver sendo feita na próxima? Comenta aí. E cada seguidor vira colono em Marte."},
+        ],
+        "legenda": ("Como se constrói uma ESTUFA HIDROPÔNICA em Marte? 🌱🚀 Da escavação e do concreto até a primeira colheita de legumes, "
+                    "etapa por etapa, com os colonos de verdade trabalhando na obra.\n\n"
+                    "Qual construção você quer ver na próxima? Comenta! 👇\n"
+                    "Cada seguidor vira colono na Operação Marte Zero. Link na bio 👆\n\n"
+                    "#operacaomartezero #marte #pixelart #hidroponia #colonizarmarte"),
+    },
 }
 INICIO_FALA = 0.45     # respiro entre o começo da etapa e a narração
 SOBRA = 0.9            # respiro depois da fala
@@ -82,7 +117,7 @@ def linha_do_tempo(obra: str, sem_voz: bool) -> tuple[dict, dict]:
                          "palavras": [{"p": w["p"], "i": round(fala_ini + w["i"], 3), "f": round(fala_ini + w["f"], 3)}
                                       for w in f.get("palavras", [])]})
         t = fim
-    return {"obra": obra, "nome": rot["nome"], "etapas": etapas, "duracao": round(t + 0.3, 3),
+    return {"obra": obra, "nome": rot["nome"], "planoR": rot.get("planoR"), "etapas": etapas, "duracao": round(t + 0.3, 3),
             "colonos": colonos_recentes()}, falas
 
 
@@ -101,6 +136,8 @@ async def _gerar(obra: str, previa: list[float] | None, sem_voz: bool, abas: int
             async def aba():
                 pagina, _ = await nova_aba(browser, url, ep)
                 await pagina.add_script_tag(url="construcao.js")
+                if (config.FABRICA / f"construcao_{obra}.js").exists():   # cena própria da obra (a antena mora no construcao.js)
+                    await pagina.add_script_tag(url=f"construcao_{obra}.js")
                 await pagina.wait_for_function("typeof window.carregarConstrucao === 'function'")
                 return pagina, await pagina.evaluate("i => carregarConstrucao(i)", info)
 

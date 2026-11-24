@@ -7,8 +7,8 @@
 // A cena é desenhada numa tela pequena (RW x RH) e ampliada 3x sem borrar: fica com cara de pixel art, mas gira
 // e tem luz e sombra como 3D. Por cima, na resolução cheia: etapa, sol, título, barra de obra e o texto grande.
 
-const RW = 360, RH = 640, RE = 3;
-const rc = document.createElement('canvas'); rc.width = RW; rc.height = RH;
+const RW = 360, RH = 640, RE = 3, QR = 1.5;   // coordenadas lógicas 360x640; a tela interna tem 1,5x (540x960)
+const rc = document.createElement('canvas'); rc.width = RW * QR; rc.height = RH * QR;
 const r = rc.getContext('2d');
 r.imageSmoothingEnabled = false;
 let OB = null;
@@ -63,8 +63,14 @@ function tom(hex, k, emis = false) {
 
 // ------------------------------------------------------------------ cena: lista de faces
 let FACES = [], TAGS = [], FX = [], FOCO = { pessoas: [] };
-function face(pts, cor, o = {}) { FACES.push({ pts, cor, n: o.n, duplo: o.duplo, emis: o.emis, alfa: o.alfa, fundo: o.fundo, cor2: o.cor2 }); }
-function linha3(a, b, cor, larg = 1, emis = true) { FACES.push({ pts: [a, b], cor, linha: larg, emis }); }
+// Marcas para a ordenação (a cena liga antes de desenhar um grupo de peças e desliga depois):
+//  SOBRE = rente ao chão (desenhado depois do terreno e antes de tudo); MARCA = parte de um "bloco" (ex.: a estufa):
+//  'dentro' = o que fica dentro dele; { r: vetor } = casca (vidro, arco), com r apontando para fora.
+//  BLOCO = centro do bloco: ele entra na ordenação como uma peça só, desenhada por dentro na ordem
+//  casca de trás → o que está dentro → casca da frente (sem isso, objetos grandes e transparentes se cruzam errado).
+let SOBRE = false, MARCA = null, BLOCO = null;
+function face(pts, cor, o = {}) { FACES.push({ pts, cor, n: o.n, duplo: o.duplo, emis: o.emis, alfa: o.alfa, fundo: o.fundo, sobre: o.sobre || SOBRE, cor2: o.cor2, est: MARCA }); }
+function linha3(a, b, cor, larg = 1, emis = true) { FACES.push({ pts: [a, b], cor, linha: larg, emis, sobre: SOBRE, est: MARCA }); }
 
 /** Caixa orientada: centro c e semi-eixos ux, uy, uz (vetores). */
 function obox(c, ux, uy, uz, cor, o = {}) {
@@ -101,13 +107,14 @@ function prisma(cx, cy, z0, z1, r0, r1, n, cor, o = {}) {
 
 // ------------------------------------------------------------------ terreno: um pedaço de Marte flutuando (diorama)
 const T = 6;   // de -T a T
+const PLANO_R = () => (OB && OB.planoR) || 2.6;   // raio da área que a terraplanagem deixa plana
 function alturaBruta(x, y) {
   const morro = 0.9 - (x * x + y * y) * 0.018;
   return morro + 0.18 * Math.sin(x * 1.3 + y * 0.7) + 0.14 * Math.cos(y * 1.1 - x * 0.45) + 0.08 * (hash(x, y, 5) - 0.5);
 }
 function altura(x, y, plano) {
   const h = alturaBruta(x, y), dist = Math.hypot(x, y);
-  const dentro = 1 - suave3((dist - 2.6) / 1.4);
+  const dentro = 1 - suave3((dist - PLANO_R()) / 1.4);
   return lerp(h, 0, dentro * plano);
 }
 function chaoOb(plano) {
@@ -404,104 +411,200 @@ function pilhaVigas(x, y, n) {   // canteiro: vigas, caixas e cilindros de gás 
 }
 
 // ------------------------------------------------------------------ gente: astronautas com o traje de cada colono
-// Traje: macacão na cor do colono, ombreiras/joelheiras/luvas claras, botas, cinto com bolsa, painel no peito com
-// luzes, mochila com 2 tanques e mangueira, capacete redondo com viseira refletindo e antena com luz.
-// Cada ação tem ferramenta e movimento: maçarico (viseira escurece), martelo, pá, tablet, bastões, chave, lanterna.
-function pessoa(x, y, z, cor, olhar, acao, t, sem) {
-  const L = local([x, y, z], olhar), { u, v, at } = L;
-  const fase = t * 8 + sem;
+// Corpo arredondado (elipsoides e tubos afunilados, não caixas) e esqueleto de verdade: pernas e braços com IK de
+// dois ossos (joelho e cotovelo dobram para o lado certo), ciclo de caminhada com o quadril subindo e descendo,
+// tronco que inclina e gira contra o passo, braços balançando ao contrário das pernas, respiração e cabeça que
+// olha em volta. Cada ação tem ferramenta e movimento próprios.
+/** Elipsoide facetado: centro c e semi-eixos ex, ey, ez (vetores). */
+function esferaO(c, ex, ey, ez, cor, n = 8, m = 5, o = {}) {
+  const P = (i, j) => {
+    const a = (i / n) * Math.PI * 2, b = -Math.PI / 2 + (j / m) * Math.PI;
+    return soma(c, soma(soma(mul(ex, Math.cos(b) * Math.cos(a)), mul(ey, Math.cos(b) * Math.sin(a))), mul(ez, Math.sin(b))));
+  };
+  const N = (i, j) => {   // normal no meio da faceta (direção do centro para a superfície, corrigida pelos eixos)
+    const a = ((i + 0.5) / n) * Math.PI * 2, b = -Math.PI / 2 + ((j + 0.5) / m) * Math.PI;
+    const lx = Math.hypot(...ex) || 1, ly = Math.hypot(...ey) || 1, lz = Math.hypot(...ez) || 1;
+    return norma(soma(soma(mul(ex, Math.cos(b) * Math.cos(a) / (lx * lx)), mul(ey, Math.cos(b) * Math.sin(a) / (ly * ly))), mul(ez, Math.sin(b) / (lz * lz))));
+  };
+  for (let j = 0; j < m; j++) for (let i = 0; i < n; i++) {
+    const pts = j === 0 ? [P(i, 0), P(i + 1, 1), P(i, 1)] : j === m - 1 ? [P(i, j), P(i + 1, j), P(i, j + 1)] : [P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)];
+    face(pts, o.cor ? o.cor(i, j) : cor, { n: N(i, j), emis: o.emis });
+  }
+}
+const esfera = (c, rr, cor, n = 6, m = 4, o) => esferaO(c, [rr, 0, 0], [0, rr, 0], [0, 0, rr], cor, n, m, o);
+/** Tubo afunilado de a (raio ra) até b (raio rb): membros do corpo. Sem tampas (as juntas são esferas). */
+function tubo(a, b, ra, rb, n, cor) {
+  const ax = norma(sub3(b, a)), ref = Math.abs(ax[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1];
+  const e1 = norma(cruz(ax, ref)), e2 = cruz(ax, e1);
+  const P = (base, rr, i) => { const g = (i / n) * Math.PI * 2; return soma(base, soma(mul(e1, Math.cos(g) * rr), mul(e2, Math.sin(g) * rr))); };
+  for (let i = 0; i < n; i++) {
+    const g = ((i + 0.5) / n) * Math.PI * 2;
+    face([P(a, ra, i), P(a, ra, i + 1), P(b, rb, i + 1), P(b, rb, i)], cor, { n: soma(mul(e1, Math.cos(g)), mul(e2, Math.sin(g))) });
+  }
+}
+/** IK de dois ossos: de a até alvo, ossos L1 e L2; a junta dobra para o lado de "dobra". Devolve [junta, alvo]. */
+function ik2(a, alvo, L1, L2, dobra) {
+  let d = sub3(alvo, a), dist = Math.hypot(d[0], d[1], d[2]) || 1e-6;
+  const max = (L1 + L2) * 0.995, min = Math.abs(L1 - L2) + 0.01;
+  if (dist > max) { alvo = soma(a, mul(d, max / dist)); d = sub3(alvo, a); dist = max; }
+  if (dist < min) { alvo = soma(a, mul(d, min / dist)); d = sub3(alvo, a); dist = min; }
+  const dn = mul(d, 1 / dist), x = (L1 * L1 - L2 * L2 + dist * dist) / (2 * dist), h = Math.sqrt(Math.max(0, L1 * L1 - x * x));
+  let p = sub3(dobra, mul(dn, dot(dobra, dn)));
+  if (Math.hypot(p[0], p[1], p[2]) < 1e-4) p = cruz(dn, [0, 0, 1]);
+  return [soma(soma(a, mul(dn, x)), mul(norma(p), h)), alvo];
+}
+const girarEm = (vec, eixo, ang) => {   // rotação de vec em volta de eixo (unitário)
+  const c = Math.cos(ang), s = Math.sin(ang);
+  return soma(soma(mul(vec, c), mul(cruz(eixo, vec), s)), mul(eixo, dot(eixo, vec) * (1 - c)));
+};
+
+/** mov (opcional) = { passo: distância já andada, v: 0..1 velocidade relativa }: com ele, o ciclo da perna segue a
+ *  distância de verdade (o pé fica plantado no chão, sem patinar) e o passo encurta ao acelerar e frear. */
+function pessoa(x, y, z, cor, olhar, acao, t, sem, mov) {
+  const { u, v, at } = local([x, y, z], olhar), UP = [0, 0, 1];
+  const claro = '#eef0f8', luva = '#c9ced9', bota = '#3a2f63', escuro = '#2a2140';
   const anda = acao === 'andar' || acao === 'carregar';
-  const pula = acao === 'festa' ? Math.abs(Math.sin(t * 6 + sem)) * 0.4 : 0;
-  const resp = Math.sin(t * 2 + sem) * 0.008;
-  const Z = (c) => c + pula + (anda ? Math.abs(Math.sin(fase)) * 0.03 : 0);
-  for (const s of [-1, 1]) {   // pernas: quadril → joelho → pé, passo alternado
-    const ph = fase + (s > 0 ? Math.PI : 0);
-    const sw = anda ? Math.sin(ph) * 0.22 : acao === 'pa' ? (s > 0 ? 0.12 : -0.08) : 0;
-    const ergue = anda ? Math.max(0, Math.sin(ph)) * 0.08 : 0;
-    const quadril = at(0, s * 0.1, Z(0.55)), pe = at(sw, s * 0.11, Z(0.05) + ergue), joelho = at(sw * 0.5 + 0.06, s * 0.105, Z(0.3) + ergue * 0.6);
-    viga(quadril, joelho, 0.13, cor); viga(joelho, pe, 0.12, cor);
-    obox(joelho, mul(u, 0.07), mul(v, 0.07), [0, 0, 0.05], '#eef0f8');                                           // joelheira
-    obox(soma(pe, mul(u, 0.04)), mul(u, 0.1), mul(v, 0.075), [0, 0, 0.05], '#3a2f63', { topo: '#4a4466' });     // bota
+  const amp = mov ? 0.19 * clamp(mov.v, 0.25, 1) : 0.19;          // meia passada
+  const fase = mov ? (mov.passo / (4 * 0.19)) * Math.PI * 2 + sem : t * (acao === 'carregar' ? 6.2 : 7.4) + sem;
+  const s1 = Math.sin(fase), c1 = Math.cos(fase), forca = amp / 0.19;
+  const golpe = (vel) => { const k = (((t * vel + sem) % 1) + 1) % 1; return k < 0.7 ? suave3(k / 0.7) : 1 - suave3((k - 0.7) / 0.3); };
+  // ---- pose do corpo
+  let pelvZ = 0.63 + Math.sin(t * 1.7 + sem) * 0.006, lean = 0.05, ladoQ = Math.sin(t * 0.9 + sem) * 0.012, giro = 0, pulo = 0;
+  let cabYaw = Math.sin(t * 0.55 + sem * 2) * 0.45 * (acao === 'parar' ? 1 : 0.25), cabPitch = 0;
+  let pes = [[0.02, 0.1, 0], [-0.02, -0.1, 0]];   // [frente, lado, ergue] do pé esquerdo (+v) e direito (-v)
+  if (anda) {
+    pes = [[-s1 * amp, 0.09, Math.max(0, -c1) * 0.09 * forca], [s1 * amp, -0.09, Math.max(0, c1) * 0.09 * forca]];
+    pelvZ = 0.625 - Math.abs(s1) * 0.03 * forca; ladoQ = c1 * 0.018 * forca; giro = s1 * 0.16 * forca;
+    lean = (acao === 'carregar' ? -0.04 : 0.1) * (0.4 + 0.6 * forca);
+  } else if (acao === 'agachar') {
+    pelvZ = 0.3 + Math.sin(t * 2 + sem) * 0.01; lean = 0.62; pes = [[0.12, 0.15, 0], [0.06, -0.15, 0]]; cabPitch = 0.35;
+  } else if (acao === 'pa') { const g = golpe(0.9); lean = 0.25 + g * 0.3; pelvZ = 0.6 - g * 0.05; pes = [[0.12, 0.12, 0], [-0.14, -0.1, 0]]; giro = -0.2 + g * 0.3; cabPitch = 0.3; }
+  else if (acao === 'martelar') { lean = 0.28; pelvZ = 0.6; pes = [[0.08, 0.12, 0], [-0.08, -0.12, 0]]; cabPitch = 0.4; }
+  else if (acao === 'soldar') { lean = 0.22; cabPitch = 0.25; }
+  else if (acao === 'chave') { lean = 0.42; pelvZ = 0.55; pes = [[0.1, 0.13, 0], [-0.04, -0.12, 0]]; cabPitch = 0.45; }
+  else if (acao === 'plantar') { const g = golpe(0.7); lean = 0.25 + g * 0.2; pelvZ = 0.58 - g * 0.05; pes = [[0.08, 0.12, 0], [-0.06, -0.11, 0]]; cabPitch = 0.4; }
+  else if (acao === 'tablet') { cabPitch = 0.35; lean = 0.08; }
+  else if (acao === 'festa') { pulo = Math.max(0, Math.sin(t * 6 + sem)) * 0.22; giro = Math.sin(t * 3 + sem) * 0.25; pes = [[0, 0.11, 0], [0, -0.11, 0]]; }
+  else if (acao === 'sinalizar') { giro = Math.sin(t * 1.2 + sem) * 0.1; }
+  const pelv = at(0, ladoQ, pelvZ + pulo);
+  const tdir = norma(soma(mul(UP, Math.cos(lean)), mul(u, Math.sin(lean))));   // coluna inclinada para frente
+  const eixoOmb = norma(soma(mul(v, Math.cos(giro)), mul(u, -Math.sin(giro))));  // ombros giram contra o passo
+  const frente = norma(cruz(eixoOmb, tdir));
+  const resp = Math.sin(t * 1.8 + sem) * 0.008;
+  const peito = soma(pelv, mul(tdir, 0.25 + resp)), pesc = soma(pelv, mul(tdir, 0.4 + resp)), cab = soma(pelv, mul(tdir, 0.52 + resp));
+  const ombro = (s) => soma(soma(pelv, mul(tdir, 0.36 + resp)), mul(eixoOmb, s * 0.165));
+  // ---- pernas (IK: o joelho dobra para frente)
+  for (const [k, s] of [[0, 1], [1, -1]]) {
+    const [pf, pl, pe] = pes[k];
+    const quad = soma(pelv, mul(v, s * 0.085));
+    const tornoz = at(pf, pl, 0.05 + pe + pulo);
+    const [joelho, tz] = ik2(quad, tornoz, 0.3, 0.3, soma(u, [0, 0, 0.15]));
+    tubo(quad, joelho, 0.072, 0.06, 7, cor); esfera(joelho, 0.064, claro, 6, 4);
+    tubo(joelho, tz, 0.06, 0.05, 7, cor);
+    esferaO(soma(tz, soma(mul(u, 0.04), [0, 0, -0.012])), mul(u, 0.095), mul(v, 0.058), [0, 0, 0.045], bota, 7, 4);   // bota
   }
-  obox(at(0, 0, Z(0.78) + resp), mul(u, 0.13), mul(v, 0.19), [0, 0, 0.24], cor);                                 // tronco
-  obox(at(0, 0, Z(0.56)), mul(u, 0.135), mul(v, 0.195), [0, 0, 0.03], '#2a2140');                               // cinto
-  obox(at(0.135, 0, Z(0.56)), mul(u, 0.01), mul(v, 0.04), [0, 0, 0.025], '#ffc83d');                             // fivela
-  obox(at(0.02, 0.2, Z(0.53)), mul(u, 0.06), mul(v, 0.03), [0, 0, 0.06], '#6b4a2e');                             // bolsa
-  obox(at(0.135, -0.06, Z(0.82)), mul(u, 0.012), mul(v, 0.08), [0, 0, 0.06], '#1b1530');                         // painel do peito
+  // ---- tronco: quadril, cintura, peito (elipsoides do macacão)
+  esferaO(pelv, mul(frente, 0.12), mul(eixoOmb, 0.15), mul(tdir, 0.1), cor, 8, 5);
+  tubo(pelv, peito, 0.13, 0.15, 8, cor);
+  esferaO(soma(pelv, mul(tdir, 0.08)), mul(frente, 0.128), mul(eixoOmb, 0.158), mul(tdir, 0.025), escuro, 8, 3);   // cinto
+  esferaO(peito, mul(frente, 0.135), mul(eixoOmb, 0.18), mul(tdir, 0.16), cor, 8, 5);
+  const painel = soma(peito, mul(frente, 0.13));
+  obox(painel, mul(frente, 0.01), mul(eixoOmb, 0.065), mul(tdir, 0.05), '#1b1530');
   const pisca = Math.floor(t * 3 + sem) % 3 === 0;
-  obox(at(0.148, -0.1, Z(0.84)), mul(u, 0.005), mul(v, 0.015), [0, 0, 0.015], pisca ? '#ff4d4d' : '#7a2a2a', { emis: pisca });
-  obox(at(0.148, -0.03, Z(0.84)), mul(u, 0.005), mul(v, 0.015), [0, 0, 0.015], '#4ed37a', { emis: true });
-  obox(at(0.135, 0.09, Z(0.86)), mul(u, 0.012), mul(v, 0.05), [0, 0, 0.03], '#eef0f8');                          // emblema
-  obox(at(-0.2, 0, Z(0.8)), mul(u, 0.07), mul(v, 0.17), [0, 0, 0.2], '#c9ced9', { topo: '#eef0f8' });           // mochila
-  for (const s of [-1, 1]) cilindro(at(-0.29, s * 0.08, Z(0.62)), at(-0.29, s * 0.08, Z(0.98)), 0.06, 6, s > 0 ? '#e2603b' : '#9aa0b5', { tampa: '#6b6f86' });
-  viga(at(-0.22, 0.12, Z(0.98)), at(-0.05, 0.14, Z(1.06)), 0.035, '#4a4466');                                    // mangueira
+  obox(soma(soma(painel, mul(frente, 0.012)), mul(eixoOmb, -0.03)), mul(frente, 0.004), mul(eixoOmb, 0.012), mul(tdir, 0.012), pisca ? '#ff4d4d' : '#7a2a2a', { emis: pisca });
+  obox(soma(soma(painel, mul(frente, 0.012)), mul(eixoOmb, 0.03)), mul(frente, 0.004), mul(eixoOmb, 0.012), mul(tdir, 0.012), '#4ed37a', { emis: true });
+  // mochila com 2 tanques e mangueira
+  const moch = soma(peito, mul(frente, -0.17));
+  esferaO(moch, mul(frente, 0.07), mul(eixoOmb, 0.14), mul(tdir, 0.17), luva, 6, 4);
+  for (const s of [-1, 1]) { const tq = soma(soma(moch, mul(frente, -0.07)), mul(eixoOmb, s * 0.07)); tubo(soma(tq, mul(tdir, -0.13)), soma(tq, mul(tdir, 0.13)), 0.045, 0.045, 6, s > 0 ? '#e2603b' : '#9aa0b5'); }
+  tubo(soma(moch, mul(tdir, 0.16)), soma(pesc, mul(eixoOmb, 0.08)), 0.02, 0.02, 4, '#4a4466');
+  // ---- capacete: bolha redonda, viseira espelhada que vira com a cabeça, antena com luz
+  const fCab = norma(girarEm(girarEm(frente, tdir, cabYaw), norma(cruz(tdir, frente)), -cabPitch));
+  const lCab = norma(cruz(tdir, fCab));
+  esferaO(pesc, mul(frente, 0.1), mul(eixoOmb, 0.1), mul(tdir, 0.03), claro, 8, 3);                                   // anel do pescoço
+  esferaO(cab, mul(fCab, 0.135), mul(lCab, 0.135), mul(tdir, 0.13), '#f3eefe', 10, 6);
   const solda = acao === 'soldar';
-  const cab = at(0.01, 0, Z(1.12) + resp);
-  obox(at(0.01, 0, Z(0.99)), mul(u, 0.15), mul(v, 0.15), [0, 0, 0.03], cor);                                     // gola
-  prisma(cab[0], cab[1], cab[2] - 0.12, cab[2] + 0.1, 0.17, 0.16, 10, '#f3eefe', { topo: '#ffffff', fase: olhar });
-  prisma(cab[0], cab[1], cab[2] + 0.1, cab[2] + 0.17, 0.16, 0.07, 10, '#f3eefe', { topo: '#ffffff', fase: olhar });
-  obox(at(0.155, 0, Z(1.12) + resp), mul(u, 0.03), mul(v, 0.12), [0, 0, 0.075], solda ? '#2a2140' : '#3fd0c9'); // viseira
-  obox(at(0.188, -0.06, Z(1.16) + resp), mul(u, 0.005), mul(v, 0.02), [0, 0, 0.015], solda ? '#ff8a3d' : '#ffffff', { emis: true });
-  viga(at(-0.06, -0.12, Z(1.22)), at(-0.1, -0.15, Z(1.42)), 0.02, '#9aa0b5');                                    // antena
-  if (Math.floor(t * 2 + sem) % 2) FX.push({ tipo: 'brilho', p: at(-0.1, -0.15, Z(1.44)), cor: '#ff4d4d', r: 1 });
-  // braços: ombro → cotovelo → mão
-  const ombro = (s) => at(0, s * 0.24, Z(0.92) + resp);
-  const swing = (s) => (acao === 'andar' ? Math.sin(fase + (s > 0 ? 0 : Math.PI)) * 0.2 : 0);
-  let maoD = at(swing(1), 0.27, Z(0.55)), maoE = at(swing(-1), -0.27, Z(0.55));
-  const golpe = (vel) => { const k = (((t * vel + sem) % 1) + 1) % 1; return k < 0.7 ? k / 0.7 : 1 - (k - 0.7) / 0.3; };
-  if (solda) { maoD = at(0.36, 0.1, Z(0.88) + Math.sin(t * 22 + sem) * 0.015); maoE = at(0.3, -0.12, Z(0.82)); }
-  else if (acao === 'martelar') { const g = golpe(1.6); maoD = at(0.3 + g * 0.05, 0.16, Z(0.55) + (1 - g) * 0.55); maoE = at(0.28, -0.1, Z(0.5)); }
-  else if (acao === 'pa') { const g = golpe(0.9); maoD = at(0.2 + g * 0.15, 0.12, Z(0.75) - g * 0.15); maoE = at(0.38 + g * 0.18, 0.02, Z(0.5) - g * 0.18); }
-  else if (acao === 'tablet') { maoD = at(0.3, 0.08, Z(0.78)); maoE = at(0.3, -0.12, Z(0.76)); }
-  else if (acao === 'sinalizar') { const g = Math.sin(t * 3.5 + sem); maoD = at(0.12, 0.42, Z(1.05) + g * 0.25); maoE = at(0.12, -0.42, Z(1.05) - g * 0.25); }
-  else if (acao === 'chave') { const g = Math.sin(t * 5 + sem) * 0.08; maoD = at(0.36, 0.08 + g, Z(0.42)); maoE = at(0.32, -0.1, Z(0.4)); }
-  else if (acao === 'carregar') { maoD = at(0.02, 0.2, Z(1.18)); maoE = at(0.02, -0.2, Z(1.18)); }
-  else if (acao === 'lanterna') { maoD = at(0.36, 0.14, Z(0.9)); }
+  esferaO(soma(cab, mul(fCab, 0.045)), mul(fCab, 0.1), mul(lCab, 0.105), mul(tdir, 0.085), solda ? '#2a2140' : '#2f8f9a', 8, 5,
+          { cor: (i, j) => (solda ? '#2a2140' : j >= 3 && i % 4 === 1 ? '#bff8ff' : '#2f8f9a') });                       // viseira com reflexo
+  const ant0 = soma(soma(cab, mul(lCab, 0.09)), mul(tdir, 0.09)), ant1 = soma(ant0, soma(mul(tdir, 0.15), mul(fCab, -0.04)));
+  tubo(ant0, ant1, 0.01, 0.008, 4, '#9aa0b5');
+  if (Math.floor(t * 2 + sem) % 2) FX.push({ tipo: 'brilho', p: ant1, cor: '#ff4d4d', r: 1 });
+  // ---- braços (IK: o cotovelo dobra para trás e para fora)
+  const balanco = (s) => (anda && acao === 'andar' ? s * s1 * 0.2 * forca : 0);
+  const repouso = (s) => soma(soma(ombro(s), [0, 0, -0.44]), soma(mul(eixoOmb, s * 0.05), mul(frente, 0.04 + balanco(s))));
+  let maoD = repouso(1), maoE = repouso(-1);
+  const H = (c) => c + pulo;
+  if (solda) { maoD = at(0.36, 0.08, H(0.84) + Math.sin(t * 22 + sem) * 0.012); maoE = at(0.3, -0.12, H(0.8)); }
+  else if (acao === 'martelar') { const g = golpe(1.6); maoD = at(0.3 + g * 0.06, 0.12, H(0.42 + (1 - g) * 0.5)); maoE = at(0.3, -0.1, H(0.42)); }
+  else if (acao === 'pa') { const g = golpe(0.9); maoD = at(0.22 + g * 0.16, 0.1, H(0.72 - g * 0.18)); maoE = at(0.4 + g * 0.2, 0.0, H(0.46 - g * 0.2)); }
+  else if (acao === 'tablet') { maoD = at(0.28, 0.07, H(0.8)); maoE = at(0.28, -0.1, H(0.78)); }
+  else if (acao === 'sinalizar') { const g = Math.sin(t * 3.5 + sem); maoD = at(0.12, 0.38, H(1.05 + g * 0.22)); maoE = at(0.12, -0.38, H(1.05 - g * 0.22)); }
+  else if (acao === 'chave') { const g = Math.sin(t * 5 + sem) * 0.07; maoD = at(0.4, 0.06 + g, H(0.3)); maoE = at(0.36, -0.1, H(0.3)); }
+  else if (acao === 'plantar') {   // pega a muda na mão esquerda e encaixa na calha com a direita
+    const g = golpe(0.7);
+    maoE = at(0.24, -0.1, H(0.62)); maoD = at(0.26 + g * 0.18, 0.04, H(0.66 - g * 0.16));
+  }
+  else if (acao === 'agachar') { const g = Math.sin(t * 4 + sem); maoD = at(0.44, 0.1, 0.1 + Math.max(0, g) * 0.1); maoE = at(0.42, -0.1, 0.1 + Math.max(0, -g) * 0.1); }
+  else if (acao === 'carregar') { maoD = at(0.26, 0.14, H(0.7)); maoE = at(0.26, -0.14, H(0.7)); }
+  else if (acao === 'lanterna') { maoD = at(0.36, 0.12, H(0.88)); }
   else if (acao === 'acenar' || acao === 'festa') {
-    maoD = at(0.05, 0.34, Z(1.45) + Math.sin(t * 10 + sem) * 0.08);
-    if (acao === 'festa') maoE = at(0.05, -0.34, Z(1.45) + Math.cos(t * 10 + sem) * 0.08);
+    maoD = at(0.05, 0.3, H(1.32) + Math.sin(t * 10 + sem) * 0.07);
+    if (acao === 'festa') maoE = at(0.05, -0.3, H(1.32) + Math.cos(t * 10 + sem) * 0.07);
   }
-  for (const [s, mao] of [[1, maoD], [-1, maoE]]) {
-    const o = ombro(s), meio = mul(soma(o, mao), 0.5), cot = soma(soma(meio, [0, 0, -0.07]), mul(v, s * 0.06));
-    obox(o, mul(u, 0.08), mul(v, 0.06), [0, 0, 0.06], '#eef0f8');                                                 // ombreira
-    viga(o, cot, 0.11, cor); viga(cot, mao, 0.1, cor);
-    obox(mao, mul(u, 0.05), mul(v, 0.05), [0, 0, 0.05], '#c9ced9');                                                // luva
+  const maos = [];
+  for (const [s, m] of [[1, maoD], [-1, maoE]]) {
+    const o = ombro(s);
+    const [cot, mao] = ik2(o, m, 0.24, 0.23, soma(soma(mul(frente, -0.6), mul(eixoOmb, s * 0.5)), [0, 0, -0.5]));
+    esfera(o, 0.066, claro, 6, 4);                                                                                       // ombreira
+    tubo(o, cot, 0.055, 0.048, 6, cor); esfera(cot, 0.048, cor, 5, 3);
+    tubo(cot, mao, 0.047, 0.04, 6, cor);
+    esfera(mao, 0.05, luva, 6, 4);                                                                                       // luva
+    maos.push(mao);
   }
-  // ferramentas
+  [maoD, maoE] = maos;
+  // ---- ferramentas
   if (solda) {
-    const bico = soma(maoD, soma(mul(u, 0.3), [0, 0, -0.08]));
-    cilindro(maoD, soma(maoD, soma(mul(u, 0.26), [0, 0, -0.06])), 0.03, 6, '#6b6f86', { tampa: '#ff8a3d' });
-    viga(maoD, at(-0.28, 0.18, Z(0.7)), 0.025, '#e04f5f');                                                         // mangueira do gás
+    const bico = soma(maoD, soma(mul(u, 0.28), [0, 0, -0.07]));
+    cilindro(maoD, soma(maoD, soma(mul(u, 0.25), [0, 0, -0.05])), 0.028, 6, '#6b6f86', { tampa: '#ff8a3d' });
+    tubo(maoD, soma(moch, mul(eixoOmb, 0.12)), 0.018, 0.018, 4, '#e04f5f');
     FX.push({ tipo: 'faisca', p: bico, t, semente: sem });
     FX.push({ tipo: 'brilho', p: bico, cor: '#bfe8ff', r: 2.5 });
   } else if (acao === 'martelar') {
-    const g = golpe(1.6), cabeca = soma(maoD, soma(mul(u, 0.18 + g * 0.1), [0, 0, 0.14 - g * 0.34]));
-    viga(maoD, cabeca, 0.035, '#6b4a2e');
-    obox(cabeca, mul(u, 0.05), mul(v, 0.09), [0, 0, 0.05], '#9aa0b5');
+    const g = golpe(1.6), cabeca = soma(maoD, soma(mul(u, 0.16 + g * 0.08), [0, 0, 0.12 - g * 0.28]));
+    tubo(maoD, cabeca, 0.018, 0.018, 4, '#6b4a2e');
+    obox(cabeca, mul(u, 0.045), mul(v, 0.08), [0, 0, 0.045], '#9aa0b5');
     if (g > 0.95) FX.push({ tipo: 'faisca', p: cabeca, t, semente: sem + 3 });
   } else if (acao === 'pa') {
-    const ponta = soma(maoE, soma(mul(u, 0.28), [0, 0, -0.32]));
-    viga(maoD, ponta, 0.035, '#6b4a2e');
-    obox(ponta, mul(u, 0.09), mul(v, 0.08), [0, 0, 0.015], '#9aa0b5');
+    const ponta = soma(maoE, soma(mul(u, 0.26), [0, 0, -0.3]));
+    tubo(maoD, ponta, 0.018, 0.018, 4, '#6b4a2e');
+    obox(ponta, mul(u, 0.08), mul(v, 0.075), [0, 0, 0.012], '#9aa0b5');
     if (golpe(0.9) > 0.9) FX.push({ tipo: 'poeira', p: ponta, t, semente: sem });
   } else if (acao === 'tablet') {
-    const c = soma(mul(soma(maoD, maoE), 0.5), [0, 0, 0.06]);
-    obox(c, mul(u, 0.015), mul(v, 0.14), [0, 0, 0.1], '#1b1530');
-    obox(soma(c, mul(u, 0.017)), mul(u, 0.003), mul(v, 0.12), [0, 0, 0.085], '#3fd0c9', { emis: true });
-    FX.push({ tipo: 'brilho', p: soma(c, mul(u, 0.03)), cor: '#3fd0c9', r: 1.4 });
+    const c = soma(mul(soma(maoD, maoE), 0.5), [0, 0, 0.05]);
+    obox(c, mul(u, 0.012), mul(v, 0.12), [0, 0, 0.085], '#1b1530');
+    obox(soma(c, mul(u, 0.014)), mul(u, 0.003), mul(v, 0.1), [0, 0, 0.07], '#3fd0c9', { emis: true });
+    FX.push({ tipo: 'brilho', p: soma(c, mul(u, 0.03)), cor: '#3fd0c9', r: 1.3 });
   } else if (acao === 'sinalizar') {
-    for (const m of [maoD, maoE]) { cilindro(m, soma(m, [0, 0, 0.3]), 0.03, 6, '#ff8a3d', { emis: true }); FX.push({ tipo: 'brilho', p: soma(m, [0, 0, 0.22]), cor: '#ff8a3d', r: 1.6 }); }
+    for (const m of [maoD, maoE]) { cilindro(m, soma(m, [0, 0, 0.26]), 0.025, 6, '#ff8a3d', { emis: true }); FX.push({ tipo: 'brilho', p: soma(m, [0, 0, 0.2]), cor: '#ff8a3d', r: 1.6 }); }
   } else if (acao === 'chave') {
-    viga(maoD, soma(maoD, soma(mul(u, 0.12), mul(v, 0.12))), 0.035, '#c9ced9');
+    tubo(maoD, soma(maoD, soma(mul(u, 0.1), mul(v, 0.1))), 0.016, 0.016, 4, '#c9ced9');
+  } else if (acao === 'plantar') {   // a muda na ponta dos dedos
+    const g = golpe(0.7);
+    if (g < 0.85) { const m = soma(maoD, [0, 0, 0.03]); caixa3(m[0] - 0.025, m[1] - 0.025, m[2] - 0.02, m[0] + 0.025, m[1] + 0.025, m[2] + 0.025, '#d9c7a0'); viga(soma(m, [0, 0, 0.025]), soma(m, [0, 0, 0.08]), 0.015, '#4ed37a'); obox(soma(m, [0, 0, 0.085]), [0.03, 0, 0], [0, 0.015, 0], [0, 0, 0.006], '#7be08f'); }
+  } else if (acao === 'agachar') {   // amarrando: arame brilhando entre as mãos
+    if (Math.floor(t * 4 + sem) % 2) FX.push({ tipo: 'brilho', p: mul(soma(maoD, maoE), 0.5), cor: '#ffc83d', r: 1.1 });
   } else if (acao === 'carregar') {
-    obox(at(0.02, 0, Z(1.33)), mul(u, 0.18), mul(v, 0.3), [0, 0, 0.1], '#6b4a2e', { topo: '#8f6a45' });
-    obox(at(0.02, 0, Z(1.33)), mul(u, 0.19), mul(v, 0.04), [0, 0, 0.105], '#ffc83d');
+    const cx = soma(mul(soma(maoD, maoE), 0.5), soma(mul(u, 0.08), [0, 0, 0.04]));
+    obox(cx, mul(u, 0.12), mul(v, 0.16), [0, 0, 0.08], '#6b4a2e', { topo: '#8f6a45' });
+    obox(cx, mul(u, 0.125), mul(v, 0.03), [0, 0, 0.083], '#ffc83d');
+    ULTIMA_CAIXA = soma(cx, [0, 0, 0.09]);
   } else if (acao === 'lanterna') {
-    cilindro(maoD, soma(maoD, mul(u, 0.18)), 0.04, 6, '#4a4466', { tampa: '#fff4c2' });
-    FX.push({ tipo: 'brilho', p: soma(maoD, mul(u, 0.2)), cor: '#fff4c2', r: 2.2 });
+    cilindro(maoD, soma(maoD, mul(u, 0.16)), 0.035, 6, '#4a4466', { tampa: '#fff4c2' });
+    FX.push({ tipo: 'brilho', p: soma(maoD, mul(u, 0.18)), cor: '#fff4c2', r: 2.2 });
   }
-  return at(0, 0, Z(1.55));   // ponto da etiqueta com o nome
+  return soma(cab, [0, 0, 0.36]);   // ponto da etiqueta com o nome
 }
+let ULTIMA_CAIXA = null;   // onde ficou a caixa da última pessoa que carregava (a cena põe a carga em cima)
 const TRAJES = ['#e2603b', '#3f8efc', '#4ed37a', '#9b59b6', '#ffc83d', '#00b8a9', '#e04f5f', '#f2b46a'];
 
 // ------------------------------------------------------------------ céu e efeitos
@@ -582,6 +685,18 @@ function desenharFX(t) {
         r.beginPath(); r.arc(x, y, rr, 0, 7); r.fill();
       }
       r.globalAlpha = 1;
+    } else if (f.tipo === 'jato') {
+      const a = proj(f.de), b = proj(f.para);
+      r.strokeStyle = f.cor || '#8a8fa6'; r.lineWidth = f.larg || 3;
+      r.beginPath(); r.moveTo(a.x, a.y);
+      for (let i = 1; i <= 6; i++) { const k = i / 6; r.lineTo(lerp(a.x, b.x, k) + Math.sin(t * 20 + i * 2) * 0.8, lerp(a.y, b.y, k)); }
+      r.stroke();
+      for (let i = 0; i < 5; i++) {   // gotas espirrando na chegada
+        const k = (((t * 2.2 + i / 5) % 1) + 1) % 1, an = hash(i, Math.floor(t * 2.2 + i / 5), 6) * Math.PI;
+        r.globalAlpha = 1 - k; r.fillStyle = f.cor || '#8a8fa6';
+        r.fillRect(Math.round(b.x + Math.cos(an) * 10 * k * (i % 2 ? 1 : -1)), Math.round(b.y - Math.sin(an) * 8 * k + 12 * k * k), 2, 2);
+      }
+      r.globalAlpha = 1;
     } else if (f.tipo === 'impacto') {   // anel de poeira quando a cunha da fundação cai
       const p = proj(f.p), k = f.k;
       r.globalAlpha = 0.6 * (1 - k); r.strokeStyle = '#e8b48c'; r.lineWidth = 3;
@@ -623,39 +738,53 @@ function desenharFX(t) {
 
 // ------------------------------------------------------------------ desenho das faces
 function desenharFaces() {
-  const fundo = [], frente = [];
+  const fundo = [], sobre = [], frente = [];
+  const grupo = (f) => (f.fundo ? fundo : f.sobre ? sobre : frente);
   const L = SOL, amb = lerp(0.55, 0.42, NOITE), dif = lerp(0.75, 0.5, NOITE);
   for (const f of FACES) {
     const P = f.pts.map(proj);
     let d = 0;
     for (const p of P) d += p.d;
     d /= P.length;
-    if (f.linha) { (f.fundo ? fundo : frente).push({ f, P, d }); continue; }
+    if (f.linha) { grupo(f).push({ f, P, d }); continue; }
     let n = f.n;
     if (!n) n = norma(cruz(sub3(f.pts[1], f.pts[0]), sub3(f.pts[2], f.pts[0])));
     let vis = dot(n, CAM.V), cor = f.cor;
     if (vis <= 0) { if (!f.duplo) continue; n = mul(n, -1); vis = -vis; cor = f.cor2 || f.cor; }
     const luz = f.emis ? 1.15 : amb + dif * Math.max(0, dot(n, L));
-    (f.fundo ? fundo : frente).push({ f, P, d, c: tom(cor, luz, f.emis) });
+    grupo(f).push({ f, P, d, c: tom(cor, luz, f.emis) });
   }
-  for (const grupo of [fundo, frente]) {
-    grupo.sort((a, b) => a.d - b.d);
-    for (const { f, P, c } of grupo) {
-      if (f.linha) {
-        r.strokeStyle = tom(f.cor, 1, f.emis); r.lineWidth = f.linha;
-        r.beginPath(); r.moveTo(P[0].x, P[0].y); r.lineTo(P[1].x, P[1].y); r.stroke();
-        continue;
-      }
-      r.fillStyle = c; r.strokeStyle = c; r.lineWidth = 0.6;
-      if (f.alfa) r.globalAlpha = f.alfa;
-      r.beginPath(); r.moveTo(P[0].x, P[0].y);
-      for (let i = 1; i < P.length; i++) r.lineTo(P[i].x, P[i].y);
-      r.closePath(); r.fill(); r.stroke();   // stroke fino fecha as frestas entre faces vizinhas
-      r.globalAlpha = 1;
+  // o bloco (estufa) vira uma peça só na ordenação da frente
+  if (BLOCO) {
+    const tras = [], dentro = [], diante = [], resto = [];
+    for (const it of frente) {
+      const e = it.f.est;
+      if (!e) resto.push(it);
+      else if (e === 'dentro') dentro.push(it);
+      else (dot(e.r, CAM.V) >= 0 ? diante : tras).push(it);
     }
+    const ord = (l) => l.sort((a, b) => a.d - b.d);
+    resto.push({ bloco: [...ord(tras), ...ord(dentro), ...ord(diante)], d: proj(BLOCO).d });
+    frente.length = 0; frente.push(...resto);
+  }
+  const desenhar = ({ f, P, c }) => {
+    if (f.linha) {
+      r.strokeStyle = tom(f.cor, 1, f.emis); r.lineWidth = f.linha;
+      r.beginPath(); r.moveTo(P[0].x, P[0].y); r.lineTo(P[1].x, P[1].y); r.stroke();
+      return;
+    }
+    r.fillStyle = c; r.strokeStyle = c; r.lineWidth = 0.6;
+    if (f.alfa) r.globalAlpha = f.alfa;
+    r.beginPath(); r.moveTo(P[0].x, P[0].y);
+    for (let i = 1; i < P.length; i++) r.lineTo(P[i].x, P[i].y);
+    r.closePath(); r.fill(); if (!f.alfa) r.stroke();   // stroke fino fecha as frestas (não no vidro: viraria linha opaca)
+    r.globalAlpha = 1;
+  };
+  for (const g of [fundo, sobre, frente]) {
+    g.sort((a, b) => a.d - b.d);
+    for (const it of g) { if (it.bloco) it.bloco.forEach(desenhar); else desenhar(it); }
   }
 }
-
 // ------------------------------------------------------------------ roteiro da obra (antena)
 function etapaEm(t) {
   const E = OB.etapas;
@@ -841,16 +970,37 @@ function planoDe(id, s, k) {
   if (id === 'alinhamento') p.zoom = lerp(22, 25, k);
   return p;
 }
+// Cada obra tem o seu estado, cena, câmera e textos. A antena mora aqui; as outras em construcao_<obra>.js,
+// que o construcao.py carrega depois deste arquivo e registra em OBRAS.
+const OBRAS = {
+  antena: {
+    estado: estadoObra, montar: montarCena, planoDe, closes: CLOSES,
+    pesos: { terraplanagem: 0.1, fundacao: 0.15, torre: 0.3, prato: 0.2, energia: 0.15, alinhamento: 0.1 },
+    abertura: [['UMA ANTENA', 74], ['EM MARTE?', 74]],
+    hudExtra(t, e) {
+      if (e.id !== 'sinal') return;
+      const a = clamp((t - e.ini - 1.6) / 0.4);
+      if (a > 0 && Math.floor(t * 3) % 4 !== 0) {
+        ctx.globalAlpha = a;
+        texto('SINAL RECEBIDO', W / 2, 1150, 62, '#8fe6ff');
+        texto('NA TERRA', W / 2, 1226, 44, '#ffffff');
+        ctx.globalAlpha = 1;
+      }
+    },
+  },
+};
+const OBR = () => OBRAS[OB.obra] || OBRAS.antena;
+
 function cameraOb(t, s) {
   const { e, i, k } = etapaEm(t);
-  const atual = planoDe(e.id, s, k), ant = i > 0 ? planoDe(OB.etapas[i - 1].id, s, 1) : atual;
+  const atual = OBR().planoDe(e.id, s, k), ant = i > 0 ? OBR().planoDe(OB.etapas[i - 1].id, s, 1) : atual;
   const m = suave3((t - e.ini) / 1.4);
   for (const key of ['tx', 'ty', 'tz', 'zoom', 'pitch']) CAM[key] = lerp(ant[key], atual[key], m);
   const voo = OB.etapas.find((x) => x.id === 'voo');
   const giroVoo = voo ? suave3((t - voo.ini) / (voo.fim - voo.ini)) * Math.PI * 2 : 0;
   CAM.yaw = 0.75 + t * 0.045 + giroVoo + (e.id === 'abertura' ? -0.9 + k * 0.6 : 0);
   // close no meio da etapa: a câmera chega pertinho de quem (ou do que) está trabalhando e volta
-  const close = CLOSES[e.id];
+  const close = OBR().closes[e.id];
   if (close) {
     const alvo = close.alvo === 'trator' ? FOCO.trator : FOCO.pessoas[close.alvo];
     const w = suave3((k - close.de) / 0.09) * (1 - suave3((k - close.ate) / 0.09));
@@ -866,7 +1016,7 @@ function cameraOb(t, s) {
 
 // ------------------------------------------------------------------ HUD na resolução cheia
 function progresso(t) {
-  const pesos = { terraplanagem: 0.1, fundacao: 0.15, torre: 0.3, prato: 0.2, energia: 0.15, alinhamento: 0.1 };
+  const pesos = OBR().pesos;
   let p = 0;
   for (const e of OB.etapas) {
     if (!pesos[e.id]) continue;
@@ -895,19 +1045,10 @@ function hud(t, tc) {
     const a = clamp((t - 0.3) / 0.5) * (1 - clamp((t - (e.fim - 0.4)) / 0.4));
     ctx.globalAlpha = a;
     texto('COMO SE CONSTRÓI', W / 2, 250, 50, '#ffffff');
-    texto('UMA ANTENA', W / 2, 330, 74, COR.ouro);
-    texto('EM MARTE?', W / 2, 410, 74, COR.ouro);
+    OBR().abertura.forEach(([txt, tam], n) => texto(txt, W / 2, 330 + n * 80, tam, COR.ouro, { maxW: W - 80 }));
     ctx.globalAlpha = 1;
   }
-  if (e.id === 'sinal') {
-    const a = clamp((t - e.ini - 1.6) / 0.4);
-    if (a > 0 && Math.floor(t * 3) % 4 !== 0) {
-      ctx.globalAlpha = a;
-      texto('SINAL RECEBIDO', W / 2, 1150, 62, '#8fe6ff');
-      texto('NA TERRA', W / 2, 1226, 44, '#ffffff');
-      ctx.globalAlpha = 1;
-    }
-  }
+  if (OBR().hudExtra) OBR().hudExtra(t, e, k, tc);
   if (e.id === 'convite') {
     ctx.globalAlpha = saida(k * 3);
     caixa(70, 420, W - 140, 300, 0.9, COR.ouro);
@@ -920,7 +1061,7 @@ function hud(t, tc) {
   if (e.id !== 'abertura') {
     const p = progresso(t), y = 1640;
     caixa(60, y, W - 120, 150, 0.88);
-    texto('ANTENA DE COMUNICAÇÃO', 96, y + 42, 24, '#ffffff', { alinhar: 'left', contorno: false });
+    texto(OB.nome.toUpperCase(), 96, y + 42, 24, '#ffffff', { alinhar: 'left', contorno: false });
     texto(`${Math.round(p * 100)}%`, W - 96, y + 42, 26, p >= 1 ? COR.ok : COR.ouro, { alinhar: 'right', contorno: false });
     ret(96, y + 68, W - 192, 20, COR.borda);
     ret(96, y + 68, (W - 192) * p, 20, p >= 1 ? COR.ok : COR.marte);
@@ -998,13 +1139,15 @@ function desenharConstrucao(t) {
   const ini1 = (OB.etapas.find((x) => x.id === 'terraplanagem') || e).ini;
   const rebob = e.id === 'abertura' && k > 0.62;
   if (e.id === 'abertura') tc = rebob ? lerp(fimObra, ini1, suave3((k - 0.62) / 0.38)) : fimObra;
-  const s = estadoObra(tc);
+  const s = OBR().estado(tc);
   NOITE = s.noite;
   SOL = norma(lerp(0, 1, NOITE) > 0.5 ? [0.5, 0.6, 0.6] : [-0.55, -0.45, 0.75]);
   CAM.yaw = 0.75 + t * 0.045; prepCamOb();   // câmera provisória (a cena não depende dela)
-  montarCena(t, tc, s);
+  SOBRE = false; MARCA = null; BLOCO = null;
+  OBR().montar(t, tc, s);
+  SOBRE = false; MARCA = null;
   cameraOb(t, s);
-  r.setTransform(1, 0, 0, 1, 0, 0);
+  r.setTransform(QR, 0, 0, QR, 0, 0);
   ceuFundo(t);
   terraNoCeu(t, s.feixe);
   desenharFaces();
@@ -1012,7 +1155,7 @@ function desenharConstrucao(t) {
   // amplia sem borrar
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(rc, 0, 0, RW, RH, 0, 0, W, H);
+  ctx.drawImage(rc, 0, 0, rc.width, rc.height, 0, 0, W, H);
   if (rebob) {   // efeito de fita voltando: listras e tremor
     ctx.globalAlpha = 0.35;
     for (let y = 0; y < H; y += 24) { ctx.fillStyle = (Math.floor(y / 24 + t * 30) % 3) ? '#ffffff22' : '#00000033'; ctx.fillRect(0, y, W, 12); }
