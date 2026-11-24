@@ -7,7 +7,7 @@ import {
 } from '@/lib/mundo';
 import {
   BLOCO, CASA, COR, TRILHA_DUNAS_DESDE, blocoDeTerreno, crateraBatizada, desenharBase, desenharClima, desenharObra, desenharPraca,
-  desenharTrilha, desenharTrilhaDunas, trilhaDaCasa,
+  desenharTrilha, desenharTrilhaDunas, fontePixel, trilhaDaCasa,
   desenharBandeira, desenharCapsulaGrande, desenharComercio, desenharFoguete, desenharOutdoor, desenharRover,
   disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
 } from '@/lib/colonia-arte';
@@ -47,16 +47,18 @@ const ZOOM_MIN = 0.2, ZOOM_MAX = 8;   // 0.2: o hexágono inteiro cabe na tela
 // ---- mapa em HEXÁGONO (bordas arredondadas, minimalista): a colônia mora dentro; fora é o espaço.
 // Raio em casas: no mínimo 110 (bem maior que o bairro de hoje) e cresce junto com o bairro.
 export const raioHex = (total: number) => Math.max(110, Math.ceil((limitesDoBairro(Math.max(total, 1)).x1 - CENTRO.x) * 1.6) + 30);
+// A colônia mora no fundo de uma CRATERA: a borda é irregular (raio que ondula com o ângulo), com a encosta
+// clara por dentro; fora fica o planalto escuro. raioHex continua sendo o raio médio (limite da câmera).
+const raioBorda = (a: number, r: number) => r * (1 + 0.05 * Math.sin(3 * a + 0.7) + 0.035 * Math.sin(5 * a + 2.1) + 0.02 * Math.sin(9 * a + 4));
 function caminhoHex(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
-  const v = Array.from({ length: 6 }, (_, i) => { const a = Math.PI / 6 + (i * Math.PI) / 3; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; });
-  const raio = r * 0.14;
-  ctx.moveTo((v[5][0] + v[0][0]) / 2, (v[5][1] + v[0][1]) / 2);
-  for (let i = 0; i < 6; i++) { const a = v[i], b = v[(i + 1) % 6]; ctx.arcTo(a[0], a[1], b[0], b[1], raio); }
+  for (let i = 0; i <= 120; i++) {
+    const a = (i / 120) * Math.PI * 2, rr = raioBorda(a, r);
+    if (i) ctx.lineTo(cx + rr * Math.cos(a), cy + rr * Math.sin(a)); else ctx.moveTo(cx + rr * Math.cos(a), cy + rr * Math.sin(a));
+  }
   ctx.closePath();
 }
-function dentroDoHex(x: number, y: number, cx: number, cy: number, r: number) {   // hexágono de pontas em cima/embaixo
-  const dx = Math.abs(x - cx), dy = Math.abs(y - cy);
-  return dx <= r * Math.cos(Math.PI / 6) && dy <= r - dx * Math.tan(Math.PI / 6);
+function dentroDoHex(x: number, y: number, cx: number, cy: number, r: number) {
+  return Math.hypot(x - cx, y - cy) <= raioBorda(Math.atan2(y - cy, x - cx), r);
 }
 const BALAO_MS = 7_000;   // quanto tempo a fala do rádio fica no balão em cima do colono
 
@@ -128,8 +130,12 @@ function desenharCasinha(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
   ctx.fillStyle = temGente ? '#ffe58a' : '#2b2350'; ctx.fillRect(x + 4, y + 5, 2, 2);
 }
 
-export default function Mundo({ codigoInicial, novo, mensagens = [], online = [] }: {
+export default function Mundo({ codigoInicial, novo, mensagens = [], online = [], onlineN, chat, chatAberto = false, aoChat, naoLidas = 0 }: {
   codigoInicial?: string; novo?: boolean; mensagens?: MensagemChat[]; online?: string[];
+  /** quantos estão online agora (barra de notícias) */
+  onlineN?: number;
+  /** o Rádio da colônia: fica numa gaveta dentro do mapa, aberta pelo botão roxo */
+  chat?: React.ReactNode; chatAberto?: boolean; aoChat?: () => void; naoLidas?: number;
 }) {
   const onlineRef = useRef(new Set<string>());
   onlineRef.current = new Set(online);
@@ -153,6 +159,22 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
   const [total, setTotal] = useState<number | null>(null);
   const [ultimos, setUltimos] = useState<PersonagemPublico[]>([]);
   const [estado, setEstado] = useState<EstadoColonia | null>(null);
+  const [telaCheia, setTelaCheia] = useState(false);
+  const [visitante, setVisitante] = useState(false);       // não está logado: convite "crie o seu boneco"
+  const [conviteFechado, setConviteFechado] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/sessao').then((r) => r.json()).then((j) => setVisitante(!j.colono)).catch(() => {});
+  }, []);
+  // tela cheia: trava a rolagem da página e fecha com Esc
+  useEffect(() => {
+    if (!telaCheia) return;
+    const antes = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const esc = (ev: KeyboardEvent) => { if (ev.key === 'Escape') setTelaCheia(false); };
+    window.addEventListener('keydown', esc);
+    return () => { document.body.style.overflow = antes; window.removeEventListener('keydown', esc); };
+  }, [telaCheia]);
 
   useEffect(() => {
     const agora = performance.now();
@@ -191,11 +213,13 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
     try {
       const r = await fetch(`/api/mundo/area?cx=${cx}&cy=${cy}`);
       const dados: PersonagemPublico[] = await r.json();
-      const lista = Array.isArray(dados) ? dados : [];
-      for (const p of lista) nomes.current.set(idDoCodigo(p.codigo), p.nome);
-      chunks.current.set(k, { dados: lista, em: Date.now() });
+      if (!r.ok || !Array.isArray(dados)) throw new Error('quarteirão não veio');
+      for (const p of dados) nomes.current.set(idDoCodigo(p.codigo), p.nome);
+      chunks.current.set(k, { dados, em: Date.now() });
     } catch {
-      chunks.current.delete(k);
+      // falhou: quem já estava no mapa continua lá (tenta de novo em ~5 s); sem nada ainda, tenta no próximo quadro
+      if (atual) chunks.current.set(k, { dados: atual.dados, em: Date.now() - RECARREGA_MS + 5_000 });
+      else chunks.current.delete(k);
     }
   }, []);
 
@@ -308,18 +332,26 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       for (let by = Math.floor(vy0 / BLOCO); by <= Math.floor(vy1 / BLOCO); by++)
         for (let bx = Math.floor(vx0 / BLOCO); bx <= Math.floor(vx1 / BLOCO); bx++)
           ctx.drawImage(blocoTerreno(bx, by), bx * TB, by * TB, TB + 0.5, TB + 0.5);
-      {   // fora do hexágono: espaço escuro com estrelinhas; borda clara e arredondada
+      {   // fora da cratera: planalto escuro com pedras; a borda é uma encosta clara e irregular (sombra por dentro)
         const hx = (CENTRO.x + 0.5) * CASA, hy = (CENTRO.y + 0.5) * CASA, hr = raioHex(n) * CASA;
         const x0 = camX - 50, y0 = camY - 50, x1 = camX + w / zoom + 50, y1 = camY + h / zoom + 50;
         ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); caminhoHex(ctx, hx, hy, hr);
-        ctx.fillStyle = '#0d0a1c'; ctx.fill('evenodd');
-        ctx.fillStyle = '#ffffff40';
-        for (let i = 0; i < 260; i++) {
+        ctx.fillStyle = '#3d1b12'; ctx.fill('evenodd');
+        for (let i = 0; i < 320; i++) {   // pedras do planalto
           const sx = hx + (((i * 7919) % 4000) / 4000 - 0.5) * hr * 3.4, sy = hy + (((i * 104729) % 4000) / 4000 - 0.5) * hr * 3.4;
-          if (sx > x0 && sx < x1 && sy > y0 && sy < y1 && !dentroDoHex(sx, sy, hx, hy, hr)) ctx.fillRect(sx, sy, 2 / zoom + 1, 2 / zoom + 1);
+          if (sx > x0 && sx < x1 && sy > y0 && sy < y1 && !dentroDoHex(sx, sy, hx, hy, hr * 1.04)) {
+            ctx.fillStyle = i % 3 ? '#2c130c' : '#5a2a1a'; ctx.fillRect(sx, sy, 6 + (i % 4) * 3, 4 + (i % 3) * 2);
+          }
         }
-        ctx.beginPath(); caminhoHex(ctx, hx, hy, hr);
-        ctx.lineWidth = Math.max(2, 3 / zoom); ctx.strokeStyle = '#f6d7a766'; ctx.stroke();
+        ctx.lineJoin = 'round';
+        ctx.beginPath(); caminhoHex(ctx, hx, hy, hr + 30);   // encosta de fora (mais escura)
+        ctx.lineWidth = 46; ctx.strokeStyle = '#5a2a1a'; ctx.stroke();
+        ctx.beginPath(); caminhoHex(ctx, hx, hy, hr + 12);   // crista iluminada
+        ctx.lineWidth = 22; ctx.strokeStyle = '#b8653f'; ctx.stroke();
+        ctx.beginPath(); caminhoHex(ctx, hx, hy, hr + 4);
+        ctx.lineWidth = 6; ctx.strokeStyle = '#d98a5c'; ctx.stroke();
+        ctx.beginPath(); caminhoHex(ctx, hx, hy, hr - 14);   // sombra da encosta no fundo da cratera
+        ctx.lineWidth = 26; ctx.strokeStyle = 'rgba(40,14,8,0.35)'; ctx.stroke();
       }
       if (e) for (const cr of e.crateras ?? []) {   // crateras batizadas pelos colonos
         if (cr.x < vx0 - 4 || cr.x > vx1 + 4 || cr.y < vy0 - 4 || cr.y > vy1 + 4) continue;
@@ -406,12 +438,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
           const dono = pessoas.find((x) => x.p.codigo === k.codigo);
           const cor = TELHADOS[((dono?.p.seed ?? idDoCodigo(k.codigo)) >>> 0) % TELHADOS.length];
           desenharCapsulaGrande(ctx, k.x * CASA, k.y * CASA, k.variante, cor, !!dono && dono.s.tipo === 'casa', t);
-          if (zoom >= 2.2) {   // plaquinha com o nome do dono
-            ctx.font = '3px monospace'; ctx.textAlign = 'center';
-            const lw = ctx.measureText(k.nome).width + 3;
-            ctx.fillStyle = '#140f26dd'; ctx.fillRect(k.x * CASA + 16 - lw / 2, k.y * CASA + 32, lw, 4.5);
-            ctx.fillStyle = '#ffd85a'; ctx.fillText(k.nome, k.x * CASA + 16, k.y * CASA + 35.4);
-          }
+          // a plaquinha "Cápsula do Fulano" é desenhada depois, em pixels da tela (nítida em qualquer zoom)
         }
       }
 
@@ -577,11 +604,14 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const tela = (wx: number, wy: number) => ({ x: (wx - camX) * zoom, y: (wy - camY) * zoom });
       const sel = selecionadoRef.current;
+      // ★ quem se destaca: cargo de liderança ou quem apoia a colônia com compras (cápsula, pet, itens)
+      const apoia = new Set(e ? [...e.compras.map((c) => c.codigo), ...e.pets.map((p) => p.codigo), ...(e.capsulas ?? []).map((k) => k.codigo)] : []);
+      const destaque = (p: PersonagemPublico) => !!p.lideranca || apoia.has(p.codigo);
 
       if (zoom >= 5) {   // nomes (com zoom, para não embolar na multidão)
         ctx.font = `${Math.min(12, 2.6 * zoom)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
         for (const pe of pessoas) {
-          if (sel && sel.codigo === pe.p.codigo) continue;
+          if ((sel && sel.codigo === pe.p.codigo) || destaque(pe.p)) continue;
           const s = tela(pe.s.x, pe.s.y + 6);
           const cg = cargoDe(pe.p.cargo);
           const lid = liderancaDe(pe.p.lideranca);
@@ -617,6 +647,49 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
           ctx.fillText(`batizada por ${cr.dono}`, s.x, s.y - 10);
         }
       }
+      // placas com o nome das construções (prontas ou em obra), do módulo e da praça
+      const placa = (txt: string, x: number, y: number, fundo: string, letra: string, faixa: string, px = 10) => {
+        if (x < -160 || x > w + 160 || y < -30 || y > h + 30) return;
+        ctx.font = `${px}px ${fontePixel()}`; ctx.textAlign = 'center';
+        const lw = ctx.measureText(txt).width + 12;
+        ctx.fillStyle = '#000a'; ctx.fillRect(x - lw / 2 + 2, y - px - 8 + 2, lw, px + 9);
+        ctx.fillStyle = fundo; ctx.fillRect(x - lw / 2, y - px - 8, lw, px + 9);
+        ctx.fillStyle = faixa; ctx.fillRect(x - lw / 2, y - px - 8, lw, 2);
+        ctx.fillStyle = letra; ctx.fillText(txt, x, y - 3);
+      };
+      if (e && zoom >= 1.4) {
+        const pz = zoom >= 3 ? 10 : 8;
+        const cons = [{ nome: e.base.nome, x: e.base.x, y: e.base.y, w: e.base.w, alto: 34 },
+          ...(e.praca ? [{ nome: e.praca.nome, x: e.praca.x, y: e.praca.y, w: e.praca.w, alto: 0 }] : []),
+          ...e.obras.filter((o) => o.status !== 'planejada' || o === obraAtual)
+            .map((o) => ({ nome: o.nome, x: o.x, y: o.y, w: o.w, alto: o.colina ? 44 : 2 }))];
+        for (const c of cons) {
+          const s = tela((c.x + c.w / 2) * CASA, c.y * CASA - c.alto);
+          placa(c.nome.toUpperCase(), s.x, s.y, '#140f26e6', COR.areia, COR.ouro, pz);
+        }
+      }
+      // cápsulas compradas: "Cápsula do Fulano" embaixo de cada uma
+      if (e && zoom >= 1.6) for (const k of e.capsulas ?? []) {
+        const s = tela(k.x * CASA + 16, k.y * CASA + 40);
+        placa(`Cápsula do ${k.nome}`, s.x, s.y + 12, '#f3eefe', '#140f26', '#e2603b', zoom >= 3 ? 9 : 7);
+      }
+      // ★ quem se destaca (cargo de liderança ou quem apoia a colônia com compras): nome sempre à vista
+      if (e && zoom >= 1.2) {
+        for (const pe of pessoas) {
+          if (!destaque(pe.p)) continue;
+          if (sel && sel.codigo === pe.p.codigo) continue;
+          const s = tela(pe.s.x, pe.s.y + 3);
+          if (s.x < -120 || s.x > w + 120 || s.y < -20 || s.y > h + 40) continue;
+          const lid = liderancaDe(pe.p.lideranca), rot = `★ ${pe.p.nome}`;
+          ctx.font = `bold ${zoom >= 3 ? 13 : 11}px system-ui, sans-serif`; ctx.textAlign = 'center';
+          const lw = ctx.measureText(rot).width + 14, lh = zoom >= 3 ? 20 : 17;
+          ctx.fillStyle = '#000a'; ctx.fillRect(s.x - lw / 2 + 2, s.y + 2, lw, lh);
+          ctx.fillStyle = '#140f26'; ctx.fillRect(s.x - lw / 2 - 2, s.y - 2, lw + 4, lh + 4);
+          ctx.fillStyle = lid ? lid.cor : COR.ouro; ctx.fillRect(s.x - lw / 2, s.y, lw, lh);
+          ctx.fillStyle = '#140f26'; ctx.fillText(rot, s.x, s.y + lh - 5);
+        }
+      }
+
       if (zoom >= 2) {
         ctx.font = 'bold 11px system-ui, sans-serif'; ctx.textAlign = 'center';
         for (const a of atores) {
@@ -782,80 +855,114 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
   };
 
   const e = estado;
+  const busca = (
+    <form className="busca" onSubmit={(ev) => { ev.preventDefault(); buscar(q, true); }} role="search">
+      <input value={q} onChange={(ev) => setQ(ev.target.value)} placeholder="Procure seu nome, @ ou código (NM000123)" aria-label="Procurar personagem" />
+      <button className="btn">Procurar</button>
+    </form>
+  );
+  const listaBusca = resultados && (
+    resultados.length ? (
+      <ul className="resultados">
+        {resultados.map((p) => <li key={p.codigo}><button onClick={() => { selecionar(p); setResultados(null); }}>{p.nome} · @{p.handle}</button></li>)}
+      </ul>
+    ) : <p className="mudo">Ninguém com esse nome ainda. <a href="/">Crie seu personagem</a>.</p>
+  );
   return (
-    <div>
-      <form className="busca" onSubmit={(ev) => { ev.preventDefault(); buscar(q, true); }} role="search">
-        <input value={q} onChange={(ev) => setQ(ev.target.value)} placeholder="Procure seu nome, @ ou código (NM000123)" aria-label="Procurar personagem" />
-        <button className="btn">Procurar</button>
-      </form>
-
-      {resultados && (
-        resultados.length ? (
-          <ul className="resultados">
-            {resultados.map((p) => <li key={p.codigo}><button onClick={() => selecionar(p)}>{p.nome} · @{p.handle}</button></li>)}
-          </ul>
-        ) : <p className="mudo">Ninguém com esse nome ainda. <a href="/">Crie seu personagem</a>.</p>
-      )}
+    <div className={telaCheia ? 'mundo mundo-cheio' : 'mundo'}>
+      {!telaCheia && busca}
+      {!telaCheia && listaBusca}
 
       {novo && selecionado && <p className="pixel" style={{ fontSize: 12, color: 'var(--areia)' }}>Bem-vindo à Operação Marte Zero! Essa é a sua casa.</p>}
 
-      <div className="acoes-mundo">
-        <LojaModal />
-        <BotaoComentar />
-      </div>
+      {!telaCheia && (
+        <div className="acoes-mundo">
+          <LojaModal />
+          <BotaoComentar />
+        </div>
+      )}
 
       <div className="mundo-palco">
-        <canvas ref={canvasRef} aria-label="Mapa ao vivo da colônia Operação Marte Zero. Arraste para andar, role para dar zoom." />
-        <div className="hud-vivo" aria-live="polite">
-          <span className="selo-vivo"><i /> AO VIVO</span>
-          {e && (
-            <span className="selo">
-              {e.estacao.nome.toUpperCase()} · DIA {e.estacao.dia}{e.estacao.temp !== null ? ` · ${e.estacao.temp}°C` : ''}
+        {/* barra de notícias: episódio, população, quem está online e quem acabou de chegar */}
+        <div className="barra-vivo" aria-live="polite">
+          <span className="barra-titulo">MARTE ZERO <b>AO VIVO</b></span>
+          {total !== null && <span className="barra-num">{total.toLocaleString('pt-BR')} COLONOS</span>}
+          {onlineN !== undefined && <span className="barra-online"><i /> {Math.max(1, onlineN)} ONLINE AGORA</span>}
+          <span className="barra-rolando">
+            <span>
+              {e?.episodio && <>EP. {e.episodio.numero} · {e.episodio.titulo.replace(/^Episódio \d+ · /, '')}{total !== null ? ` · a colônia chegou a ${total.toLocaleString('pt-BR')} colonos` : ''}</>}
+              {ultimos.length > 0 && <> · Acabaram de chegar: {ultimos.map((u) => u.nome).join(', ')}</>}
             </span>
-          )}
-          {e?.obra_atual && <span className="selo">OBRA: {e.obra_atual.nome.toUpperCase()} {e.obra_atual.progresso}%</span>}
-          {e?.problema && (
-            <span className="selo selo-ok">
-              ✔ {e.problema.titulo}
-              {e.problema.heroi && (e.problema.heroi_codigo
-                ? <> · resolvido por <a href={`/colono/${e.problema.heroi_codigo}`}>{e.problema.heroi}</a></>
-                : ` · resolvido por ${e.problema.heroi}`)}
-            </span>
-          )}
+          </span>
+          {telaCheia && <button className="barra-fechar" aria-label="Sair da tela cheia" onClick={() => setTelaCheia(false)}>✕</button>}
         </div>
-        <div className="zoom-botoes">
-          <button aria-label="Aproximar" onClick={() => zoomBotao(1.4)}>+</button>
-          <button aria-label="Afastar" onClick={() => zoomBotao(1 / 1.4)}>−</button>
-          <button aria-label="Voltar para a colônia" onClick={() => centralizarEm((CENTRO.x + 0.5) * CASA, (CENTRO.y + 7) * CASA)}>⌂</button>
-        </div>
-        {selecionado && (
-          <div className="ficha">
-            <strong style={liderancaDe(selecionado.lideranca) ? { color: liderancaDe(selecionado.lideranca)!.cor } : undefined}>
-              {nomeComTitulo(selecionado.nome, selecionado.lideranca)}</strong> · @{selecionado.handle} ({selecionado.plataforma})<br />
-            {liderancaDe(selecionado.lideranca) && <span className="selo-cargo" style={{ margin: '4px 0', borderColor: liderancaDe(selecionado.lideranca)!.cor }}>🎖️ {liderancaDe(selecionado.lideranca)!.nome}</span>}
-            {cargoDe(selecionado.cargo) && <span className="selo-cargo" style={{ margin: '4px 0' }}>{cargoDe(selecionado.cargo)!.emoji} {cargoDe(selecionado.cargo)!.nome}</span>}
-            {cargoDe(selecionado.cargo) && <br />}
-            {fazendo && <span style={{ color: 'var(--areia)' }}>Agora: {fazendo}<br /></span>}
-            <span className="mudo">
-              {selecionado.codigo} · {selecionado.status === 'estreou' ? '★ já apareceu num episódio'
-                : selecionado.status === 'desenhado' ? 'arte pronta, esperando o episódio' : 'na fila para ser desenhado'}
-            </span><br />
-            <a href={`/colono/${selecionado.codigo}`}>Ver perfil →</a>
-            {' · '}
-            <button type="button" className="link" onClick={() => { const m = moradiaDe(idDoCodigo(selecionado.codigo)); centralizarEm((m.x + (m.grande ? 1 : 0.5)) * CASA, (m.y + (m.grande ? 1 : 0.5)) * CASA, 4); }}>ver a casa</button>
+
+        <div className="mundo-tela">
+          <canvas ref={canvasRef} aria-label="Mapa ao vivo da colônia Operação Marte Zero. Arraste para andar, role para dar zoom." />
+          <div className="hud-vivo" aria-live="polite">
+            {telaCheia && <div className="hud-busca">{busca}{listaBusca}</div>}
+            <span className="selo-vivo"><i /> AO VIVO</span>
+            {e && (
+              <span className="selo">
+                {e.estacao.nome.toUpperCase()} · DIA {e.estacao.dia}{e.estacao.temp !== null ? ` · ${e.estacao.temp}°C` : ''}
+              </span>
+            )}
+            {e?.obra_atual && <span className="selo">OBRA: {e.obra_atual.nome.toUpperCase()} {e.obra_atual.progresso}%</span>}
+            {e?.problema && (
+              <span className="selo selo-ok">
+                ✔ {e.problema.titulo}
+                {e.problema.heroi && (e.problema.heroi_codigo
+                  ? <> · resolvido por <a href={`/colono/${e.problema.heroi_codigo}`}>{e.problema.heroi}</a></>
+                  : ` · resolvido por ${e.problema.heroi}`)}
+              </span>
+            )}
           </div>
-        )}
+
+          {visitante && !conviteFechado && (
+            <div className="convite-mapa">
+              <a href="/">👀 <b>Você ainda não tem boneco aqui</b><br />toque pra criar o seu · é grátis</a>
+              <button aria-label="Fechar o convite" onClick={() => setConviteFechado(true)}>×</button>
+            </div>
+          )}
+
+          <div className="zoom-botoes">
+            <button aria-label="Aproximar" onClick={() => zoomBotao(1.4)}>+</button>
+            <button aria-label="Afastar" onClick={() => zoomBotao(1 / 1.4)}>−</button>
+            <button aria-label="Voltar para a colônia" onClick={() => centralizarEm((CENTRO.x + 0.5) * CASA, (CENTRO.y + 7) * CASA)}>⌂</button>
+            <button aria-label={telaCheia ? 'Sair da tela cheia' : 'Tela cheia'} title={telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}
+                    onClick={() => setTelaCheia((v) => !v)}>{telaCheia ? '⤡' : '⛶'}</button>
+            {chat && (
+              <button className="botao-chat" aria-label="Rádio da colônia (chat)" title="Rádio da colônia" aria-expanded={chatAberto} onClick={aoChat}>
+                💬{naoLidas > 0 && !chatAberto && <span className="nao-lidas">{naoLidas > 9 ? '9+' : naoLidas}</span>}
+              </button>
+            )}
+          </div>
+          {telaCheia && <div className="loja-cheia"><LojaModal /></div>}
+
+          {chat && <div className={chatAberto ? 'chat-gaveta aberta' : 'chat-gaveta'} aria-hidden={!chatAberto}>{chat}</div>}
+
+          {selecionado && (
+            <div className="ficha">
+              <strong style={liderancaDe(selecionado.lideranca) ? { color: liderancaDe(selecionado.lideranca)!.cor } : undefined}>
+                {nomeComTitulo(selecionado.nome, selecionado.lideranca)}</strong> · @{selecionado.handle} ({selecionado.plataforma})<br />
+              {liderancaDe(selecionado.lideranca) && <span className="selo-cargo" style={{ margin: '4px 0', borderColor: liderancaDe(selecionado.lideranca)!.cor }}>🎖️ {liderancaDe(selecionado.lideranca)!.nome}</span>}
+              {cargoDe(selecionado.cargo) && <span className="selo-cargo" style={{ margin: '4px 0' }}>{cargoDe(selecionado.cargo)!.emoji} {cargoDe(selecionado.cargo)!.nome}</span>}
+              {cargoDe(selecionado.cargo) && <br />}
+              {fazendo && <span style={{ color: 'var(--areia)' }}>Agora: {fazendo}<br /></span>}
+              <span className="mudo">
+                {selecionado.codigo} · {selecionado.status === 'estreou' ? '★ já apareceu num episódio'
+                  : selecionado.status === 'desenhado' ? 'arte pronta, esperando o episódio' : 'na fila para ser desenhado'}
+              </span><br />
+              <a href={`/colono/${selecionado.codigo}`}>Ver perfil →</a>
+              {' · '}
+              <button type="button" className="link" onClick={() => { const m = moradiaDe(idDoCodigo(selecionado.codigo)); centralizarEm((m.x + (m.grande ? 1 : 0.5)) * CASA, (m.y + (m.grande ? 1 : 0.5)) * CASA, 4); }}>ver a casa</button>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="ticker">
-        <span>{total === null ? '' : `${total.toLocaleString('pt-BR')} moradores`}</span>
-        {ultimos.length > 0 && <span>Acabaram de chegar:</span>}
-        {ultimos.map((u) => (
-          <button key={u.codigo} style={{ all: 'unset', cursor: 'pointer', color: 'var(--agua)' }} onClick={() => selecionar(u)}>{u.nome}</button>
-        ))}
-      </div>
       <p className="mudo">
-        Arraste para andar · role ou faça pinça para dar zoom · toque num colono para ver o que ele está fazendo · ⌂ volta para a colônia
+        Arraste para andar · role ou faça pinça para dar zoom · toque num colono para ver o que ele está fazendo · ⌂ volta para a colônia · ⛶ tela cheia · 💬 rádio da colônia
       </p>
     </div>
   );

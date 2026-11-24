@@ -242,6 +242,16 @@ export function blocoDeTerreno(bx: number, by: number, livre: (x: number, y: num
  * MESMA arte de desenharMapaDunas em fabrica/diretor.js (lá ela se desenha aos poucos no episódio).
  */
 export const TRILHA_DUNAS_DESDE = 6;
+/** Família da fonte pixel do site (o next/font troca o nome, então lemos a variável CSS --font-pixel). */
+let fontePixelCache = '';
+export function fontePixel(): string {
+  if (!fontePixelCache && typeof document !== 'undefined') {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--font-pixel').trim()
+      || getComputedStyle(document.body).getPropertyValue('--font-pixel').trim();
+    fontePixelCache = v ? `${v}, monospace` : '"Press Start 2P", monospace';
+  }
+  return fontePixelCache || 'monospace';
+}
 export function desenharTrilhaDunas(c: Ctx, base: Geo, t: number) {
   const D = { x: 5 * CASA, y: (DUNAS_Y - 13) * CASA }, porta = { x: (base.x + base.w / 2) * CASA, y: base.y * CASA - 2 };
   const pts = [porta, { x: porta.x, y: D.y + 170 }, { x: D.x - 120, y: D.y + 110 }];
@@ -278,9 +288,9 @@ export function desenharTrilhaDunas(c: Ctx, base: Geo, t: number) {
   const P = { x: A.x + u.x * dl * 0.42, y: A.y + u.y * dl * 0.42 }, pul = 1 + 0.25 * Math.sin(t * 6);
   c.strokeStyle = '#ff4d4d'; c.lineWidth = 2; c.beginPath(); c.arc(P.x, P.y, 16 * pul, 0, Math.PI * 2); c.stroke();
   ret(c, P.x - 9, P.y - 36, 18, 18, '#140f26'); ret(c, P.x - 9, P.y - 36, 18, 2, '#ff4d4d');
-  c.fillStyle = '#ff4d4d'; c.font = '12px "Press Start 2P", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = '#ff4d4d'; c.font = `12px ${fontePixel()}`; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText('?', P.x, P.y - 26);
-  c.font = '5px "Press Start 2P", monospace'; c.fillStyle = '#f3eefe';
+  c.font = `5px ${fontePixel()}`; c.fillStyle = '#f3eefe';
   c.fillText('TRILHA DESCONHECIDA', P.x, P.y + 26);
   c.textAlign = 'left'; c.textBaseline = 'alphabetic';
 }

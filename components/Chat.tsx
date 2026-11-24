@@ -25,7 +25,7 @@ function Avatar({ seed, url }: { seed: number; url: string | null }) {
 
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-export default function Chat({ aoMudar }: { aoMudar?: (m: MensagemChat[]) => void }) {
+export default function Chat({ aoMudar, aoFechar }: { aoMudar?: (m: MensagemChat[]) => void; aoFechar?: () => void }) {
   const [mensagens, setMensagens] = useState<MensagemChat[]>([]);
   const [eu, setEu] = useState<Eu | undefined>(undefined);
   const [texto, setTexto] = useState('');
@@ -97,7 +97,10 @@ export default function Chat({ aoMudar }: { aoMudar?: (m: MensagemChat[]) => voi
 
   return (
     <section className="chat caixa" aria-label="Chat da colônia">
-      <h2 style={{ margin: '0 0 2px' }}>Rádio da colônia</h2>
+      <div className="chat-topo">
+        <h2 style={{ margin: '0 0 2px' }}>Rádio da colônia</h2>
+        {aoFechar && <button type="button" className="chat-fechar" aria-label="Fechar o rádio" onClick={aoFechar}>×</button>}
+      </div>
       <p className="mudo" style={{ margin: '0 0 8px', fontSize: 16 }}>As mensagens somem depois de 10 minutos.</p>
       <ol className="chat-lista" ref={lista} aria-live="polite"
           onScroll={(e) => { const el = e.currentTarget; colado.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; }}>

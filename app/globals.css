@@ -528,3 +528,57 @@ details { margin-top: 8px; }
 .opcoes-pet button small { font-size: 15px; color: var(--texto-2); }
 .opcoes-pet button.ativa small { color: var(--ouro); }
 .opcoes-pet button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---- Mundo ao vivo: barra de notícias, tela cheia, convite, rádio em gaveta ---- */
+.mundo-palco { display: flex; flex-direction: column; }
+.mundo-tela { position: relative; }
+.barra-vivo {
+  display: flex; align-items: center; gap: 14px; padding: 8px 12px; overflow: hidden; white-space: nowrap;
+  background: #140f26; border-bottom: 3px solid var(--borda); font-family: var(--pixel); font-size: 10px; color: var(--areia);
+}
+.barra-titulo { color: var(--ouro); }
+.barra-titulo b { color: #fff; font-weight: normal; }
+.barra-num { color: var(--ouro); }
+.barra-online { color: var(--ok); display: inline-flex; align-items: center; gap: 6px; }
+.barra-online i { width: 8px; height: 8px; background: var(--ok); display: inline-block; animation: pisca 1.6s steps(2) infinite; }
+.barra-rolando { flex: 1; overflow: hidden; font-family: system-ui, sans-serif; font-size: 14px; color: var(--texto-2); }
+.barra-rolando > span { display: inline-block; padding-left: 100%; animation: rola 38s linear infinite; }
+@keyframes rola { to { transform: translateX(-100%); } }
+@media (prefers-reduced-motion: reduce) { .barra-rolando > span { animation: none; padding-left: 0; } }
+@media (max-width: 640px) { .barra-titulo { display: none; } .barra-vivo { gap: 10px; font-size: 9px; } }
+.barra-fechar { margin-left: auto; font: 16px/1 var(--pixel); color: #fff; background: #e04f5f; border: 3px solid var(--tinta); padding: 6px 10px; cursor: pointer; }
+
+.mundo-cheio .mundo-palco { position: fixed; inset: 0; z-index: 1000; border: 0; box-shadow: none; }
+.mundo-cheio .mundo-tela { flex: 1; min-height: 0; }
+.mundo-cheio .mundo-palco canvas { height: 100%; }
+.hud-busca { flex: 0 0 min(460px, 100%); pointer-events: auto; }
+.hud-busca + .selo-vivo { margin-left: 0; }
+.mundo-cheio .hud-vivo { flex-direction: column; align-items: flex-start; }
+.hud-busca .busca { margin: 0 0 6px; flex-wrap: nowrap; }
+.hud-busca .busca input { min-width: 0; flex: 1 1 auto; }
+.hud-busca .resultados { margin: 0 0 6px; }
+.loja-cheia { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 3; }
+
+.convite-mapa {
+  position: absolute; left: 50%; top: 56px; transform: translateX(-50%); z-index: 3; display: flex; align-items: flex-start;
+  background: var(--ouro); border: 3px solid var(--tinta); box-shadow: 4px 4px 0 #000a; max-width: calc(100% - 140px);
+}
+.convite-mapa a { color: var(--tinta); text-decoration: none; text-align: center; padding: 8px 6px 8px 14px; font-size: 15px; line-height: 1.35; }
+.convite-mapa a b { font-family: var(--pixel); font-size: 11px; font-weight: normal; }
+.convite-mapa button { background: none; border: 0; font-size: 20px; line-height: 1; padding: 6px 10px; cursor: pointer; color: var(--tinta); }
+
+.zoom-botoes .botao-chat { position: relative; background: #9b59b6; box-shadow: inset -3px -3px 0 #6c3483, 3px 3px 0 #000a; color: #fff; font-size: 18px; }
+.nao-lidas {
+  position: absolute; right: -8px; top: -8px; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 10px;
+  background: #e04f5f; color: #fff; font: bold 11px/20px system-ui, sans-serif; border: 2px solid var(--tinta);
+}
+.chat-gaveta {
+  position: absolute; right: 64px; top: 10px; bottom: 10px; width: min(360px, calc(100% - 80px)); z-index: 4;
+  display: none;
+}
+.chat-gaveta.aberta { display: flex; }
+.chat-gaveta .chat { flex: 1; min-height: 0; box-shadow: 0 0 0 3px #9b59b6, 6px 6px 0 3px #000a; }
+.chat-gaveta .chat-lista { height: auto; flex: 1; min-height: 120px; }
+@media (max-width: 640px) { .chat-gaveta { left: 8px; right: 60px; width: auto; } }
+.chat-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.chat-fechar { background: none; border: 0; color: var(--texto); font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
