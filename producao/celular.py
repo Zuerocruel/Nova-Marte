@@ -947,8 +947,11 @@ def postar(numero: int, redes: list[str], ensaio: bool, serial: str | None = Non
                 continue
             legenda = lib["copy"]["legenda"]
             capa = config.pasta_episodio(numero) / "imagens" / "capa_vertical.png"
+            if extra and extra.startswith("construcao_"):   # vídeo de construção tem capa própria
+                capa = pub.pasta_extra(numero, extra) / "capa_vertical.png"
             p = Postagem(cel, rede, numero, legenda, ensaio, log=log,
-                         capa=capa if (com_capa and not extra and capa.exists()) else None, chave=chave)
+                         capa=capa if (com_capa and (not extra or extra.startswith("construcao_")) and capa.exists()) else None,
+                         chave=chave)
             try:
                 resultado = (p.rodar_carrossel(lib["imagens"]) if extra in ("carrossel", "apresentacao")
                              else p.rodar(lib["video"]))
@@ -1043,8 +1046,8 @@ def main() -> int:
             print(cel.link_do_ultimo_post())
             return 0
         return 0 if atualizar_link_comentar(cel) else 1
-    if not a.episodio:
-        ap.error("informe --episodio N (ou use --checar)")
+    if a.episodio is None or (a.episodio == 0 and not (a.extra or "").startswith("construcao_")):
+        ap.error("informe --episodio N (ou use --checar); 0 só com --extra construcao_<obra>")
     redes = [a.so] if a.so else ["instagram", "tiktok"]
     try:
         ok = postar(a.episodio, redes, a.ensaio, a.serial, extra=a.extra, com_capa=not a.sem_capa)

@@ -167,17 +167,24 @@ def chave_extra(numero: int, item: str) -> str:
     return f"{numero}-{item}"
 
 
-def exigir_liberado_extra(numero: int, item: str, rede: str, ensaio: bool = False) -> dict:
-    """Mesmas travas do episódio para um vídeo extra (POV): aprovado no painel, vídeo não mudou depois
-    da aprovação, legenda dentro das regras e nada reenviado sozinho."""
+def pasta_extra(numero: int, item: str) -> Path:
+    """Onde mora o vídeo extra: POV do episódio (saida/epNNN/pov/) ou vídeo de construção
+    (saida/construcao/<obra>/, que não pertence a um episódio: numero = 0)."""
     import config
+    if item.startswith("construcao_"):
+        return config.SAIDA / "construcao" / item.removeprefix("construcao_")
+    return config.pasta_episodio(numero) / "pov"
 
-    if not re.fullmatch(r"pov_[a-z]+", item or ""):
+
+def exigir_liberado_extra(numero: int, item: str, rede: str, ensaio: bool = False) -> dict:
+    """Mesmas travas do episódio para um vídeo extra (POV ou "Como se constrói…"): aprovado, vídeo não mudou
+    depois da aprovação, legenda dentro das regras e nada reenviado sozinho."""
+    if not re.fullmatch(r"pov_[a-z]+|construcao_[a-z]+", item or ""):
         raise Recusado("conteúdo extra inválido")
     est = estado_painel().get("extras", {}).get(str(numero), {}).get(item, {})
     if not est.get("aprovado_em"):
         raise Recusado(f"{item} do episódio {numero} não está aprovado no painel")
-    pasta = config.pasta_episodio(numero) / "pov"
+    pasta = pasta_extra(numero, item)
     video, txt = pasta / f"{item}.mp4", pasta / f"{item}.txt"
     if not video.exists() or not txt.exists():
         raise Recusado(f"{item}.mp4 ou {item}.txt não existe: gere os extras de novo")

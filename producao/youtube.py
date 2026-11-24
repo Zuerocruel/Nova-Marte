@@ -118,7 +118,13 @@ def limitar_hashtags(texto: str) -> str:
 
 
 def copy_extra(numero: int, item: str, legenda: str) -> dict:
-    """Copy do YouTube para um vídeo extra (POV), a partir da legenda aprovada no painel."""
+    """Copy do YouTube para um vídeo extra (POV), a partir da legenda aprovada no painel. Se houver
+    <item>.youtube.json ao lado do vídeo (título, descrição e tags pensados para busca), vale ele."""
+    seo = pub.pasta_extra(numero, item) / f"{item}.youtube.json"
+    if seo.exists():
+        import json
+        j = json.loads(seo.read_text(encoding="utf-8"))
+        return {"titulo": j["titulo"], "descricao": j["descricao"], "tags": j["tags"]}
     linhas = [l for l in legenda.strip().splitlines()]
     primeira = linhas[0] if linhas else "POV em Marte"
     titulo = re.split(r"(?<=[🚀👀🏗️🐞🔦👋💬])\s", primeira, maxsplit=1)[0].strip()
@@ -344,8 +350,8 @@ def main() -> int:
         for nome, ok, det in itens:
             print(f"{'✅' if ok else '❌'} {nome}: {det}")
         return 0 if all(ok for _, ok, _ in itens) else 1
-    if not a.episodio:
-        ap.error("informe --episodio N (ou use --checar)")
+    if a.episodio is None or (a.episodio == 0 and not (a.extra or "").startswith("construcao_")):
+        ap.error("informe --episodio N (ou use --checar); 0 só com --extra construcao_<obra>")
     try:
         return 0 if postar(a.episodio, a.ensaio, a.minutos, extra=a.extra) else 1
     except pub.Recusado as e:

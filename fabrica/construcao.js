@@ -1162,6 +1162,7 @@ function desenharConstrucao(t) {
     ctx.globalAlpha = 1;
     texto('◀◀ VOLTANDO NO TEMPO', W / 2, 560, 34, '#ffffff');
   }
+  if (CAPA) return;   // capa: só a cena (o título é desenhado por desenharCapa)
   hud(t, tc);
   textoGrande(t);
   // flash nas viradas de etapa e quando o sinal sai
@@ -1188,3 +1189,39 @@ window.quadroConstrucao = function (i, qualidade = 0.9) {
   return cv.toDataURL('image/jpeg', qualidade);
 };
 window.desenharConstrucao = desenharConstrucao;
+
+// Capa do post (IG/TikTok) e thumb do YouTube: a cena no instante t, sem legenda, com o título grande.
+let CAPA = false;
+function tituloEm(linhas, y0, x, alinhar) {   // linhas [texto, tamanho, cor], com espaço proporcional ao tamanho
+  let y = y0;
+  linhas.forEach(([txt, tam, cor], n) => {
+    if (n) y += (linhas[n - 1][1] + tam) * 0.62;
+    texto(txt, x, y, tam, cor || '#ffffff', { maxW: W - 70, alinhar });
+  });
+}
+function cenaSemTexto(t, plano) {
+  CAPA = true;
+  const antes = OBR().planoDe;
+  OBR().planoDe = (id, s, k) => ({ ...antes(id, s, k), ...plano });
+  try { desenharConstrucao(t); } finally { CAPA = false; OBR().planoDe = antes; }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+/** Thumb 16:9: só a faixa y0..y0+608 do quadro vira a imagem (o Python recorta e amplia para 1280x720). */
+window.desenharThumb = function (t, plano, linhas, y0) {
+  cenaSemTexto(t, plano);
+  const g = ctx.createLinearGradient(0, y0, 0, y0 + 300);
+  g.addColorStop(0, 'rgba(8,5,20,0.8)'); g.addColorStop(1, 'rgba(8,5,20,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, y0, W, 300);
+  tituloEm(linhas, y0 + 60, W / 2, 'center');
+};
+window.desenharCapa = function (t, plano, linhas) {
+  cenaSemTexto(t, plano);
+  const g = ctx.createLinearGradient(0, 0, 0, 760);   // escurece o céu atrás do título
+  g.addColorStop(0, 'rgba(8,5,20,0.85)'); g.addColorStop(1, 'rgba(8,5,20,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, 760);
+  tituloEm(linhas, 190, W / 2, 'center');
+  const y = H - 230;
+  caixa(70, y, W - 140, 130, 0.9, COR.ouro);
+  texto('OPERAÇÃO MARTE ZERO', W / 2, y + 48, 34, COR.ouro, { contorno: false });
+  texto('CADA SEGUIDOR VIRA COLONO', W / 2, y + 95, 24, '#ffffff', { contorno: false });
+};

@@ -84,6 +84,12 @@ ROTEIROS = {
             {"id": "convite", "min": 6,
              "fala": "Qual construção você quer ver sendo feita na próxima? Comenta aí. E cada seguidor vira colono em Marte."},
         ],
+        # capa: instante da cena (s, na linha do tempo sem voz), enquadramento e título
+        "capa": {"t": 139.0, "plano": {"tx": 0.0, "ty": 0.0, "tz": 0.7, "zoom": 44, "pitch": 0.42},
+                 "linhas": [["COMO SE CONSTRÓI", 50, "#ffffff"], ["UMA ESTUFA", 84, "#ffd04a"],
+                            ["HIDROPÔNICA", 70, "#7be08f"], ["EM MARTE?", 84, "#ffd04a"]],
+                 "thumb": {"y0": 560, "plano": {"tx": 0.0, "ty": 0.0, "tz": 0.2, "zoom": 33, "pitch": 0.4},
+                           "linhas": [["ESTUFA HIDROPÔNICA", 60, "#7be08f"], ["EM MARTE", 72, "#ffd04a"]]}},
         "legenda": ("Como se constrói uma ESTUFA HIDROPÔNICA em Marte? 🌱🚀 Da escavação e do concreto até a primeira colheita de legumes, "
                     "etapa por etapa, com os colonos de verdade trabalhando na obra.\n\n"
                     "Qual construção você quer ver na próxima? Comenta! 👇\n"
@@ -121,10 +127,10 @@ def linha_do_tempo(obra: str, sem_voz: bool) -> tuple[dict, dict]:
             "colonos": colonos_recentes()}, falas
 
 
-async def _gerar(obra: str, previa: list[float] | None, sem_voz: bool, abas: int = 3):
+async def _gerar(obra: str, previa: list[float] | None, sem_voz: bool, abas: int = 3, capa: bool = False):
     destino = config.SAIDA / "construcao" / obra
     destino.mkdir(parents=True, exist_ok=True)
-    info, falas = linha_do_tempo(obra, sem_voz or bool(previa))
+    info, falas = linha_do_tempo(obra, sem_voz or bool(previa) or capa)
     pastas = sorted(p for p in config.SAIDA.glob("ep[0-9][0-9][0-9]") if (p / "linha_do_tempo.json").exists())
     ep = montar_ep(pastas[-1])   # só para carregar o diretor.js (fonte, cores, texto); a cena é toda da obra
     srv, url = servidor()
@@ -140,6 +146,25 @@ async def _gerar(obra: str, previa: list[float] | None, sem_voz: bool, abas: int
                     await pagina.add_script_tag(url=f"construcao_{obra}.js")
                 await pagina.wait_for_function("typeof window.carregarConstrucao === 'function'")
                 return pagina, await pagina.evaluate("i => carregarConstrucao(i)", info)
+
+            if capa:   # capa vertical (IG/TikTok) + thumb do YouTube
+                pagina, _ = await aba()
+                c = ROTEIROS[obra]["capa"]
+                u = await pagina.evaluate("([t, p, l]) => (desenharCapa(t, p, l), document.getElementById('tela').toDataURL('image/png'))",
+                                          [c["t"], c["plano"], c["linhas"]])
+                arq = destino / "capa_vertical.png"
+                _gravar(arq, u)
+                th = c["thumb"]
+                u = await pagina.evaluate("([t, p, l, y]) => (desenharThumb(t, p, l, y), document.getElementById('tela').toDataURL('image/png'))",
+                                          [c["t"], th["plano"], th["linhas"], th["y0"]])
+                bruto = destino / "_thumb_bruto.png"
+                _gravar(bruto, u)
+                await browser.close()
+                thumb = destino / "thumb_youtube.png"   # 1280x720: a faixa 16:9 do quadro
+                ffmpeg("-y", "-i", bruto.name, "-vf", f"crop=1080:608:0:{th['y0']},scale=1280:720:flags=neighbor",
+                       "-frames:v", "1", thumb.name, cwd=destino)
+                bruto.unlink(missing_ok=True)
+                return [arq, thumb]
 
             if previa:
                 pagina, _ = await aba()
@@ -200,7 +225,8 @@ if __name__ == "__main__":
     ap.add_argument("--previa", type=float, nargs="+", metavar="SEGUNDOS")
     ap.add_argument("--sem-voz", action="store_true")
     ap.add_argument("--abas", type=int, default=3)
+    ap.add_argument("--capa", action="store_true", help="só a capa vertical e a thumb do YouTube")
     a = ap.parse_args()
-    r = asyncio.run(_gerar(a.obra, a.previa, a.sem_voz, a.abas))
+    r = asyncio.run(_gerar(a.obra, a.previa, a.sem_voz, a.abas, a.capa))
     for p in (r if isinstance(r, list) else [r]):
         print(p)
