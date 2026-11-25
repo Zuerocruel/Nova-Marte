@@ -106,6 +106,11 @@ export async function POST(req: NextRequest) {
     if (quem) await db().from('personagens').update({ convidado_por: quem.id }).eq('codigo', data!.codigo);
   }
 
+  // era andarilho (entrou pelos comentários com o mesmo @)? liga ao colono: sai do mapa como andarilho e passa a
+  // morar na casinha. Sem a migração 017 a tabela não existe e nada acontece.
+  await db().from('andarilhos').update({ personagem_codigo: data!.codigo })
+    .eq('rede', plataforma).ilike('handle', handle.replace(/[%_\\]/g, (c) => `\\${c}`)).is('personagem_codigo', null);
+
   const res = NextResponse.json({ codigo: data!.codigo });
   gravarSessao(res, data!.codigo);   // já sai do cadastro logado (chat e "Meu perfil")
   return res;

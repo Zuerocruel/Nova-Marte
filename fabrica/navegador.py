@@ -35,6 +35,7 @@ def montar_ep(pasta: Path) -> dict:
     return {
         **{k: lt[k] for k in ("numero", "titulo", "missao_obra", "missao_titulo", "proxima", "duracao", "fps", "cenas")},
         "proxima_obra": lt.get("proxima_obra"),
+        "curto": lt.get("curto"),          # corte do Instagram/TikTok (cortes.py): sem entrar do preto
         "estacao": lt.get("estacao"),      # clima/etiqueta do topo (eventos.py)
         "problema": lt.get("problema"),    # problema do dia (deixa o clima mais forte se for de clima)
         "site_tela": config.SITE_TELA,
@@ -47,6 +48,7 @@ def montar_ep(pasta: Path) -> dict:
             "colonos": d["mundo"],
             "compras": [{**c, "produto_curto": curto_com_variante(c, c["produto_slug"])} for c in d["compras"]],
             "crateras": d.get("crateras", []),
+            "andarilhos": d.get("andarilhos", []),   # entraram pelos comentários, ainda sem casa
         },
     }
 

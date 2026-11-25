@@ -127,6 +127,15 @@ def estado_painel() -> dict:
     return json.loads(ARQ_ESTADO_PAINEL.read_text(encoding="utf-8"))
 
 
+def video_da_rede(numero: int, rede: str) -> Path:
+    """YouTube = episódio completo. Instagram/TikTok = o corte curto da rede (a partir de CORTES_DESDE)."""
+    import config  # fabrica/config.py
+    pasta = config.pasta_episodio(numero)
+    if rede in ("instagram", "tiktok") and numero >= CORTES_DESDE:
+        return pasta / f"episodio_{numero:03d}_{rede}.mp4"
+    return pasta / f"episodio_{numero:03d}.mp4"
+
+
 def exigir_liberado(numero: int, rede: str, ensaio: bool = False) -> dict:
     """Confere TODAS as travas antes de postar. Devolve a copy aprovada da rede."""
     import config  # fabrica/config.py (o chamador põe fabrica/ no sys.path)
@@ -138,9 +147,10 @@ def exigir_liberado(numero: int, rede: str, ensaio: bool = False) -> dict:
     if not ep.get("publicado_em") and not ensaio:
         raise Recusado(f"episódio {numero} ainda não foi registrado (🚀 Publicar no painel cria os links /l/)")
     pasta = config.pasta_episodio(numero)
-    video = pasta / f"episodio_{numero:03d}.mp4"
+    video = video_da_rede(numero, rede)
     if not video.exists():
-        raise Recusado(f"vídeo com voz não encontrado ({video.name}); prévia sem voz não é publicada")
+        raise Recusado(f"vídeo com voz não encontrado ({video.name}); prévia sem voz não é publicada"
+                       + (" — gere os cortes: python cortes.py --episodio N" if video.stem.endswith(("_instagram", "_tiktok")) else ""))
     if ep.get("aprovado_em") and video.stat().st_mtime > datetime.fromisoformat(ep["aprovado_em"]).timestamp() + 5:
         raise Recusado("o vídeo foi gerado de novo depois da aprovação: aprove de novo no painel")
     copy_est = est.get("copies", {}).get(str(numero), {}).get(rede, {})
@@ -232,6 +242,7 @@ def exigir_liberado_apresentacao(rede: str, ensaio: bool = False) -> dict:
     return {"imagens": imagens, "copy": {"legenda": legenda}}
 
 
+CORTES_DESDE = 7      # do episódio 7 em diante o Instagram e o TikTok recebem o corte curto (cortes.py)
 CARROSSEL_DESDE = 4   # o carrossel do Instagram começa no episódio 4 (os anteriores não têm)
 
 
@@ -272,9 +283,10 @@ def exigir_liberado_carrossel(numero: int, rede: str, ensaio: bool = False) -> d
 # Link em qualquer forma: com/sem http, www, domínios comuns e o "ponto com" escrito por extenso.
 # REGRA FIXA: legenda do Instagram e do TikTok NUNCA tem link (só o YouTube pode). Conferido na geração das
 # copies (sem_link), na aprovação, na liberação para postar e de novo no celular, na hora de colar.
+# (?<![@\w.-]) : "@joao.app" é o @ de um perfil (legenda marcando quem chegou), não um link
 RE_URL = re.compile(
     r"(https?://\S+|www\.\S+"
-    r"|\b[\w-]+(\.[\w-]+)*\.(app|com|br|net|org|io|link|me|ly|gg|xyz|site|online|store|shop|tv|co|info|dev|page|bio)\b(/\S*)?"
+    r"|(?<![@\w.-])\b[\w-]+(\.[\w-]+)*\.(app|com|br|net|org|io|link|me|ly|gg|xyz|site|online|store|shop|tv|co|info|dev|page|bio)\b(/\S*)?"
     r"|\b(ponto|dot)\s?(com|br|app|net)\b)", re.I)
 
 

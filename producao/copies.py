@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fabrica"))
 import config  # noqa: E402  (config da fábrica: nome do site, pastas)
-from publicacao import sem_link  # noqa: E402  (Instagram/TikTok nunca levam link)
+from publicacao import CORTES_DESDE, sem_link  # noqa: E402  (Instagram/TikTok nunca levam link)
 
 NOME = "Operação Marte Zero"
 PLATAFORMAS = {
@@ -31,7 +31,7 @@ import os  # noqa: E402
 YT_LINK_NA_DESCRICAO = (os.environ.get("YOUTUBE_LINK_NA_DESCRICAO") or "0").strip() == "1"
 
 HASHTAGS = ["#operacaomartezero", "#pixelart", "#marte", "#colonia", "#jogoindie"]
-PERFIS = {"instagram": "https://www.instagram.com/operacaomartezero/", "tiktok": "https://www.tiktok.com/@operao.marte.zero",
+PERFIS = {"instagram": "https://www.instagram.com/operacaomartezero/", "tiktok": "https://www.tiktok.com/@operacaomartezero",
           "youtube": "https://www.youtube.com/channel/UCKSkHV2WKpfezCBBi6BeFUQ"}
 CORREIO = "💬 A Vega e a Lia leem os comentários e respondem os melhores no próximo episódio!"
 
@@ -74,6 +74,51 @@ def _obra(r: dict) -> str:
     return re.sub(r"^Inauguração d[ao] ", "", r["titulo"].split(" · ", 1)[-1])
 
 
+# ---------------------------------------------------------------- quem chegou, com @ + emoji + cargo
+def _quem(nome: str, handle: str | None, rede_dele: str | None, rede: str) -> str:
+    """@ só na rede em que a pessoa tem aquele @ (marcar o @ do Instagram no TikTok não avisa ninguém)."""
+    return f"@{handle}" if handle and rede_dele == rede else nome
+
+
+def chegadas(d: dict, rede: str) -> list[str]:
+    """Bloco da legenda: novos colonos e andarilhos, um por linha, com o emoji e o cargo."""
+    cargos = config.cargos()
+
+    def linha(cargo: str | None, quem: str) -> str:
+        c = cargos.get(cargo or "") or {}
+        return f"{c.get('emoji') or '👋'} {quem}" + (f", {c['nome'].lower()}" if c.get("nome") else "")
+
+    out = []
+    if d.get("novos"):
+        out.append("Chegou gente nova:")
+        out += [linha(c.get("cargo"), _quem(c["nome"], c.get("handle"), c.get("rede"), rede)) for c in d["novos"][:8]]
+        resto = d["novos_total"] - min(8, len(d["novos"]))
+        if resto > 0:
+            out.append(f"…e mais {resto}!")
+    novos_and = [a for a in d.get("andarilhos", []) if a.get("novo")]
+    if novos_and:
+        out.append("🎒 Entraram pelos comentários (ainda sem casa):")
+        out += [linha(a.get("cargo"), _quem(a["handle"], a["handle"], a["rede"], rede)) for a in novos_and[:8]]
+    return out
+
+
+def corpo_da_rede(linhas_pauta: list[str], blocos: list[str]) -> str:
+    """Troca a linha "👋 Chegaram…" (e "🎒…") da pauta pelo bloco com @/emoji/cargo da rede."""
+    out, pos = [], None
+    for x in linhas_pauta:
+        if x.startswith(("👋", "🎒")):
+            pos = len(out) if pos is None else pos
+            continue
+        out.append(x)
+    if blocos:
+        p = len(out) if pos is None else pos
+        out[p:p] = ["", *blocos, ""]
+    texto = "\n".join(out).strip("\n")
+    while "\n\n\n" in texto:
+        texto = texto.replace("\n\n\n", "\n\n")
+    return texto
+
+
 # ---------------------------------------------------------------- pauta: o que vai no episódio
 def pauta(d: dict, r: dict) -> list[str]:
     """Tudo o que acontece no episódio, na ordem do vídeo (uma linha por momento). Vai para o painel e para as copies."""
@@ -86,6 +131,9 @@ def pauta(d: dict, r: dict) -> list[str]:
         nomes = ", ".join(c["nome"] for c in d["novos"][:6])
         resto = d["novos_total"] - min(6, len(d["novos"]))
         out.append(f"👋 Chegaram: {nomes}" + (f" e mais {resto}" if resto > 0 else ""))
+    novos_and = [a for a in d.get("andarilhos", []) if a.get("novo")]
+    if novos_and:
+        out.append("🎒 Pelos comentários: " + ", ".join(a["handle"] for a in novos_and[:8]))
     if d["compras"]:
         grupos: dict[str, list[str]] = {}
         for c in d["compras"]:
@@ -144,7 +192,8 @@ def ganchos(d: dict, r: dict) -> dict:
         perguntas.append("Que nome você daria para uma cratera de Marte? Comenta! 👇")
     perguntas.append("Você moraria em Marte? Comenta SIM ou NÃO! 👇")
     v = r.get("votacao")   # o episódio pergunta SIM ou NÃO: a copy pede o mesmo voto
-    voto = f"🗳️ Votação da colônia: {v['fala']} A maioria decide o próximo episódio 👇" if v and v.get("fala") else None
+    voto = (f"🗳️ Votação da colônia: {v['fala']} E escreve a sua profissão: quem comenta entra na colônia! "
+            "A maioria decide o próximo episódio 👇") if v and v.get("fala") else None
     return {
         "historia": f"Amanhã: {r['proxima']}." if n >= 2 else f"No próximo episódio: {r['proxima']}.",
         "comentar": voto or perguntas[n % len(perguntas)],
@@ -156,15 +205,17 @@ def ganchos(d: dict, r: dict) -> dict:
 
 
 # ---------------------------------------------------------------- copies das 3 redes
-def montar(n: int, r: dict, lt: dict | None, linhas_pauta: list[str], g: dict, titulo: str) -> dict:
+def montar(n: int, r: dict, lt: dict | None, linhas_pauta: list[str], g: dict, titulo: str, d: dict | None = None) -> dict:
     tags = " ".join(HASHTAGS)
     missao, diario = r["missao_titulo"], n >= 2          # do episódio 2 em diante a série é diária
-    corpo = "\n".join(linhas_pauta)
+    # cada rede marca o @ de quem chegou só se a pessoa tem @ naquela rede (com emoji e cargo)
+    por_rede = {rede: corpo_da_rede(linhas_pauta, chegadas(d, rede) if d else []) for rede in ("youtube", "instagram", "tiktok")}
+    corpo = por_rede["youtube"]
 
     yt_desc = [f"Episódio {n} da {NOME}: {missao}.", "", corpo, "", f"➡️ {g['historia']}", "",
                f"💬 {g['comentar']}", g.get("correio", ""), g["inscrever"], g["curtir"], "",
                *([f"📸 Instagram: {PERFIS['instagram']}", f"🎵 TikTok: {PERFIS['tiktok']}", ""] if YT_LINK_NA_DESCRICAO
-                 else ["📸 Instagram @operacaomartezero · 🎵 TikTok @operao.marte.zero", ""]),
+                 else ["📸 Instagram @operacaomartezero · 🎵 TikTok @operacaomartezero", ""]),
                (f"🚀 Vire personagem e procure seu nome no mapa: https://{link('youtube', n)}" if YT_LINK_NA_DESCRICAO
                 else "🚀 Vire personagem e procure seu nome no mapa: link no perfil do canal 👆")]
     if diario:
@@ -173,15 +224,23 @@ def montar(n: int, r: dict, lt: dict | None, linhas_pauta: list[str], g: dict, t
         yt_desc += ["", "Capítulos:", *capitulos(lt)]
     yt_desc += ["", tags]
 
-    ig = [f"🚀 {titulo}", f"{NOME} · Episódio {n} · Missão do Dia: {missao}.", "", corpo, "",
-          f"➡️ {g['historia']}", "", f"💬 {g['comentar']}", g.get("correio", ""), g["curtir"], g["seguir"], "",
-          "🎵 Também no TikTok @operao.marte.zero e no YouTube: Operação Marte Zero", "",
+    # do CORTES_DESDE em diante o IG/TikTok recebem um corte curto: a votação e o final ficam no YouTube
+    corte = n >= CORTES_DESDE
+    yt_cta = "🎬 Episódio COMPLETO (com a votação de hoje) no YouTube: Operação Marte Zero"
+    comentar_ig = [yt_cta, "", "💬 Comenta aqui o que você achou! 👇"] if corte else [f"💬 {g['comentar']}"]
+    ig = [f"🚀 {titulo}", f"{NOME} · Episódio {n} · Missão do Dia: {missao}.", "", por_rede["instagram"], "",
+          f"➡️ {g['historia']}", "", *comentar_ig, g.get("correio", ""), g["curtir"], g["seguir"], "",
+          "🎵 Também no TikTok @operacaomartezero" if corte else
+          "🎵 Também no TikTok @operacaomartezero e no YouTube: Operação Marte Zero", "",
           *(["📺 Episódio novo todo dia!"] if diario else []),
           "Quer virar personagem? Link na bio 👆 Cadastre-se e procure seu nome no mapa.", "", tags]
 
-    tt = (f"{titulo} 🚀 Ep. {n} da {NOME}. {g['historia']} {g['comentar']} {g.get('correio', '')} {g['seguir']} "
-          f"Também no Insta @operacaomartezero e no YouTube! "
-          f"Vire personagem: link na bio! {tags}")
+    chegou_tt = ", ".join(x for x in (chegadas(d, "tiktok") if d else []) if x[:1] not in ("C", "…", "🎒"))
+    tt = (f"{titulo} 🚀 Ep. {n} da {NOME}. " + (f"Chegaram: {chegou_tt}. " if chegou_tt else "") + f"{g['historia']} "
+          + (f"🎬 O final está no episódio completo no YouTube: Operação Marte Zero! {g['seguir']} "
+             f"Também no Insta @operacaomartezero! " if corte else
+             f"{g['comentar']} {g.get('correio', '')} {g['seguir']} Também no Insta @operacaomartezero e no YouTube! ")
+          + f"Vire personagem: link na bio! {tags}")
 
     return {
         "youtube": {"titulo": f"{titulo} | {NOME} #{n}"[:100], "descricao": "\n".join(yt_desc),
@@ -205,7 +264,7 @@ def gerar(numero: int, pauta_editada: list[str] | None = None, ganchos_editados:
     g = {**ganchos(d, r), **{k: v.strip() for k, v in (ganchos_editados or {}).items()
                              if isinstance(v, str) and v.strip()}}
     t = (manchete_editada or "").strip() or manchete(d, r)
-    return {"numero": numero, "manchete": t, "pauta": p, "ganchos": g, **montar(numero, r, lt, p, g, t)}
+    return {"numero": numero, "manchete": t, "pauta": p, "ganchos": g, **montar(numero, r, lt, p, g, t, d)}
 
 
 def gravar(numero: int, **editado) -> Path:

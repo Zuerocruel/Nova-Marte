@@ -195,7 +195,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 # ---------------------------------------------------------------- vídeo final
 def montar(numero: int, manter_quadros: bool = False, sufixo: str = "") -> Path:
-    pasta = config.pasta_episodio(numero)
+    return montar_pasta(config.pasta_episodio(numero), f"episodio_{numero:03d}{sufixo}.mp4", manter_quadros)
+
+
+def montar_pasta(pasta: Path, nome_final: str, manter_quadros: bool = False) -> Path:
+    """Monta o vídeo da pasta (episódio ou corte curto) e grava como pasta/nome_final."""
     lt = config.ler_json(pasta / "linha_do_tempo.json")
     quadros = pasta / "quadros"
     n = len(list(quadros.glob("*.jpg")))
@@ -208,7 +212,7 @@ def montar(numero: int, manter_quadros: bool = False, sufixo: str = "") -> Path:
     mixar(pasta / "musica.wav", pasta / "narracao.wav", pasta / "mix.wav", tem_voz)
     print(f"  legendas: {gerar_legendas(pasta / 'legendas.ass', lt)} eventos")
 
-    final = pasta / f"episodio_{numero:03d}{sufixo}.mp4"
+    final = pasta / nome_final
     ffmpeg("-framerate", config.FPS, "-i", "quadros/%05d.jpg", "-i", "mix.wav",
            # o texto grande da narração já vem desenhado nos quadros (diretor.js → legendaGrande);
            # legendas.ass continua sendo gerada (serve de legenda/CC), mas não é mais queimada no vídeo

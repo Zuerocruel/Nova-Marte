@@ -558,7 +558,7 @@ function mudarParaAVila(ep) {
 
 function prepararCamera() {
   cameraKeys = [];
-  const zoomFoco = { colono: 7, fundador: 6.5, compra: 7, ator: 7, cratera: 3.4 };
+  const zoomFoco = { colono: 7, fundador: 6.5, compra: 7, ator: 7, cratera: 3.4, andarilho: 7 };
   for (const c of EP.cenas) {
     if (c.tipo === 'abertura') {
       cameraKeys.push({ t: 0, alvo: c.camera.alvo, zoom: 1.0, D: 0 });
@@ -596,6 +596,7 @@ window.carregarEpisodio = async function (ep) {
   encadearTrechos();
   planejarAtaque();
   planejarNoite();
+  prepararAndarilhos();
   prepararCamera();
   await document.fonts.load(`40px ${FONTE}`);
   await document.fonts.ready;
@@ -769,6 +770,56 @@ function planejarNoite() {
   if (isFinite(abre)) (VIDA.portaAberta = VIDA.portaAberta || []).push([abre - 0.3, livre + 0.3]);
 }
 
+// ------------------------------------------------------------------ andarilhos
+// Quem entrou pelos comentários dizendo a profissão e ainda não se cadastrou no site: não tem casa. Anda de um
+// ponto a outro em volta da colônia (caminho fixo pelo seed) e, quando anoitece, vai para o Módulo de Pouso.
+let ANDARILHOS = [];
+function prepararAndarilhos() {
+  const ctr = caixaColonia();
+  ANDARILHOS = (EP.mundo.andarilhos || []).map((a, i) => {
+    const s = (a.seed % 9973) + i * 17;
+    const ponto = (k) => {
+      const ang = hash(s, k, 11) * Math.PI * 2, d = (0.3 + 0.7 * hash(s, k, 12)) * 9 * CASA;
+      return { x: ctr.x + Math.cos(ang) * d, y: ctr.y + Math.sin(ang) * d * 0.7 };
+    };
+    return { ...a, s, ponto, periodo: 6 + (s % 5), atraso: (s % 37) / 7, i };
+  });
+}
+function posAndarilho(a, t) {
+  const passeio = (tt) => {
+    const x = tt + a.atraso, k = Math.floor(x / a.periodo), f = (x - k * a.periodo) / a.periodo;
+    const de = a.ponto(k), para = a.ponto(k + 1), ka = clamp(f / 0.6);
+    return { x: lerp(de.x, para.x, suave(ka)), y: lerp(de.y, para.y, suave(ka)), andando: ka > 0 && ka < 1, dir: para.x >= de.x ? 1 : -1 };
+  };
+  const sai = tNoite + 0.8 + Math.min(a.i, 12) * 0.25;
+  if (!isFinite(tNoite) || t < sai) return { ...passeio(t), visivel: true };
+  const de = passeio(sai), porta = VIDA.porta, dur = clamp(Math.hypot(porta.x - de.x, porta.y - de.y) / CASA * 0.4, 1.2, 4);
+  const k = clamp((t - sai) / dur);
+  return { x: lerp(de.x, porta.x, suave(k)), y: lerp(de.y, porta.y, suave(k)), andando: k < 1, dir: porta.x >= de.x ? 1 : -1, visivel: k < 1 };
+}
+function desenharAndarilhos(view, t) {
+  for (const a of ANDARILHOS) {
+    const p = posAndarilho(a, t);
+    if (!p.visivel || p.x / CASA < view.x0 - 2 || p.x / CASA > view.x1 + 2 || p.y / CASA < view.y0 - 2 || p.y / CASA > view.y1 + 2) continue;
+    const chamado = chamadoAndarilho(a, t);
+    let pulo = p.andando && Math.floor(t * 8 + a.s) % 2 ? -1 : 0;
+    if (chamado >= 0) pulo = -Math.abs(Math.sin(chamado * 7)) * 4;
+    ret(p.x - 4, p.y - 1, 8, 1.5, 'rgba(0,0,0,0.22)');
+    ctx.save(); ctx.translate(Math.round(p.x), Math.round(p.y + pulo));
+    if (p.dir < 0) ctx.scale(-1, 1);
+    ctx.drawImage(spriteColono(a.seed), -6, -12, 12, 12);
+    ret(-6, -8, 3, 5, '#8a5a34'); ret(-6, -8, 3, 1, '#b07a48');   // mochila de quem ainda não tem casa
+    ctx.restore();
+    if (chamado >= 0 && Math.floor(chamado * 6) % 2) ret(p.x + 6, p.y - 12 + pulo, 2, 3, '#f2c9a0');
+  }
+}
+function chamadoAndarilho(a, t) {
+  for (const cena of EP.cenas) for (const f of cena.focos) {
+    if (f.alvo === `andarilho:${a.handle}` && t >= f.t && t < f.t + 1.6) return t - f.t;
+  }
+  return -1;
+}
+
 function posColono(c, t) {
   let pos = c.casaPe || { x: c.x * CASA + 11, y: c.y * CASA + 19 }, andando = false, dir = 1;
   for (const tr of c.trechos || []) {
@@ -871,6 +922,10 @@ function posAlvo(alvo, t) {
     const f = EP.mundo.fundadores.find((x) => x.id === id);
     const p = posFundador(f, t);
     return { x: p.x, y: p.y - 8 };
+  }
+  if (tipo === 'andarilho') {
+    const a = ANDARILHOS.find((x) => x.handle === alvo.slice('andarilho:'.length));
+    if (a) { const p = posAndarilho(a, t); return { x: p.x, y: p.y - 6 }; }
   }
   if (tipo === 'colono' || tipo === 'compra') {
     const c = colonoPorCodigo.get(id);
@@ -2481,6 +2536,19 @@ function cartao(cena, t, cam) {
       texto(rot, W / 2, 380 + i * passo - sobe, 30, COR.texto, { maxW: W - 160 });
       if (comCargo && c.cargo_nome) texto(c.cargo_nome.toUpperCase(), W / 2, 380 + i * passo + 36 - sobe, 18, COR.agua, { contorno: false, maxW: W - 160 });
     });
+  } else if (cena.tipo === 'andarilhos') {   // entraram pelos comentários (ainda sem casa)
+    const nAnd = Math.min(3, cena.focos.filter((f) => t >= f.t).length);
+    caixa(70, 230 - sobe, W - 140, 130 + Math.max(1, nAnd) * 92, 0.9, COR.agua);
+    texto('CHEGARAM PELOS', W / 2, 270 - sobe, 30, COR.agua, { contorno: false });
+    texto('COMENTÁRIOS!', W / 2, 318 - sobe, 44, COR.ouro);
+    const ativos = cena.focos.filter((f) => t >= f.t);
+    ativos.slice(-3).forEach((f, i) => {
+      const a = ANDARILHOS.find((x) => `andarilho:${x.handle}` === f.alvo);
+      if (!a) return;
+      ctx.globalAlpha = a ? fadeCena(cena, t) * clamp((t - f.t) / 0.3) : 0;
+      texto(`@${a.handle}`, W / 2, 400 + i * 92 - sobe, 30, COR.texto, { maxW: W - 160 });
+      if (a.cargo_nome) texto(a.cargo_nome.toUpperCase(), W / 2, 436 + i * 92 - sobe, 18, COR.agua, { contorno: false, maxW: W - 160 });
+    });
   } else if (cena.tipo === 'cratera') {
     texto('NOME NOVO NO MAPA', W / 2, 290 - sobe, 32, COR.ouro);
     const ativos = cena.focos.filter((f) => t >= f.t);
@@ -2529,7 +2597,7 @@ function cartao(cena, t, cam) {
       ret(x - w / 2, y - h / 2, w, h, aceso ? cor : COR.borda);
       texto(rot, x, y + 2, Math.round(56 * s), aceso ? COR.ceu : cor, { contorno: false });
     });
-    texto('RESPONDA NOS COMENTÁRIOS', W / 2, 568 - sobe, 24, COR.agua, { contorno: false });
+    texto('COMENTE + A SUA PROFISSÃO', W / 2, 568 - sobe, 24, COR.agua, { contorno: false });
   } else if (cena.tipo === 'resultado' && DUNAS_MAPA && cena === DUNAS_MAPA.c && t >= DUNAS_MAPA.t0) {   // mapa atualizado
     const k = saida(clamp((t - DUNAS_MAPA.t0) / 0.35));
     ctx.globalAlpha = a * k;
@@ -2547,13 +2615,26 @@ function cartao(cena, t, cam) {
     ret(140, 446 - sobe, (W - 280) * p, 22, k >= 1 ? COR.ok : COR.marte);
     texto(`${Math.round(p * 100)}%`, W - 150, 457 - sobe, 18, COR.texto, { alinhar: 'right', contorno: false });
   } else if (cena.tipo === 'resultado') {   // decisão da votação do episódio anterior
-    const v = cena.votacao || {}, sim = v.resultado === 'sim';
-    caixa(60, 220 - sobe, W - 120, 330, 0.9, sim ? COR.ok : COR.alerta);
+    const v = cena.votacao || {}, sim = v.resultado === 'sim', pl = cena.placar;
+    caixa(60, 220 - sobe, W - 120, pl ? 460 : 330, 0.9, sim ? COR.ok : COR.alerta);
     texto('A COLÔNIA DECIDIU', W / 2, 282 - sobe, 30, COR.ouro, { contorno: false });
     texto(v.tela || '', W / 2, 340 - sobe, 26, COR.texto, { contorno: false, maxW: W - 200 });
     const k = saida(clamp((t - cena.fala_inicio - 0.3) / 0.35)), s = 1 + (1 - k) * 0.6;
     ctx.globalAlpha = a * clamp(k * 2);
     texto(sim ? 'SIM!' : 'NÃO!', W / 2, 452 - sobe, Math.round(96 * s), sim ? COR.ok : COR.alerta);
+    if (pl) {   // placar dos comentários: SIM 3 × 1 NÃO e quem votou (até 3 nomes de cada lado)
+      ctx.globalAlpha = a;
+      texto(`SIM ${pl.sim}  ×  ${pl.nao} NÃO`, W / 2, 540 - sobe, 30, COR.texto, { contorno: false });
+      const nomes = (l) => l.slice(0, 3).map((x) => `@${x}`).join(' ') + (l.length > 3 ? ` +${l.length - 3}` : '');
+      if (pl.nomes_sim.length) texto(nomes(pl.nomes_sim), W / 2, 580 - sobe, 16, COR.ok, { contorno: false, maxW: W - 160 });
+      if (pl.nomes_nao.length) texto(nomes(pl.nomes_nao), W / 2, 608 - sobe, 16, COR.alerta, { contorno: false, maxW: W - 160 });
+      if (pl.desempate) texto(`DESEMPATE: @${pl.desempate}`, W / 2, 636 - sobe, 18, COR.ouro, { contorno: false, maxW: W - 160 });
+    }
+  } else if (cena.tipo === 'pedido') {   // pedido do dia: a ideia de alguém dos comentários vira cena
+    caixa(70, 236 - sobe, W - 140, 230, 0.9, COR.agua);
+    texto('PEDIDO DA COLÔNIA', W / 2, 292 - sobe, 30, COR.agua, { contorno: false });
+    texto((cena.pedido?.tela || '').toUpperCase(), W / 2, 350 - sobe, 28, COR.texto, { contorno: false, maxW: W - 200 });
+    texto(`@${cena.pedido?.autor || ''}`, W / 2, 410 - sobe, 22, COR.ouro, { contorno: false, maxW: W - 200 });
   } else if (cena.tipo === 'gancho') {
     texto('PROCURE SEU NOME', W / 2, 330 - sobe, 50, COR.ouro);
     ctx.font = `38px ${FONTE}`;
@@ -2564,6 +2645,16 @@ function cartao(cena, t, cam) {
     ret(W / 2 - w / 2 + pulso, 432 - sobe + pulso + 88, w, 8, COR.marteEsc);
     texto(EP.site_tela, W / 2 + pulso, 478 - sobe + pulso, 38, '#ffffff', { contorno: false, maxW: w - 50 });
     texto(`PRÓXIMO EPISÓDIO: ${EP.proxima.toUpperCase()}`, W / 2, 610 - sobe, 24, COR.agua, { maxW: W - 120 });
+  } else if (cena.tipo === 'youtube') {   // cortes do Instagram/TikTok: chamada para o episódio completo no YouTube
+    texto('EPISÓDIO COMPLETO', W / 2, 300 - sobe, 48, COR.ouro);
+    const w = 560, x0 = W / 2 - w / 2, y0 = 360 - sobe, pulso = Math.sin(t * 4) > 0 ? 0 : 4;
+    ret(x0 + 8, y0 + 8, w, 120, '#0008');
+    ret(x0 + pulso, y0 + pulso, w, 120, '#e62117');
+    ret(x0 + pulso, y0 + pulso + 112, w, 8, '#9e1510');
+    // triângulo de "play" desenhado em blocos (pixel art)
+    for (let i = 0; i < 9; i++) ret(x0 + 48 + pulso + i * 5, y0 + 24 + pulso + i * 4, 6, 72 - i * 8, '#ffffff');
+    texto('NO YOUTUBE', W / 2 + 66 + pulso,  y0 + 62 + pulso, 46, '#ffffff', { contorno: false });
+    texto(`OPERAÇÃO MARTE ZERO #${EP.numero}`, W / 2, y0 + 190, 28, COR.texto, { maxW: W - 120 });
   }
   ctx.globalAlpha = 1;
 }
@@ -2665,6 +2756,7 @@ function desenhar(t) {
   desenharEsqueleto(t);
   desenharCasas(view, t, energia);
   desenharColonos(view, t);
+  desenharAndarilhos(view, t);
   desenharCompras(t);
   desenharBase(t, energia);
   desenharPortaAbrigo(t);
@@ -2693,7 +2785,8 @@ function desenhar(t) {
   legendaGrande(t);        // texto grande da narração (por cima de tudo)
 
   // entra e sai do preto
-  const preto = Math.max(1 - clamp(t / 0.6), clamp((t - (EP.duracao - 0.9)) / 0.9));
+  // corte curto (Instagram/TikTok) começa já na ação: sem entrar do preto
+  const preto = Math.max(EP.curto ? 0 : 1 - clamp(t / 0.6), clamp((t - (EP.duracao - 0.9)) / 0.9));
   if (preto > 0) { ctx.globalAlpha = preto; ret(0, 0, W, H, '#000'); ctx.globalAlpha = 1; }
 }
 

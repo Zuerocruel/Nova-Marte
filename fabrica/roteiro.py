@@ -173,6 +173,13 @@ def nome_falado(nome: str) -> str:
     return re.sub(r"(?<=[a-zà-ÿ])(?=[A-ZÀ-Þ])", " ", nome)
 
 
+def handle_falado(handle: str) -> str:
+    """"@bombeira_ana" → "bombeira ana" (a voz não lê _ . nem números soltos)."""
+    t = re.sub(r"[_.\-]+", " ", handle.lstrip("@"))
+    t = re.sub(r"\d+", " ", t)
+    return nome_falado(re.sub(r"\s+", " ", t).strip()) or handle
+
+
 def com_equipe(c: dict) -> str:
     """Nome falado + profissão, para as boas-vindas: "ZéGotinha da equipe de Engenharia"."""
     return f"{c['falado']} {c['equipe']}" if c.get("equipe") else c["falado"]
@@ -265,17 +272,50 @@ def escolher_votacao(n: int, d: dict) -> dict | None:
     return random.Random(f"votacao:{n}").choice(opcoes) if opcoes else None
 
 
+def ler_correio(n: int) -> dict:
+    arq = config.SAIDA / f"ep{n:03d}" / "correio.json"
+    return json.loads(arq.read_text(encoding="utf-8")) if arq.exists() else {}
+
+
+def placar_do_correio(n: int) -> dict | None:
+    """Placar SIM × NÃO dos comentários do episódio anterior (correio.py, um voto por pessoa e por rede)."""
+    sim, nao, vistos = [], [], set()
+    for v in ler_correio(n).get("votos_por_comentario", []):
+        chave = (v["rede"], v["autor"].lower())
+        if v.get("voto") not in ("sim", "nao") or chave in vistos:
+            continue
+        vistos.add(chave)
+        (sim if v["voto"] == "sim" else nao).append(v["autor"])
+    return {"sim": len(sim), "nao": len(nao), "nomes_sim": sim, "nomes_nao": nao} if sim or nao else None
+
+
 def resultado_da_votacao(n: int) -> dict | None:
-    """Decisão da votação do episódio n-1 (marcada no painel em saida/epNNN/votacao.json), ou None."""
+    """Decisão da votação do episódio n-1. Vale a marcada no painel (saida/epNNN/votacao.json); sem marcação, o
+    placar dos comentários decide (correio.py). Empate: só decide se alguém deu uma ideia de desempate nos
+    comentários; sem ideia, fica sem resultado. O placar (e quem votou) vai para a tela."""
+    if n < 2:
+        return None
     arq = config.SAIDA / f"ep{n - 1:03d}" / "votacao.json"
-    if n < 2 or not arq.exists():
+    marcado = json.loads(arq.read_text(encoding="utf-8")) if arq.exists() else {}
+    rot_ant = config.SAIDA / f"ep{n - 1:03d}" / "roteiro.json"
+    aberta = (json.loads(rot_ant.read_text(encoding="utf-8")).get("votacao") or {}) if rot_ant.exists() else {}
+    placar = placar_do_correio(n) if aberta else None
+    desempate = ler_correio(n).get("desempate")
+    empate = bool(placar) and placar["sim"] == placar["nao"]
+    resultado = marcado.get("resultado") if marcado.get("resultado") in ("sim", "nao") else None
+    if resultado is None and placar:
+        resultado = ("sim" if placar["sim"] > placar["nao"] else "nao") if not empate else (desempate or {}).get("decisao")
+    v = next((x for x in votacoes()["votacoes"] if x["id"] == (marcado.get("id") or aberta.get("id"))), None)
+    if not v or resultado not in ("sim", "nao"):
         return None
-    marcado = json.loads(arq.read_text(encoding="utf-8"))
-    v = next((x for x in votacoes()["votacoes"] if x["id"] == marcado.get("id")), None)
-    if not v or marcado.get("resultado") not in ("sim", "nao"):
-        return None
-    return {"id": v["id"], "tela": v["tela"], "resultado": marcado["resultado"], "fala": v[marcado["resultado"]],
-            "camera": v.get("camera")}
+    fala = v[resultado]
+    if placar and empate and desempate and desempate.get("decisao") == resultado:
+        fala = f"Deu empate nos comentários: {extenso(placar['sim'])} a {extenso(placar['nao'])}! {desempate['fala']} {fala}"
+        placar = {**placar, "desempate": desempate["autor"]}
+    elif placar:
+        fala = f"Placar da votação: {extenso(placar['sim'])} a {extenso(placar['nao'])}. {fala}"
+    return {"id": v["id"], "tela": v["tela"], "resultado": resultado, "fala": fala, "camera": v.get("camera"),
+            "placar": placar}
 
 
 def avanco_da_obra(d: dict, obra: dict, n: int) -> tuple[int, int]:
@@ -369,7 +409,7 @@ def montar(d: dict) -> dict:
     res = resultado_da_votacao(n)
     if res:
         cenas.append(cena("resultado", "resultado", Fala().add(res["fala"]), camera=res.get("camera") or {"alvo": "colonia", "zoom": 3.4},
-                          votacao={k: res[k] for k in ("id", "tela", "resultado")}))
+                          votacao={k: res[k] for k in ("id", "tela", "resultado")}, placar=res.get("placar")))
 
     # 2c. Correio da colônia: o narrador lê o comentário e a Vega ou a Lia responde, com a voz dela/dele
     #     (correio.py grava saida/epNNN/correio.json na coleta; sem ele, o episódio segue sem o quadro)
@@ -384,6 +424,12 @@ def montar(d: dict) -> dict:
                           camera={"alvo": "base", "zoom": 4.5}, correio={**info, "fase": "comentario"}))
         cenas.append(cena(f"correio_{i}b", "correio", Fala().add(e["resposta"]), voz=e["quem"],
                           camera={"alvo": f"ator:{e['quem']}", "zoom": 6.5}, correio={**info, "fase": "resposta"}))
+
+    # 2d. pedido do dia: a ideia/sonho de alguém dos comentários vira uma cena curta (correio.py escolhe)
+    ped = (config.ler_json(arq_correio).get("pedido") if arq_correio.exists() else None)
+    if ped:
+        cenas.append(cena("pedido", "pedido", Fala().add(ped["fala"]), camera={"alvo": "colonia", "zoom": 4},
+                          pedido={"autor": ped["autor"], "tela": ped["tela"], "rede": ped["rede"]}))
 
     # 3. boas-vindas (chamando pelo nome; câmera vai em cada um quando o nome é dito)
     if d["novos"]:
@@ -402,6 +448,17 @@ def montar(d: dict) -> dict:
             f.add("! Procurem suas casas no mapa.")
         cenas.append(cena("boas_vindas", "boas_vindas", f, camera={"alvo": "colonia", "zoom": 5},
                           colonos=[c["codigo"] for c in mostrados]))
+
+    # 3b. andarilhos: comentaram dizendo a profissão e entraram na colônia (ainda sem casa, de mochila)
+    novos_and = [a for a in d.get("andarilhos", []) if a.get("novo")][:6]
+    if novos_and:
+        cargos = config.cargos()
+        f = Fala().add(rnd.choice(["Chegaram pelos comentários: ", "Entraram pela votação: "]))
+        f.lista([(handle_falado(a["handle"]) + (f" {cargos[a['cargo']]['equipe']}" if a.get("cargo") in cargos else ""),
+                  f"andarilho:{a['handle']}") for a in novos_and])
+        f.add(rnd.choice(["! Por enquanto andam de mochila pela colônia: quem se cadastrar no site ganha a casa.",
+                          "! Ainda sem casa, de mochila nas costas: o cadastro no site dá a casinha e o cargo."]))
+        cenas.append(cena("andarilhos", "andarilhos", f, camera={"alvo": "colonia", "zoom": 4.5}))
 
     # 4. compras pagas (o item aparece na casa de quem comprou)
     if d["compras"]:
@@ -489,7 +546,9 @@ def montar(d: dict) -> dict:
     # 5c. votação: SIM ou NÃO nos comentários (o resultado abre o próximo episódio)
     votacao = escolher_votacao(n, d)
     if votacao:
-        cenas.append(cena("votacao", "votacao", Fala().add(votacao["fala"]), camera=votacao.get("camera") or {"alvo": "panorama", "zoom": 2.6},
+        pede = rnd.choice([" E escreve a sua profissão: quem comenta entra na colônia!",
+                           " Diz também a sua profissão: quem comenta vira colono!"])
+        cenas.append(cena("votacao", "votacao", Fala().add(votacao["fala"] + pede), camera=votacao.get("camera") or {"alvo": "panorama", "zoom": 2.6},
                           votacao={"id": votacao["id"], "tela": votacao["tela"]}))
 
     # 6. gancho final

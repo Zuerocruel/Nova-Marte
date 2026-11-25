@@ -104,6 +104,9 @@ def colono_publico(p: dict) -> dict:
         "status": p["status"],
         "sprite_url": p.get("sprite_url"),
         "cargo": p.get("cargo"),
+        # @ público da pessoa e a rede dele: a legenda de cada rede marca o @ só na rede certa
+        "handle": (p.get("handle") or "").lstrip("@") or None,
+        "rede": p.get("handle_plataforma"),
         # profissão: o vídeo mostra o nome do cargo e a narração apresenta a equipe ("da equipe de Engenharia")
         "cargo_nome": (config.cargos().get(p.get("cargo") or "") or {}).get("nome"),
         "equipe": (config.cargos().get(p.get("cargo") or "") or {}).get("equipe"),
@@ -228,6 +231,67 @@ def capsulas(db: Supabase) -> dict[str, dict]:
     return saida
 
 
+# ---------- andarilhos (migração 017) ----------
+def seed_do_handle(handle: str) -> int:
+    """Aparência fixa para quem ainda não está no banco (mesmo @ → mesmo bonequinho)."""
+    h = 7
+    for ch in handle.lower():
+        h = (h * 31 + ord(ch)) % 2147483647
+    return h
+
+
+def andarilho_publico(a: dict, novo: bool = False) -> dict:
+    cargo = (config.cargos().get(a.get("cargo") or "") or {})
+    return {"handle": a["handle"], "rede": a["rede"], "cargo": a.get("cargo"), "cargo_nome": cargo.get("nome"),
+            "emoji": cargo.get("emoji"), "seed": int(a.get("seed") or seed_do_handle(a["handle"])), "novo": novo}
+
+
+def handles_dos_colonos(db: "Supabase") -> set[str]:
+    """@ de quem já é colono cadastrado (esses não viram andarilho)."""
+    try:
+        return {(p.get("handle") or "").lstrip("@").lower() for p in db.todos("personagens", {"select": "handle"}) if p.get("handle")}
+    except requests.HTTPError:
+        return set()
+
+
+def andarilhos(db: "Supabase") -> list[dict]:
+    """Andarilhos que ainda não se cadastraram no site (sem a tabela, nenhum)."""
+    try:
+        linhas = db.todos("andarilhos", {"select": "handle,rede,cargo,seed", "personagem_codigo": "is.null", "order": "id.asc"})
+    except TabelaAusente:
+        return []
+    colonos = handles_dos_colonos(db)
+    return [andarilho_publico(a) for a in linhas if a["handle"].lower() not in colonos]
+
+
+def juntar_andarilhos(d: dict, do_correio: list[dict]) -> list[dict]:
+    """Acrescenta em dados.json quem disse a profissão nos comentários deste episódio (novo=True)."""
+    ja = {(a["rede"], a["handle"].lower()) for a in d.get("andarilhos", [])}
+    colonos = set(d.get("handles_colonos", []))
+    novos = [andarilho_publico(a, novo=True) for a in do_correio
+             if (a["rede"], a["handle"].lower()) not in ja and a["handle"].lower() not in colonos]
+    d["andarilhos"] = d.get("andarilhos", []) + novos
+    return novos
+
+
+def registrar_andarilhos(db: "Supabase", numero: int) -> None:
+    """Ao publicar: grava os andarilhos novos do episódio (os que já existem ficam como estão)."""
+    arq = config.pasta_episodio(numero) / "dados.json"
+    novos = [a for a in (config.ler_json(arq).get("andarilhos", []) if arq.exists() else []) if a.get("novo")]
+    if not novos:
+        return
+    linhas = [{"rede": a["rede"], "handle": a["handle"], "cargo": a.get("cargo"), "episodio": numero, "seed": a["seed"]}
+              for a in novos]
+    try:
+        db.escrever("POST", "andarilhos", {"on_conflict": "rede,handle"}, linhas,
+                    prefer="resolution=ignore-duplicates,return=minimal")
+        print(f"andarilhos novos gravados: {', '.join('@' + a['handle'] for a in novos)}")
+    except TabelaAusente:
+        print("aviso: rode supabase/migrations/017_andarilhos.sql para guardar os andarilhos (quem entrou pelos comentários)")
+    except requests.HTTPError as e:
+        print(f"aviso: não gravei os andarilhos ({e.response.status_code}: {e.response.text[:150]})")
+
+
 # ---------- coleta ----------
 def ultimo_episodio(db: Supabase, numero: int) -> dict | None:
     linhas = db.get("episodios", {
@@ -271,7 +335,7 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
         if anterior.exists() and config.ler_json(anterior).get("so_fundadores"):
             desde = None
 
-    campos = "codigo,nome,pos_x,pos_y,seed,status,sprite_url"
+    campos = "codigo,nome,pos_x,pos_y,seed,status,sprite_url,handle,handle_plataforma"
     visiveis = {"oculto": "eq.false"}
     try:                                   # cargo e nick (migração 008); sem as colunas, segue sem eles
         db.get("personagens", {"select": "cargo,apelido", "limit": 1})
@@ -338,6 +402,9 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
         "fonte_obras": fonte_obras,
         "crateras": [] if so_fundadores else crateras(db, campos, ultimo),
         "servicos": {FURIA: [], DESTAQUE: []} if so_fundadores else fila_de_servicos(db, campos, numero),
+        # quem entrou pelos comentários e ainda não se cadastrou (sem casa; não conta na população nem no ritmo)
+        "andarilhos": [] if so_fundadores else andarilhos(db),
+        "handles_colonos": [] if so_fundadores else sorted(handles_dos_colonos(db)),
         "no_banco": {  # sempre registrado, mesmo quando o episódio ignora (modo só fundadores)
             "colonos": total_colonos, "novos": novos_total, "compras_pagas": len(compras_linhas),
         },
@@ -401,6 +468,7 @@ def registrar_publicacao(numero: int, titulo: str, obra_slug: str | None,
             print("aviso: rode supabase/migrations/004_colonia_obras.sql para guardar o estágio das obras")
     if obra_extra and obra_extra.get("slug"):   # obra pronta hoje → a próxima já começou (fundação)
         registrar_publicacao_obra(db, obra_extra["slug"], obra_extra.get("progresso", 0), obra_extra.get("dias"), agora)
+    registrar_andarilhos(db, numero)
 
 
 def registrar_publicacao_obra(db: "Supabase", slug: str, progresso: int, dias: int | None, agora: str) -> None:

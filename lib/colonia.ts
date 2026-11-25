@@ -36,7 +36,10 @@ export type EstadoColonia = {
   pets: PetNoMapa[];
   crateras: CrateraNoMapa[];
   capsulas: CapsulaNoMapa[];   // casas trocadas pela cápsula comprada (só pedido pago)
+  andarilhos: AndarilhoNoMapa[];   // entraram pelos comentários dizendo a profissão; ainda sem casa (migração 017)
 };
+
+export type AndarilhoNoMapa = { handle: string; rede: string; cargo: string | null; seed: number };
 
 /** "BuracoNegrote" → "Cratera BuracoNegrote" (quem já escreveu "Cratera ..." fica como escreveu). Igual a fabrica/episodio.py. */
 function nomeExibicao(nome: string): string {
@@ -143,6 +146,10 @@ export async function estadoColonia(): Promise<EstadoColonia> {
       ...posCratera(r.id),
     }));
 
+  // andarilhos: quem comentou com a profissão e ainda não se cadastrou (sem a tabela 017, nenhum)
+  const andDb = await db().from('andarilhos').select('handle, rede, cargo, seed').is('personagem_codigo', null).order('id').limit(300);
+  const andarilhos: AndarilhoNoMapa[] = andDb.error ? [] : (andDb.data ?? []) as AndarilhoNoMapa[];
+
   return {
     base: colonia.base,
     praca: (colonia as { praca?: EstadoColonia['praca'] }).praca ?? null,
@@ -156,5 +163,6 @@ export async function estadoColonia(): Promise<EstadoColonia> {
     pets,
     crateras,
     capsulas,
+    andarilhos,
   };
 }

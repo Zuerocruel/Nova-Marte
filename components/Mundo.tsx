@@ -596,6 +596,34 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
           },
         });
       }
+      // andarilhos: entraram pelos comentários e ainda não têm casa; andam de um ponto a outro em volta da base
+      // (mesma ideia do vídeo: caminho fixo pelo seed) com uma mochila nas costas
+      if (e) (e.andarilhos ?? []).forEach((a, i) => {
+        const cx = (e.base.x + e.base.w / 2) * CASA, cy = (e.base.y + e.base.h / 2) * CASA + 4 * CASA;
+        const sd = (a.seed % 9973) + i * 17, per = 6 + (sd % 5);
+        const hs = (k: number, q: number) => { const v = Math.sin(sd * 127.1 + k * 311.7 + q * 74.7) * 43758.5453; return v - Math.floor(v); };
+        const ponto = (k: number) => { const ang = hs(k, 11) * Math.PI * 2, d = (0.3 + 0.7 * hs(k, 12)) * 9 * CASA;
+          return { x: cx + Math.cos(ang) * d, y: cy + Math.sin(ang) * d * 0.7 }; };
+        const xx = t + (sd % 37) / 7, k = Math.floor(xx / per), f = (xx - k * per) / per;
+        const de = ponto(k), para = ponto(k + 1), ka = Math.min(1, f / 0.6), sv = ka * ka * (3 - 2 * ka);
+        const ax = de.x + (para.x - de.x) * sv, ay = de.y + (para.y - de.y) * sv, anda = ka < 1, dir = para.x >= de.x ? 1 : -1;
+        if (ax < camX - 40 || ax > camX + w / zoom + 40 || ay < camY - 40 || ay > camY + h / zoom + 40) return;
+        atores.push({
+          x: ax, y: ay,
+          desenha: () => {
+            const pulo = anda && Math.floor(t * 8 + i) % 2 ? -1 : 0;
+            ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(ax - 4, ay - 1, 8, 2);
+            ctx.save(); ctx.translate(Math.round(ax), Math.round(ay + pulo)); if (dir < 0) ctx.scale(-1, 1);
+            ctx.drawImage(spriteColono(a.seed), -6, -12, 12, 12);
+            ctx.fillStyle = '#8a5a34'; ctx.fillRect(-6, -8, 3, 5); ctx.fillStyle = '#b07a48'; ctx.fillRect(-6, -8, 3, 1);   // mochila
+            ctx.restore();
+            if (zoom >= 1.6) {   // @ de quem é (perto o bastante para ler)
+              ctx.font = `6px ${fontePixel()}`; ctx.textAlign = 'center'; ctx.fillStyle = '#c9d6ff';
+              ctx.fillText(`@${a.handle}`, ax, ay - 15);
+            }
+          },
+        });
+      });
       atores.sort((a, b) => a.y - b.y);
       for (const a of atores) a.desenha();
       pessoasRef.current = pessoas;

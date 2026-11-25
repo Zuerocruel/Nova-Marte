@@ -345,6 +345,10 @@ def dados_episodios() -> dict:
             "falas": [{"id": c["id"], "fala": c["fala"]} for c in config.ler_json(rot)["cenas"]] if rot.exists() else [],
             "video": f"/midia/{pasta.name}/{v.name}?v={int(v.stat().st_mtime)}" if v else None,
             "sem_voz": bool(v and "sem_voz" in v.name),
+            # cortes curtos do Instagram/TikTok (cortes.py); o vídeo acima é o completo, que vai para o YouTube
+            "cortes": {r: f"/midia/{pasta.name}/{c.name}?v={int(c.stat().st_mtime)}"
+                       for r in ("instagram", "tiktok") if (c := pasta / f"episodio_{n:03d}_{r}.mp4").exists()},
+            "cortes_desde": pub.CORTES_DESDE,
             "gerado_em": datetime.fromtimestamp(v.stat().st_mtime, timezone.utc).isoformat(timespec="seconds") if v else None,
             "aprovado_em": e.get("aprovado_em"),
             "agendado_para": e.get("agendado_para"),
@@ -968,6 +972,9 @@ def acao_aprovar_episodio(d: dict):
     v = video_de(pasta)
     if not v:
         raise ValueError("o episódio ainda não tem vídeo")
+    faltam = [pub.ROTULOS[r] for r in ("instagram", "tiktok") if "sem_voz" not in v.name and not pub.video_da_rede(n, r).exists()]
+    if faltam:
+        raise ValueError(f"faltam os cortes curtos ({', '.join(faltam)}): rode  python cortes.py --episodio {n}  na pasta fabrica")
     auto = ESTADO.ler()["auto_postar"]
     if not auto.get("ligado") or "sem_voz" in v.name:
         ESTADO.mudar(lambda e: e["episodios"].setdefault(str(n), {}).update(aprovado_em=agora()))
