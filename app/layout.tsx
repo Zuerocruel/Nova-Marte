@@ -40,9 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <p className="rodape-logo">OPERAÇÃO MARTE ZERO</p>
           <p>A colônia cresce a cada seguidor. Siga a série e venha morar em Marte.</p>
           <RedesSociais titulo="SIGA A COLÔNIA" />
-          <p className="rodape-links">
-            <Link href="/mundo">Mundo ao vivo</Link> · <Link href="/loja">Loja</Link> · <Link href="/central">Central</Link> · <Link href="/privacidade">Privacidade</Link>
-          </p>
+          <p className="rodape-links">Pagamento via Pix · Entrega no próximo episódio da série</p>
         </footer>
       </body>
     </html>

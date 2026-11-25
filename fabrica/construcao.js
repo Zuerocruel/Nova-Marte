@@ -998,7 +998,8 @@ function cameraOb(t, s) {
   for (const key of ['tx', 'ty', 'tz', 'zoom', 'pitch']) CAM[key] = lerp(ant[key], atual[key], m);
   const voo = OB.etapas.find((x) => x.id === 'voo');
   const giroVoo = voo ? suave3((t - voo.ini) / (voo.fim - voo.ini)) * Math.PI * 2 : 0;
-  CAM.yaw = 0.75 + t * 0.045 + giroVoo + (e.id === 'abertura' ? -0.9 + k * 0.6 : 0);
+  CAM.yaw = 0.75 + t * 0.045 + giroVoo + (e.id === 'abertura' ? -0.9 + k * 0.6 : 0)
+    + lerp(ant.yaw || 0, atual.yaw || 0, m);   // giro extra opcional do plano (a obra escolhe o lado bonito)
   // close no meio da etapa: a câmera chega pertinho de quem (ou do que) está trabalhando e volta
   const close = OBR().closes[e.id];
   if (close) {
@@ -1156,6 +1157,7 @@ function desenharConstrucao(t) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(rc, 0, 0, rc.width, rc.height, 0, 0, W, H);
+  if (OBR().sobreCena) OBR().sobreCena(t, s);   // efeito da obra por cima da cena e por baixo do HUD (ex.: poeira)
   if (rebob) {   // efeito de fita voltando: listras e tremor
     ctx.globalAlpha = 0.35;
     for (let y = 0; y < H; y += 24) { ctx.fillStyle = (Math.floor(y / 24 + t * 30) % 3) ? '#ffffff22' : '#00000033'; ctx.fillRect(0, y, W, 12); }

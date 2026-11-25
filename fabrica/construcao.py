@@ -97,6 +97,43 @@ ROTEIROS = {
                     "#operacaomartezero #marte #pixelart #hidroponia #colonizarmarte"),
     },
 }
+ROTEIROS["solar"] = {
+    "nome": "Fazenda Solar",
+    "planoR": 4.6,   # campo grande: a terraplanagem deixa plano um terreno maior
+    "etapas": [
+        {"id": "abertura", "min": 6,
+         "fala": "Como se constrói uma fazenda solar em Marte, do zero? Volta comigo para o primeiro dia."},
+        {"id": "terraplanagem", "etapa": 1, "sol": 1, "titulo": "TERRAPLANAGEM", "sub": "Terreno aberto, sem sombra de colina", "min": 7.5,
+         "fala": "Etapa um: terraplanagem. O trator nivela um terreno grande e aberto, bem onde o sol bate o dia inteiro, sem nenhuma colina fazendo sombra."},
+        {"id": "estacas", "etapa": 2, "sol": 2, "titulo": "ESTACAS", "sub": "24 pilares de aço cravados no chão", "min": 19,
+         "fala": "Etapa dois: as estacas. O bate-estaca crava vinte e quatro pilares de aço no chão congelado. Eles seguram os painéis mesmo com ventos de cem quilômetros por hora."},
+        {"id": "estrutura", "etapa": 3, "sol": 4, "titulo": "ESTRUTURA", "sub": "Suportes inclinados para o sol", "min": 12,
+         "fala": "Etapa três: a estrutura. Em cada par de estacas, os colonos soldam um suporte inclinado, apontado para o sol de Marte."},
+        {"id": "paineis", "etapa": 4, "sol": 6, "titulo": "PAINÉIS SOLARES", "sub": "12 painéis trazidos pelo rover", "min": 16,
+         "fala": "Etapa quatro: os painéis. O rover traz os painéis do módulo de pouso, e a turma encaixa um por um. Em Marte, o sol tem menos da metade da força da Terra, então a fazenda precisa ser grande."},
+        {"id": "baterias", "etapa": 5, "sol": 8, "titulo": "BANCO DE BATERIAS", "sub": "Energia guardada para a noite", "min": 12,
+         "fala": "Etapa cinco: as baterias. A noite em Marte dura doze horas. Então a energia do dia fica guardada num banco de baterias, coberto de regolito para aguentar o frio."},
+        {"id": "energia", "etapa": 6, "sol": 9, "titulo": "LIGAR TUDO", "sub": "Cabo até a colônia", "min": 12,
+         "fala": "Etapa seis: ligar tudo. O cabo leva a energia das baterias até a colônia. Chave virada… e quando anoitece, as luzes acendem!"},
+        {"id": "poeira", "etapa": 7, "sol": 30, "titulo": "TEMPESTADE DE POEIRA", "sub": "Limpeza dos painéis", "min": 14,
+         "fala": "Mas Marte tem tempestades de poeira. A poeira cobre os painéis, e a energia despenca. Então os colonos limpam painel por painel com escovas eletrostáticas. Energia de volta!"},
+        {"id": "voo", "sol": 30, "min": 8,
+         "fala": "Fazenda Solar: do chão vazio à energia da colônia inteira, com a mão de cada colono."},
+        {"id": "convite", "min": 6,
+         "fala": "Qual construção você quer ver sendo feita na próxima? Comenta aí. E cada seguidor vira colono em Marte."},
+    ],
+    # capa: instante da cena (s, na linha do tempo sem voz), enquadramento e título (ajustado com --previa)
+    "capa": {"t": 101.5, "plano": {"tx": 0.0, "ty": 0.0, "tz": 0.5, "zoom": 30, "pitch": 0.42},
+             "linhas": [["COMO SE CONSTRÓI", 50, "#ffffff"], ["UMA FAZENDA", 76, "#ffd04a"],
+                        ["SOLAR", 96, "#8fe6ff"], ["EM MARTE?", 84, "#ffd04a"]],
+             "thumb": {"y0": 560, "plano": {"tx": 0.0, "ty": 0.0, "tz": 0.3, "zoom": 24, "pitch": 0.4},
+                       "linhas": [["FAZENDA SOLAR", 64, "#8fe6ff"], ["EM MARTE", 72, "#ffd04a"]]}},
+    "legenda": ("Como se constrói uma FAZENDA SOLAR em Marte? ☀️🚀 Das estacas cravadas no chão congelado até a tempestade de "
+                "poeira, etapa por etapa, com os colonos de verdade trabalhando na obra.\n\n"
+                "Qual construção você quer ver na próxima? Comenta! 👇\n"
+                "Cada seguidor vira colono na Operação Marte Zero. Link na bio 👆\n\n"
+                "#operacaomartezero #marte #pixelart #energiasolar #colonizarmarte"),
+}
 INICIO_FALA = 0.45     # respiro entre o começo da etapa e a narração
 SOBRA = 0.9            # respiro depois da fala
 
