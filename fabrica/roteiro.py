@@ -318,6 +318,15 @@ def resultado_da_votacao(n: int) -> dict | None:
             "placar": placar}
 
 
+def mao_de_obra(d: dict) -> tuple[int, int]:
+    """(quem trabalha hoje, quem trabalhava no episódio anterior): colonos + fundadores + ANDARILHOS (quem entrou
+    pelos comentários também pega no pesado, mesmo sem casa). Os andarilhos novos deste episódio só contam hoje."""
+    andarilhos = d.get("andarilhos", [])
+    hoje = d["populacao"] + len(andarilhos)
+    antes = d.get("populacao_anterior", d["populacao"]) + sum(1 for a in andarilhos if not a.get("novo"))
+    return hoje, antes
+
+
 def avanco_da_obra(d: dict, obra: dict, n: int) -> tuple[int, int]:
     """(progresso de ontem, progresso ao fim de hoje) em %, pela mão de obra da colônia."""
     p0 = int(obra.get("progresso") or 0)
@@ -325,7 +334,7 @@ def avanco_da_obra(d: dict, obra: dict, n: int) -> tuple[int, int]:
     if n == 1 or not trabalho:
         return p0, 100            # episódio 1 (já publicado) construiu a Fazenda Solar inteira
     ritmo = config.colonia().get("ritmo", {})
-    pontos = d["populacao"] * float(ritmo.get("pontos_por_pessoa", 1))
+    pontos = mao_de_obra(d)[0] * float(ritmo.get("pontos_por_pessoa", 1))
     ganho = max(1, round(100 * pontos / float(trabalho)))
     return p0, min(100, p0 + ganho)
 
@@ -336,7 +345,7 @@ def cenas_da_missao(d: dict, obra: dict, missao: dict, p0: int, p1: int, rnd: ra
     a, b = p0 / 100, p1 / 100
     meio = a + (b - a) / 2
     nome = obra["nome"]
-    pop, antes = d["populacao"], d.get("populacao_anterior", d["populacao"])
+    pop, antes = mao_de_obra(d)
     fmt = dict(obra=nome, p0=extenso(p0), p1=extenso(p1), ganho=extenso(p1 - p0),
                pop=plural(pop, "colono", "colonos"), novos=extenso(max(0, pop - antes)))
     gen = lambda textos: rnd.choice(textos).format(**fmt)

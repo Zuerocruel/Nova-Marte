@@ -784,13 +784,24 @@ function prepararAndarilhos() {
     };
     return { ...a, s, ponto, periodo: 6 + (s % 5), atraso: (s % 37) / 7, i };
   });
+  // na Missão do Dia os andarilhos também vão para a obra (eles contam na mão de obra: roteiro.mao_de_obra)
+  const miss = EP.cenas.filter((c) => c.tipo === 'missao'), obra = obraDaMissao();
+  OBRA_AND = miss.length && obra ? { ini: miss[0].inicio + 0.6, fim: miss[miss.length - 1].fim, r: retanguloDe(obra) } : null;
 }
+let OBRA_AND = null;
 function posAndarilho(a, t) {
   const passeio = (tt) => {
     const x = tt + a.atraso, k = Math.floor(x / a.periodo), f = (x - k * a.periodo) / a.periodo;
     const de = a.ponto(k), para = a.ponto(k + 1), ka = clamp(f / 0.6);
     return { x: lerp(de.x, para.x, suave(ka)), y: lerp(de.y, para.y, suave(ka)), andando: ka > 0 && ka < 1, dir: para.x >= de.x ? 1 : -1 };
   };
+  if (OBRA_AND && t >= OBRA_AND.ini && t < OBRA_AND.fim + 2.5) {   // mutirão: vai até a obra, trabalha e volta a andar
+    const lugar = pontoNaObra(OBRA_AND.r, 10 + a.i), de = passeio(OBRA_AND.ini), volta = passeio(OBRA_AND.fim + 2.5);
+    const ida = clamp((t - OBRA_AND.ini) / 2.5), vol = clamp((t - OBRA_AND.fim) / 2.5);
+    const p = t < OBRA_AND.fim ? { x: lerp(de.x, lugar.x, suave(ida)), y: lerp(de.y, lugar.y, suave(ida)), andando: ida < 1, dir: lugar.x >= de.x ? 1 : -1 }
+                               : { x: lerp(lugar.x, volta.x, suave(vol)), y: lerp(lugar.y, volta.y, suave(vol)), andando: true, dir: volta.x >= lugar.x ? 1 : -1 };
+    return { ...p, visivel: true, trabalhando: t < OBRA_AND.fim && ida >= 1 };
+  }
   const sai = tNoite + 0.8 + Math.min(a.i, 12) * 0.25;
   if (!isFinite(tNoite) || t < sai) return { ...passeio(t), visivel: true };
   const de = passeio(sai), porta = VIDA.porta, dur = clamp(Math.hypot(porta.x - de.x, porta.y - de.y) / CASA * 0.4, 1.2, 4);
@@ -803,6 +814,7 @@ function desenharAndarilhos(view, t) {
     if (!p.visivel || p.x / CASA < view.x0 - 2 || p.x / CASA > view.x1 + 2 || p.y / CASA < view.y0 - 2 || p.y / CASA > view.y1 + 2) continue;
     const chamado = chamadoAndarilho(a, t);
     let pulo = p.andando && Math.floor(t * 8 + a.s) % 2 ? -1 : 0;
+    if (p.trabalhando) pulo = Math.floor(t * 4 + a.s) % 2 ? -1 : 0;   // martelando
     if (chamado >= 0) pulo = -Math.abs(Math.sin(chamado * 7)) * 4;
     ret(p.x - 4, p.y - 1, 8, 1.5, 'rgba(0,0,0,0.22)');
     ctx.save(); ctx.translate(Math.round(p.x), Math.round(p.y + pulo));
@@ -811,6 +823,7 @@ function desenharAndarilhos(view, t) {
     ret(-6, -8, 3, 5, '#8a5a34'); ret(-6, -8, 3, 1, '#b07a48');   // mochila de quem ainda não tem casa
     ctx.restore();
     if (chamado >= 0 && Math.floor(chamado * 6) % 2) ret(p.x + 6, p.y - 12 + pulo, 2, 3, '#f2c9a0');
+    if (p.trabalhando && Math.floor(t * 4 + a.s) % 3 === 0) ret(p.x + 6 * p.dir, p.y - 8, 2, 2, COR.ouro);   // faísca
   }
 }
 function chamadoAndarilho(a, t) {
