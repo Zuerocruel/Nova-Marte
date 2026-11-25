@@ -237,8 +237,8 @@ export function blocoDeTerreno(bx: number, by: number, livre: (x: number, y: num
 }
 
 /**
- * Dunas do Norte mapeadas (votação do ep. 5 → SIM; mostrado a partir do ep. 6): área mapeada em grade, rota do rover
- * saindo do módulo, o rover estacionado e a TRILHA DESCONHECIDA (pneus em V, vermelha) com o "?" piscando.
+ * Dunas do Norte mapeadas (votação do ep. 5 → SIM; mostrado a partir do ep. 6): marcas dos pneus do rover
+ * saindo do módulo (a grade azul do mapeamento foi tirada a pedido do dono), o rover estacionado e a TRILHA DESCONHECIDA (pneus em V, vermelha) com o "?" piscando.
  * MESMA arte de desenharMapaDunas em fabrica/diretor.js (lá ela se desenha aos poucos no episódio).
  */
 export const TRILHA_DUNAS_DESDE = 6;
@@ -260,17 +260,14 @@ export function desenharTrilhaDunas(c: Ctx, base: Geo, t: number) {
     if (i) pts.push({ x: a, y });
     pts.push({ x: b, y });
   }
-  c.globalAlpha = 0.1; ret(c, D.x - 135, D.y - 160, 270, 290, '#3fd0c9');
-  c.globalAlpha = 0.22; c.fillStyle = '#8fe6ff';
-  for (let x = D.x - 135; x <= D.x + 135; x += 30) c.fillRect(x, D.y - 160, 1, 290);
-  for (let y = D.y - 160; y <= D.y + 130; y += 30) c.fillRect(D.x - 135, y, 270, 1);
-  c.globalAlpha = 1; c.fillStyle = '#3fd0c9';
-  for (let x = D.x - 135; x < D.x + 135; x += 8) { c.fillRect(x, D.y - 160, 4, 2); c.fillRect(x, D.y + 128, 4, 2); }
-  for (let y = D.y - 160; y < D.y + 130; y += 8) { c.fillRect(D.x - 135, y, 2, 4); c.fillRect(D.x + 133, y, 2, 4); }
-  c.fillStyle = '#bff8ff'; c.globalAlpha = 0.55;   // rota do rover (discreta: passa por cima do bairro)
+  // rota do rover: só as marcas dos pneus na areia (duas fileiras de sulcos), sem a grade do mapeamento
+  c.globalAlpha = 0.6;
   for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1], b = pts[i], d = Math.hypot(b.x - a.x, b.y - a.y);
-    for (let s = 0; s <= d; s += 8) c.fillRect(Math.round(a.x + (b.x - a.x) * s / d) - 1, Math.round(a.y + (b.y - a.y) * s / d) - 1, 2, 2);
+    const a = pts[i - 1], b = pts[i], d = Math.hypot(b.x - a.x, b.y - a.y), ux = (b.x - a.x) / d, uy = (b.y - a.y) / d;
+    for (let s = 0; s <= d; s += 4) for (const lado of [-3, 3]) {
+      c.fillStyle = (s / 4) % 2 ? '#8f4129' : '#b85a37';
+      c.fillRect(Math.round(a.x + ux * s - uy * lado) - 1, Math.round(a.y + uy * s + ux * lado) - 1, 2, 2);
+    }
   }
   c.globalAlpha = 1;
   const fim = pts[pts.length - 1];
