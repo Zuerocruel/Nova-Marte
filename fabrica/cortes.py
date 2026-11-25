@@ -79,20 +79,32 @@ def _novos(d: dict, abre: str, max_nomes: int = 4) -> dict | None:
                   colonos=[c["codigo"] for c in mostrados])
 
 
+def _andarilhos(d: dict, rnd: random.Random) -> dict | None:
+    """Quem entrou pelos comentários hoje (andarilhos novos): cena curta com o @ de cada um."""
+    novos = [a for a in d.get("andarilhos", []) if a.get("novo")][:3]
+    if not novos:
+        return None
+    f = R.Fala().add(rnd.choice(["E pelos comentários chegou: ", "Entrou pelos comentários: "]))
+    f.lista([(R.handle_falado(a["handle"]), f"andarilho:{a['handle']}") for a in novos]).add("!")
+    return R.cena("andarilhos", "andarilhos", f, camera={"alvo": "colonia", "zoom": 4.5})
+
+
 def _obra(r: dict, rnd: random.Random) -> list[dict]:
     """A obra do dia em 1 cena (ou 2 no dia da inauguração: a última cena é a da obra ligando)."""
     missao = [c for c in r["cenas"] if c["tipo"] == "missao"]
     p0, p1 = r["obra_progresso"]
     nome = next((o["nome"] for o in config.colonia()["obras"] if o["slug"] == r["missao_obra"]), "obra")
+    fem = nome.split()[0].lower().endswith("a")   # Estufa → a; Extrator → o
+    art, pronta = ("a", "pronta") if fem else ("o", "pronto")
     limpa = lambda c, **k: {**{x: v for x, v in c.items() if x not in ("marcas",)}, "marcas": [], **k}
     if r["obra_concluida"] and len(missao) >= 5:
         a = p0 / 100
         constroi = R.cena("missao_1", "missao", R.Fala().add(rnd.choice([
-            f"E a {nome} ficou pronta hoje!", f"Último dia de obra: a {nome} chega a cem por cento!"])),
+            f"E {art} {nome} ficou {pronta} hoje!", f"Último dia de obra: {art} {nome} chega a cem por cento!"])),
             passo=4, acao="construir", camera={"alvo": "obra", "zoom": 6}, extra=0, progresso=[a, 1], atores={})
         liga = limpa(missao[4], id="missao_2", passo=5)
         return [constroi, liga]
-    fala = rnd.choice([f"Enquanto isso, a {nome} chegou a {R.extenso(p1)} por cento.",
+    fala = rnd.choice([f"Enquanto isso, {art} {nome} chegou a {R.extenso(p1)} por cento.",
                        f"E a obra não para: {nome}, {R.extenso(p1)} por cento."])
     return [R.cena("missao_1", "missao", R.Fala().add(fala), passo=4, acao="construir",
                    camera={"alvo": "obra", "zoom": 6}, extra=0, progresso=[p0 / 100, p1 / 100], atores={})]
@@ -140,6 +152,8 @@ def montar(d: dict, r: dict, rede: str) -> dict:
         novos = _novos(d, rnd.choice(NOVOS_IG))
         if novos:
             cenas.append(novos)
+        if (andar := _andarilhos(d, rnd)):
+            cenas.append(andar)
         chamada = R.Fala().add(rnd.choice(CHAMADA_IG))
     else:   # tiktok: termina no suspense, sem a solução
         molde = rnd.choice(NOME_TT)
@@ -149,6 +163,8 @@ def montar(d: dict, r: dict, rede: str) -> dict:
         novos = _novos(d, rnd.choice(NOVOS_TT), max_nomes=3)
         if novos:
             cenas.append(novos)
+        if (andar := _andarilhos(d, rnd)):
+            cenas.append(andar)
         cenas += _obra(r, rnd)
         chamada = R.fala_com_heroi(rnd.choice(CHAMADA_TT), curto)
     cenas.append(R.cena("youtube", "youtube", chamada, camera=cam if rede == "tiktok" else {"alvo": "panorama", "zoom": 2.4}))

@@ -42,6 +42,8 @@ import type { MensagemChat } from '@/app/api/chat/route';
  * rádio ganha um balão com a mensagem. Tudo segue o relógio: todo mundo vê a mesma cena.
  */
 const RECARREGA_MS = 30_000;
+// cor da rede de onde o andarilho veio (remendo na mochila e quadradinho antes do @), igual ao vídeo
+const COR_REDE: Record<string, string> = { youtube: '#ff3b3b', instagram: '#e1306c', tiktok: '#25f4ee' };
 const ZOOM_MIN = 0.2, ZOOM_MAX = 8;   // 0.2: o hexágono inteiro cabe na tela
 
 // ---- mapa em HEXÁGONO (bordas arredondadas, minimalista): a colônia mora dentro; fora é o espaço.
@@ -616,10 +618,16 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
             ctx.save(); ctx.translate(Math.round(ax), Math.round(ay + pulo)); if (dir < 0) ctx.scale(-1, 1);
             ctx.drawImage(spriteColono(a.seed), -6, -12, 12, 12);
             ctx.fillStyle = '#8a5a34'; ctx.fillRect(-6, -8, 3, 5); ctx.fillStyle = '#b07a48'; ctx.fillRect(-6, -8, 3, 1);   // mochila
+            const corRede = COR_REDE[a.rede];
+            if (corRede) { ctx.fillStyle = corRede; ctx.fillRect(-5, -6, 1, 2); }   // remendo sutil da rede de origem
             ctx.restore();
             if (zoom >= 1.6) {   // @ de quem é (perto o bastante para ler)
               ctx.font = `6px ${fontePixel()}`; ctx.textAlign = 'center'; ctx.fillStyle = '#c9d6ff';
               ctx.fillText(`@${a.handle}`, ax, ay - 15);
+              if (corRede) {   // quadradinho da rede antes do @
+                const lx = ax - ctx.measureText(`@${a.handle}`).width / 2 - 5;
+                ctx.fillStyle = '#1b1530'; ctx.fillRect(lx - 1, ay - 20, 5, 5); ctx.fillStyle = corRede; ctx.fillRect(lx, ay - 19, 3, 3);
+              }
             }
           },
         });

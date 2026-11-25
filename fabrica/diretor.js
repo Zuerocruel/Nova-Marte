@@ -164,7 +164,7 @@ const MAPAS = {
   ],
   // pet sentado: tirado da arte nova (fabrica/pet.js), para o ícone do item
   pet: ['...............', '...............', '.........CcCCC.', '.........ccCKC.', '.........ccCCwK', '.........ccwwww', '......CCCVV....', '.....NNCCCY....', '.....NNCCww....', '....CCCCCww....', '....CCCCCww....', '....CCCCCcC....', 'wCCCCCCC.cC....', '...wwww..ww....', '...............'],
-  rover: ['........', '..GG....', '..GV....', '.WWWWWW.', 'WWWWWWWW', 'WOOWWOOW', '.KK..KK.', '........'],
+  rover: ['.gVg....', '..G.....', '..G...WW', 'LLLLLWVV', 'WWWWWWWW', 'WOOWWWgW', 'KK.KK.KK', 'KK.KK.KK'],   // mastro com câmera, painel solar, 3 rodas
   foguete: ['...WW...', '..WWWW..', '..WVVW..', '..WWWW..', '..WOOW..', '.OWWWWO.', '.O.YY.O.', '...YY...'],
   bandeira: ['KTTTTT..', 'KTTTTT..', 'KTYYTT..', 'KTTTTT..', 'K.......', 'K.......', 'K.......', 'KK......'],
   monumento: ['...YY...', '...YY...', '..YYYY..', '..YYYY..', '..YYYY..', '.YYYYYY.', '.GGGGGG.', 'GGGGGGGG'],
@@ -774,6 +774,13 @@ function planejarNoite() {
 // Quem entrou pelos comentários dizendo a profissão e ainda não se cadastrou no site: não tem casa. Anda de um
 // ponto a outro em volta da colônia (caminho fixo pelo seed) e, quando anoitece, vai para o Módulo de Pouso.
 let ANDARILHOS = [];
+// cor da rede de onde a pessoa veio: um remendo sutil na mochila e um quadradinho antes do @ (sem logo de marca)
+const COR_ORIGEM = { youtube: '#ff3b3b', instagram: '#e1306c', tiktok: '#25f4ee' };
+function marcaRede(rede, x, y, tam) {   // quadradinho com borda escura, centrado em (x, y)
+  const c = COR_ORIGEM[rede];
+  if (!c) return;
+  ret(x - tam / 2 - 2, y - tam / 2 - 2, tam + 4, tam + 4, '#1b1530'); ret(x - tam / 2, y - tam / 2, tam, tam, c);
+}
 function prepararAndarilhos() {
   const ctr = caixaColonia();
   ANDARILHOS = (EP.mundo.andarilhos || []).map((a, i) => {
@@ -821,6 +828,7 @@ function desenharAndarilhos(view, t) {
     if (p.dir < 0) ctx.scale(-1, 1);
     ctx.drawImage(spriteColono(a.seed), -6, -12, 12, 12);
     ret(-6, -8, 3, 5, '#8a5a34'); ret(-6, -8, 3, 1, '#b07a48');   // mochila de quem ainda não tem casa
+    if (COR_ORIGEM[a.rede]) ret(-5, -6, 1, 2, COR_ORIGEM[a.rede]);       // remendo da rede de origem
     ctx.restore();
     if (chamado >= 0 && Math.floor(chamado * 6) % 2) ret(p.x + 6, p.y - 12 + pulo, 2, 3, '#f2c9a0');
     if (p.trabalhando && Math.floor(t * 4 + a.s) % 3 === 0) ret(p.x + 6 * p.dir, p.y - 8, 2, 2, COR.ouro);   // faísca
@@ -2560,6 +2568,8 @@ function cartao(cena, t, cam) {
       if (!a) return;
       ctx.globalAlpha = a ? fadeCena(cena, t) * clamp((t - f.t) / 0.3) : 0;
       texto(`@${a.handle}`, W / 2, 400 + i * 92 - sobe, 30, COR.texto, { maxW: W - 160 });
+      // fonte pixel é monoespaçada (1 em por letra): o quadradinho da rede fica logo antes do @
+      marcaRede(a.rede, W / 2 - Math.min(W - 160, (a.handle.length + 1) * 30) / 2 - 22, 400 + i * 92 - sobe - 11, 12);
       if (a.cargo_nome) texto(a.cargo_nome.toUpperCase(), W / 2, 436 + i * 92 - sobe, 18, COR.agua, { contorno: false, maxW: W - 160 });
     });
   } else if (cena.tipo === 'cratera') {

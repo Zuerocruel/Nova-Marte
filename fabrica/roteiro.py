@@ -233,19 +233,19 @@ GANCHOS = [   # fim de TODO episódio: chamada para o site + "concorre a líder 
 ]
 
 # Missão do Dia quando a obra NÃO termina e/ou NÃO começa no episódio (a obra leva vários dias)
-RETOMAR = ["Missão do Dia: continuar a obra da {obra}. Ontem paramos em {p0} por cento.",
-           "De volta ao canteiro: a {obra} está em {p0} por cento. Hora de trabalhar."]
+RETOMAR = ["Missão do Dia: continuar a obra {da} {obra}. Ontem paramos em {p0} por cento.",
+           "De volta ao canteiro: {a} {obra} está em {p0} por cento. Hora de trabalhar."]
 MAO_DE_OBRA_IGUAL = ["Hoje são {pop} na obra. Cada colono é mais uma mão trabalhando.",
                      "A equipe segue com {pop}. Quanto mais gente, mais rápido a obra anda."]
 MAO_DE_OBRA_MAIS = ["Hoje a obra ganhou reforço: são {pop} trabalhando, {novos} a mais que ontem.",
                     "Com {novos} recém-chegados, a equipe da obra cresceu para {pop}."]
-CONSTRUIR = ["Viga por viga, a {obra} vai tomando forma.",
+CONSTRUIR = ["Viga por viga, {a} {obra} vai tomando forma.",
              "Os robôs de carga trazem material do módulo de pouso, e a estrutura sobe mais um pouco.",
-             "Solda, encaixe, aperto. A {obra} está cada vez mais perto de ficar pronta."]
-AVANCO = ["Fim do turno: a {obra} chegou a {p1} por cento.",
-          "Hoje a obra avançou {ganho} por cento. Já são {p1} por cento da {obra}."]
+             "Solda, encaixe, aperto. {A} {obra} está cada vez mais perto de ficar {pronta}."]
+AVANCO = ["Fim do turno: {a} {obra} chegou a {p1} por cento.",
+          "Hoje a obra avançou {ganho} por cento. Já são {p1} por cento {da} {obra}."]
 FIM_DO_DIA = ["O sol se põe em Marte. Amanhã a obra continua, e cada novo colono deixa a construção mais rápida.",
-              "Ferramentas guardadas. Quando a {obra} fica pronta? Depende de você: quanto mais colonos, mais rápido ela sai."]
+              "Ferramentas guardadas. Quando {a} {obra} fica {pronta}? Depende de você: quanto mais colonos, mais rápido {ela} sai."]
 
 
 
@@ -346,7 +346,9 @@ def cenas_da_missao(d: dict, obra: dict, missao: dict, p0: int, p1: int, rnd: ra
     meio = a + (b - a) / 2
     nome = obra["nome"]
     pop, antes = mao_de_obra(d)
-    fmt = dict(obra=nome, p0=extenso(p0), p1=extenso(p1), ganho=extenso(p1 - p0),
+    fem = nome.split()[0].lower().endswith("a")   # Estufa → a; Extrator, Reator → o
+    fmt = dict(obra=nome, a="a" if fem else "o", A="A" if fem else "O", da="da" if fem else "do",
+               pronta="pronta" if fem else "pronto", ela="ela" if fem else "ele", p0=extenso(p0), p1=extenso(p1), ganho=extenso(p1 - p0),
                pop=plural(pop, "colono", "colonos"), novos=extenso(max(0, pop - antes)))
     gen = lambda textos: rnd.choice(textos).format(**fmt)
 
@@ -525,7 +527,7 @@ def montar(d: dict) -> dict:
         cenas.append(cena(f"missao_{i}", "missao", Fala().add(mc["fala"]),
                           passo=i, acao=mc["acao"], camera=mc["camera"], extra=mc.get("extra", 0),
                           progresso=mc["progresso"], atores=mc["atores"]))
-    proxima = missao["proxima"] if concluida else f"a obra da {obra['nome']} continua"
+    proxima = missao["proxima"] if concluida else f"a obra {'da' if obra['nome'].split()[0].lower().endswith('a') else 'do'} {obra['nome']} continua"
 
     # 5a'. obra pronta hoje: no fim do dia a colônia já começa a PRÓXIMA obra e deixa a fundação pronta
     obra_extra = None

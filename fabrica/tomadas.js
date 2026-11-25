@@ -661,27 +661,43 @@ function tomadaAbrigo(t, k) {
   };
 }
 
-// ---- rover (de lado, pixel art): 3 rodas à vista com raios girando, suspensão, mastro com lidar e antena
+// ---- rover (de lado, pixel art): 6 rodas (3 à vista) redondas com garras e raios girando, suspensão
+// rocker-bogie ligando as rodas ao chassi, deck de painéis solares, caixa de instrumentos, mastro com câmera e antena
 function roverT(x, chao, t, o = {}) {
-  const s = o.s || 1.5;
-  tx.save(); tx.translate(Math.round(x), Math.round(chao)); tx.rotate(o.ang || 0); tx.scale(s, s);
-  const b = o.anda ? Math.round(Math.sin(t * 18) * 0.6) : 0, F = (x2, y2, w, h, c) => { tx.fillStyle = c; tx.fillRect(x2, y2, w, h); };
-  for (const wx of [-26, 0, 26]) {
-    F(wx - 2, -22 + b, 4, 8, '#9aa0b5');
-    F(wx - 8, -16, 16, 16, '#2a2140'); F(wx - 5, -13, 10, 10, '#6b6f86');
-    const a = o.anda ? t * 9 : 0;
-    for (let q = 0; q < 4; q++) { const aa = a + q * Math.PI / 2; F(wx + Math.cos(aa) * 4 - 1, -8 + Math.sin(aa) * 4 - 1, 2, 2, '#c9ced9'); }
-    F(wx - 1, -9, 2, 2, '#1b1530');
+  const s = o.s || 1.5, ang = clamp(o.ang || 0, -0.22, 0.22);
+  tx.save(); tx.translate(Math.round(x), Math.round(chao)); tx.rotate(ang); tx.scale(s, s);
+  const b = o.anda ? Math.round(Math.sin(t * 14) * 0.6) : 0;
+  const F = (x2, y2, w, h, c) => { tx.fillStyle = c; tx.fillRect(Math.round(x2), Math.round(y2), w, h); };
+  const L = (x1, y1, x2, y2, w, c) => { tx.strokeStyle = c; tx.lineWidth = w; tx.lineCap = 'square'; tx.beginPath(); tx.moveTo(x1, y1); tx.lineTo(x2, y2); tx.stroke(); };
+  const giro = o.anda ? t * 7 : 0, R0 = 9, rodas = [-27, -1, 25];
+  // suspensão (atrás das rodas): rocker do pivô do chassi até a roda de trás e até o bogie; bogie nas 2 da frente
+  const piv = [-6, -25 + b], bog = [12, -16];
+  L(piv[0], piv[1], rodas[0], -R0, 3, '#6b6f86'); L(piv[0], piv[1], bog[0], bog[1], 3, '#6b6f86');
+  L(bog[0], bog[1], rodas[1], -R0, 3, '#6b6f86'); L(bog[0], bog[1], rodas[2], -R0, 3, '#6b6f86');
+  F(piv[0] - 2, piv[1] - 2, 4, 4, '#c9ced9'); F(bog[0] - 2, bog[1] - 2, 4, 4, '#c9ced9');
+  for (const wx of rodas) {   // roda: pneu escuro redondo, garras na borda, aro claro e raios girando
+    tx.fillStyle = '#2a2140'; tx.beginPath(); tx.arc(wx, -R0, R0, 0, Math.PI * 2); tx.fill();
+    for (let q = 0; q < 10; q++) { const a = giro + q * Math.PI / 5; F(wx + Math.cos(a) * (R0 - 0.5) - 1, -R0 + Math.sin(a) * (R0 - 0.5) - 1, 2, 2, '#4a4466'); }
+    tx.fillStyle = '#9aa0b5'; tx.beginPath(); tx.arc(wx, -R0, 5.5, 0, Math.PI * 2); tx.fill();
+    for (let q = 0; q < 3; q++) { const a = giro + q * Math.PI * 2 / 3; L(wx, -R0, wx + Math.cos(a) * 5, -R0 + Math.sin(a) * 5, 1.5, '#6b6f86'); }
+    F(wx - 1.5, -R0 - 1.5, 3, 3, '#eef0f8');
   }
-  F(-38, -34 + b, 76, 12, '#eef0f8'); F(-38, -24 + b, 76, 3, '#9aa0b5'); F(-38, -34 + b, 76, 2, '#ffffff');
-  F(-30, -31 + b, 12, 4, '#e2603b'); F(-14, -31 + b, 3, 4, '#e2603b');
-  F(6, -50 + b, 30, 17, '#eef0f8'); F(10, -47 + b, 22, 9, '#3fd0c9'); F(12, -46 + b, 6, 3, '#bff8ff');
-  F(-24, -60 + b, 3, 26, '#9aa0b5'); F(-30, -66 + b, 15, 6, '#c9ced9');
-  F(-24 + Math.round(Math.cos(t * 4) * 5) - 1, -65 + b, 3, 3, '#3fd0c9');
-  F(-35, -74 + b, 1, 40, '#6b6f86'); if (Math.floor(t * 3) % 2) F(-36, -76 + b, 3, 3, '#ff4d4d');
-  if (o.farol) F(36, -44 + b, 3, 4, '#fff4c2');
+  // chassi (caixa branca com faixa e sombra embaixo), apoiado na suspensão
+  F(-36, -36 + b, 70, 11, '#eef0f8'); F(-36, -27 + b, 70, 3, '#9aa0b5'); F(-36, -36 + b, 70, 2, '#ffffff');
+  F(-30, -33 + b, 14, 3, '#e2603b'); F(-13, -33 + b, 3, 3, '#e2603b'); F(22, -33 + b, 8, 4, '#2a2140');
+  // deck de painéis solares em cima do chassi
+  F(-38, -40 + b, 50, 4, '#2c4fb8'); for (let i = 0; i < 5; i++) F(-37 + i * 10, -39 + b, 8, 2, '#4a6ff0');
+  // caixa de instrumentos na frente, com a janelinha do sensor
+  F(14, -48 + b, 20, 12, '#eef0f8'); F(17, -45 + b, 13, 6, '#3fd0c9'); F(18, -44 + b, 4, 2, '#bff8ff');
+  // mastro com a cabeça da câmera (o lidar gira dentro) e a antena com luz piscando
+  F(5, -66 + b, 3, 26, '#9aa0b5'); F(-1, -72 + b, 15, 7, '#c9ced9'); F(10, -70 + b, 3, 3, '#2a2140');
+  F(5 + Math.round(Math.cos(t * 4) * 4), -71 + b, 3, 3, '#3fd0c9');
+  F(-30, -62 + b, 1, 22, '#6b6f86'); F(-33, -63 + b, 7, 2, '#9aa0b5'); if (Math.floor(t * 3) % 2) F(-31, -66 + b, 3, 3, '#ff4d4d');
+  if (o.farol) F(34, -44 + b, 3, 4, '#fff4c2');
   tx.restore();
-  return { lidar: { x: x + (-22 * s) * Math.cos(o.ang || 0) + 63 * s * Math.sin(o.ang || 0), y: chao - 63 * s } };
+  // ponta do lidar (na cabeça do mastro), já com a rotação e a escala do rover
+  const lx = 12 * s, ly = (-70 + b) * s, c = Math.cos(ang), sn = Math.sin(ang);
+  return { lidar: { x: x + lx * c - ly * sn, y: chao + lx * sn + ly * c } };
 }
 
 // ---- 5. RESULTADO a: o rover atravessando as dunas e mapeando (feixe do lidar varrendo a areia)
@@ -970,9 +986,343 @@ function tomadaCorreio(t, k, cena) {
   };
 }
 
+// ------------------------------------------------------------------ TOMADAS EXCLUSIVAS DOS CORTES (Instagram/TikTok)
+// Só entram quando EP.curto existe: o vídeo curto não recicla o episódio do YouTube. Cortes de 1,5–3 s, câmera
+// colada no assunto: o rosto do herói no alarme, a máquina soltando faísca, o herói correndo pelo corredor,
+// a broca da obra furando o chão e os novos colonos chegando pela crista da duna contra o sol.
+
+// 1. close no ROSTO do herói: luz vermelha girando, olho que corre de um lado para o outro e arregala, gota de suor
+function curtoRosto(t, k, cena) {
+  const h = heroiDaTomada(), pal = h.pal, fim = cena && cena.tipo === 'youtube', feliz = fim && EP.curto === 'instagram';
+  R(0, 0, TW, TH, '#120c1c');
+  const susto = !feliz && k > 0.35;
+  TREMOR = susto ? 0.5 : 0.15;
+  // cabeça gigante (ocupa a tela): pele, cabelo/chapéu, orelha, sombra do lado
+  const x0 = 38, x1 = TW - 38, y0 = 110, y1 = 430;
+  R(x0, y0, x1 - x0, y1 - y0, pal.pele);
+  R(x0, y0, 22, y1 - y0, escurece(pal.pele, 0.82));
+  R(x0, y0 - 18, x1 - x0, 64, pal.cabelo); R(x0 - 8, y0 + 30, 20, 110, pal.cabelo);
+  if (pal.chapeu) R(x0 - 14, y0 + 34, x1 - x0 + 28, 14, escurece(pal.cabelo, 0.8));
+  R(x1 - 10, y0 + 120, 18, 44, escurece(pal.pele, 0.85));
+  // olhos: correm (procurando o alarme) e depois arregalam
+  const olha = susto ? 0 : Math.sign(Math.sin(t * 5)) * 7, arregala = susto ? 1 : 0;
+  for (const ox of [TW * 0.36, TW * 0.64]) {
+    const w = 34 + arregala * 6, hh = 24 + arregala * 14;
+    R(ox - w / 2, 230 - hh / 2, w, hh, '#ffffff');
+    R(ox - 7 + olha, 230 - 7, 14, 14, '#1b1530'); R(ox - 3 + olha, 230 - 5, 4, 4, '#ffffff');
+    R(ox - w / 2 - 2, 230 - hh / 2 - 16 - arregala * 10, w + 4, 6, escurece(pal.cabelo, 0.9));   // sobrancelha sobe
+  }
+  // boca: reta → "O" de susto
+  if (feliz) { R(TW / 2 - 30, 346, 60, 8, '#1b1530'); R(TW / 2 - 36, 338, 8, 8, '#1b1530'); R(TW / 2 + 28, 338, 8, 8, '#1b1530'); }
+  else if (susto) { R(TW / 2 - 13, 340, 26, 30, '#1b1530'); R(TW / 2 - 9, 360, 18, 8, '#7a2a2a'); }
+  else R(TW / 2 - 20, 352, 40, 5, '#1b1530');
+  // gota de suor escorrendo
+  if (!feliz && k > 0.45) { const q = ((k - 0.45) * 2.2) % 1; R(x1 - 46, 170 + q * 120, 8, 12, '#bff8ff'); R(x1 - 44, 166 + q * 120, 4, 4, '#bff8ff'); }
+  // luz de alarme girando por cima (ou a luz fria do "e agora?" no fim)
+  tx.globalCompositeOperation = 'lighter';
+  const ang = t * 4, cx = TW / 2 + Math.cos(ang) * 160, g = tx.createRadialGradient(cx, 160, 10, cx, 160, 260);
+  g.addColorStop(0, fim ? 'rgba(120,180,255,0.35)' : 'rgba(255,50,50,0.5)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  tx.fillStyle = g; tx.fillRect(0, 0, TW, TH);
+  tx.globalCompositeOperation = 'source-over';
+  tx.globalAlpha = 0.3; R(0, 0, TW, 60, '#000'); R(0, TH - 50, TW, 50, '#000'); tx.globalAlpha = 1;
+  return () => {
+    texto(h.nome.toUpperCase(), W / 2, 230, 64, '#ffffff', { maxW: W - 120 });
+    if (feliz) {   // botão de play do YouTube desenhado (sem logo): retângulo vermelho com triângulo branco
+      const s = 1 + Math.sin(t * 6) * 0.05, bw = 260 * s, bh = 180 * s, py = 1600, bx = W / 2 - bw / 2, by = py - bh / 2;
+      ret(bx, by, bw, bh, '#ff3b3b'); ctx.fillStyle = '#ffffff'; ctx.beginPath();
+      ctx.moveTo(W / 2 - 40 * s, py - 50 * s); ctx.lineTo(W / 2 + 55 * s, py); ctx.lineTo(W / 2 - 40 * s, py + 50 * s); ctx.fill();
+    } else if (fim) { if (Math.floor(t * 2) % 2) texto('?', W / 2 + 330, 560, 200, COR.ouro); }
+    else if (susto && Math.floor(t * 4) % 2) texto('!', W / 2 + 330, 520, 160, COR.alerta);
+  };
+}
+
+// 2. MACRO na máquina do problema: faíscas estourando, fumaça, luz piscando, câmera passando devagar
+function curtoFaisca(t, k) {
+  const cat = (EP.problema || {}).categoria, L = leitura();
+  R(0, 0, TW, TH, '#0e0a18');
+  const esc = 7.2, cx = TW / 2 + lerp(30, -30, k), base = TH * 0.86;
+  objeto(cat, cx, base, esc, t, 0);
+  const pf = { x: cx + 6 * esc, y: base - 26 * esc };   // de onde sai a faísca
+  const fase = (t * 1.3) % 1, estouro = fase < 0.22;
+  TREMOR = estouro ? 1.2 : 0.2;
+  if (estouro) {
+    tx.globalCompositeOperation = 'lighter';
+    const g = tx.createRadialGradient(pf.x, pf.y, 0, pf.x, pf.y, 90);
+    g.addColorStop(0, 'rgba(255,240,190,0.9)'); g.addColorStop(1, 'rgba(255,140,40,0)');
+    tx.fillStyle = g; tx.fillRect(pf.x - 90, pf.y - 90, 180, 180);
+    tx.globalCompositeOperation = 'source-over';
+    const f = Math.floor(t * 1.3);
+    for (let i = 0; i < 26; i++) {
+      const a = hashT(i, f) * Math.PI * 2, v = 30 + hashT(i + 9, f) * 90, q = fase / 0.22;
+      R(pf.x + Math.cos(a) * v * q, pf.y + Math.sin(a) * v * q + 40 * q * q, 3, 3, i % 3 ? COR.ouro : '#ffffff');
+    }
+  }
+  for (let i = 0; i < 7; i++) {   // fumaça subindo
+    const q = (t * 0.35 + i / 7) % 1;
+    tx.globalAlpha = (1 - q) * 0.45; tx.fillStyle = '#4a4466';
+    tx.beginPath(); tx.arc(pf.x + Math.sin(t + i * 2) * 14, pf.y - q * 200, 10 + q * 30, 0, 7); tx.fill();
+  }
+  tx.globalAlpha = 0.12 + (Math.floor(t * 6) % 2) * 0.12; R(0, 0, TW, TH, '#ff2020'); tx.globalAlpha = 1;
+  return () => { if (Math.floor(t * 3) % 3) texto(L.ruim, W / 2, 330, 44, COR.alerta, { maxW: W - 100 }); };
+}
+
+// 3. o herói CORRENDO pelo corredor da base: paredes passando rápido, lâmpadas vermelhas, riscos de velocidade
+function curtoCorredor(t, k) {
+  const h = heroiDaTomada(), chao = TH * 0.66, vel = 260, off = t * vel;
+  R(0, 0, TW, chao, '#2b2f45');
+  for (let x = -((off) % 60); x < TW; x += 60) {   // chapas e portas passando
+    R(x, 40, 3, chao - 40, '#1f2234');
+    if (Math.floor((x + off) / 60) % 3 === 0) { R(x + 14, chao - 150, 34, 150, '#1b1530'); R(x + 18, chao - 146, 26, 142, '#3a2f63'); R(x + 38, chao - 80, 4, 8, COR.ouro); }
+  }
+  for (let x = -((off * 0.5) % 120); x < TW; x += 120) {   // lâmpadas de alarme no teto
+    const on = Math.floor(t * 6) % 2;
+    R(x + 50, 30, 20, 10, on ? '#ff4d4d' : '#7a2a2a');
+    if (on) { tx.globalAlpha = 0.25; tx.fillStyle = '#ff3030'; tx.beginPath(); tx.moveTo(x + 50, 40); tx.lineTo(x + 70, 40); tx.lineTo(x + 120, chao); tx.lineTo(x, chao); tx.fill(); tx.globalAlpha = 1; }
+  }
+  R(0, chao, TW, TH - chao, '#1d2031');
+  for (let x = -((off * 1.4) % 40); x < TW; x += 40) R(x, chao + 6, 22, 3, '#2c3047');
+  // riscos de velocidade
+  for (let i = 0; i < 14; i++) { const y = 60 + hashT(i, 3) * (TH - 100), x = TW - ((t * 900 + hashT(i, 4) * TW) % (TW + 80)); tx.globalAlpha = 0.35; R(x, y, 40 + hashT(i, 5) * 50, 2, '#ffffff'); }
+  tx.globalAlpha = 1;
+  TREMOR = 0.7;
+  const r = ator(h.pal, { x: TW * 0.42, chao, dir: 1, anda: t * 24, susto: true, cabeca: -2 }, t, 5.4);
+  return etiquetaT(h.nome, r.cab, 5.4);
+}
+
+// 4. a BROCA da obra: torre de perfuração, broca girando e descendo pelo regolito até o gelo, pedras voando
+function curtoBroca(t, k, cena) {
+  const o = EP.mundo.obras.find((x) => x.slug === EP.missao_obra) || {}, [p0, p1] = (cena && cena.progresso) || [0, 1];
+  const g = tx.createLinearGradient(0, 0, 0, TH * 0.42);
+  g.addColorStop(0, '#d98a5c'); g.addColorStop(1, '#f2b98a'); tx.fillStyle = g; tx.fillRect(0, 0, TW, TH * 0.42);
+  const sup = TH * 0.42;
+  R(0, sup, TW, 70, '#a24c30'); R(0, sup + 70, TW, 90, '#8f4129'); R(0, sup + 160, TW, TH - sup - 160, '#9fd8e8');   // regolito → rocha → gelo
+  for (let i = 0; i < 40; i++) R(hashT(i, 1) * TW, sup + hashT(i, 2) * 160, 5, 3, i % 2 ? '#7a3520' : '#b85a37');
+  for (let i = 0; i < 16; i++) R(hashT(i, 3) * TW, sup + 170 + hashT(i, 4) * (TH - sup - 180), 8, 2, '#e8f8ff');
+  const fundo = sup + lerp(20, 230, saida(clamp(k / 0.85))), bx = TW / 2;
+  R(bx - 22, sup - 150, 6, 150, '#ffc83d'); R(bx + 16, sup - 150, 6, 150, '#ffc83d');   // torre
+  for (let y = sup - 140; y < sup; y += 22) { R(bx - 18, y, 36, 3, '#e0a920'); }
+  R(bx - 30, sup - 160, 60, 14, '#e2603b'); R(bx - 6, sup - 146, 12, fundo - sup + 146 - 30, '#9aa0b5');   // haste
+  R(bx - 26, sup - 6, 52, 10, '#4a4466');
+  // broca: espiral girando (listras inclinadas que sobem)
+  tx.save(); tx.beginPath(); tx.moveTo(bx - 16, fundo - 40); tx.lineTo(bx + 16, fundo - 40); tx.lineTo(bx, fundo); tx.closePath(); tx.clip();
+  R(bx - 16, fundo - 40, 32, 40, '#c9ced9');
+  for (let i = -3; i < 6; i++) { const y = fundo - 40 + ((i * 10 + t * 60) % 50); R(bx - 16, y, 32, 4, '#6b6f86'); }
+  tx.restore();
+  R(bx - 18, fundo - 40, 36, 2, '#1b1530');
+  // pedaços voando para fora do buraco (rocha ou gelo, conforme a profundidade)
+  const gelo = fundo > sup + 160;
+  for (let i = 0; i < 18; i++) {
+    const q = (t * 1.8 + i / 18) % 1, lado = i % 2 ? 1 : -1, x = bx + lado * (20 + q * 90 * hashT(i, 7)), y = sup - Math.sin(q * Math.PI) * 70 * hashT(i, 8);
+    R(x, y, 4, 4, gelo && i % 3 ? '#e8f8ff' : '#7a3520');
+  }
+  TREMOR = 0.6;
+  const c = colonoQualquer(1), r = ator(c.pal, { x: TW * 0.18, chao: sup, dir: 1, maoF: { x: TW * 0.18 + 22, y: sup - 66 }, maoT: { x: TW * 0.18 + 18, y: sup - 62 } }, t, 3.2);
+  ferramentaT('tablet', r.maoF, r.cotF, t, 3.2);
+  const p = Math.round(lerp(p0, p1, clamp(k / 0.85)) * 100);
+  return () => {
+    texto((o.nome || 'OBRA').toUpperCase(), W / 2, 250, 40, '#ffffff', { maxW: W - 100 });
+    texto(`${p}%`, W / 2, 380, 120, p >= 100 ? COR.ok : COR.ouro);
+    if (gelo && Math.floor(t * 3) % 2) texto('GELO!', W / 2, 1560, 70, '#bff8ff');
+  };
+}
+
+// 5. CHEGADA: os novos colonos atravessam a crista da duna em silhueta, contra um sol enorme; o nome aparece em cima
+function curtoChegada(t, k, cena) {
+  const g = tx.createLinearGradient(0, 0, 0, TH);
+  g.addColorStop(0, '#3a2342'); g.addColorStop(0.5, '#c4643c'); g.addColorStop(1, '#2a1a30');
+  tx.fillStyle = g; tx.fillRect(0, 0, TW, TH);
+  tx.globalCompositeOperation = 'lighter';
+  const sol = tx.createRadialGradient(TW / 2, TH * 0.5, 10, TW / 2, TH * 0.5, 200);
+  sol.addColorStop(0, 'rgba(255,240,200,1)'); sol.addColorStop(0.25, 'rgba(255,200,140,0.7)'); sol.addColorStop(1, 'rgba(0,0,0,0)');
+  tx.fillStyle = sol; tx.fillRect(0, 0, TW, TH);
+  tx.globalCompositeOperation = 'source-over';
+  const crista = (x) => TH * 0.56 - Math.sin(x * 0.012 + 1) * 18;
+  tx.fillStyle = '#1e1226'; tx.beginPath(); tx.moveTo(0, TH);
+  for (let x = 0; x <= TW; x += 4) tx.lineTo(x, crista(x)); tx.lineTo(TW, TH); tx.fill();
+  const quem = ((cena && cena.focos) || []).map((f) => {
+    const [tipo, id] = f.alvo.split(':');
+    if (tipo === 'colono') { const c = colonoPorCodigo.get(id); return c ? { nome: c.nome, seed: c.seed, and: false } : null; }
+    if (tipo === 'andarilho') { const a = (EP.mundo.andarilhos || []).find((x) => x.handle === f.alvo.slice(10)); return a ? { nome: '@' + a.handle, seed: a.seed, and: true, rede: a.rede } : null; }
+    return null;
+  }).filter(Boolean).slice(0, 4);
+  if (!quem.length) quem.push({ nome: heroiDaTomada().nome, seed: 1, and: false });
+  const sil = { pele: '#1b1530', cabelo: '#120c1c', roupa: '#1b1530', calca: '#120c1c', chapeu: false };
+  const tags = [];
+  quem.forEach((q, i) => {
+    const x = lerp(-30 - i * 46, TW * 0.64 - i * 52, saida(clamp(k * 1.1)));
+    const r = ator(sil, { x, chao: crista(x) + 2, dir: 1, anda: t * 10 + i }, t, 4);
+    if (q.and) R(x - 26, crista(x) - 70, 10, 22, '#1b1530');   // mochila de quem chegou pelos comentários
+    tags.push({ q, cab: r.cab, i });
+  });
+  return () => {
+    texto('CHEGOU GENTE NOVA', W / 2, 300, 44, COR.ouro);
+    for (const { q, cab, i } of tags) {
+      if (k < 0.15 + i * 0.12) continue;
+      texto(q.nome, cab.x * TE, (cab.y - 16) * TE, 30, '#ffffff', { maxW: 520 });
+      if (q.rede && COR_ORIGEM[q.rede]) ret(cab.x * TE - 8, (cab.y - 8) * TE, 16, 16, COR_ORIGEM[q.rede]);
+    }
+  };
+}
+
+function prepararTomadasCurtas() {
+  const add = (ini, fim, tipo, cena) => { if (fim - ini > 0.8) TOMADAS.push({ ini, fim, tipo, cena }); };
+  for (const c of EP.cenas) {
+    const a = c.inicio, d = c.fim - a;
+    if (c.tipo === 'problema') { add(a, a + d * 0.42, 'cRosto', c); add(a + d * 0.42, c.fim, 'cFaisca', c); }
+    else if (c.tipo === 'solucao') { add(a, a + d * 0.55, 'cCorredor', c); add(a + d * 0.55, c.fim, 'objeto', c); }
+    else if (c.tipo === 'boas_vindas' || c.tipo === 'andarilhos') add(a, c.fim, 'cChegada', c);
+    else if (c.tipo === 'missao') add(a, c.fim, 'cBroca', c);
+    else if (c.tipo === 'youtube') add(a, c.fim, 'cRosto', c);   // fim: TikTok no suspense (?), Instagram sorrindo com o play
+  }
+}
+
+// ---- TikTok: linguagem de CÂMERA DE SEGURANÇA (diferente do corte do Instagram, mesmo episódio)
+function cctvFiltro(t, ver = 0.55) {   // verde-acinzentado, linhas, chiado, vinheta e o carimbo da câmera
+  tx.globalCompositeOperation = 'multiply'; tx.globalAlpha = ver; R(0, 0, TW, TH, '#7fae8f'); tx.globalAlpha = 1;
+  tx.globalCompositeOperation = 'source-over';
+  for (let y = (Math.floor(t * 40) % 3); y < TH; y += 3) { tx.globalAlpha = 0.18; R(0, y, TW, 1, '#000'); }
+  const f = Math.floor(t * 20);
+  for (let i = 0; i < 90; i++) { tx.globalAlpha = 0.25; R(hashT(i, f) * TW, hashT(i + 5, f) * TH, 1, 1, '#ffffff'); }
+  if (hashT(f, 7) > 0.85) { tx.globalAlpha = 0.25; R(0, hashT(f, 8) * TH, TW, 6 + hashT(f, 9) * 10, '#ffffff'); }   // linha de interferência
+  tx.globalAlpha = 1;
+}
+function cctvCarimbo(t, cam) {   // texto da câmera, na resolução cheia
+  return () => {
+    if (Math.floor(t * 2) % 2) { ret(80, 150, 22, 22, '#ff3b3b'); }
+    texto('REC', 120, 172, 30, '#ffffff', { alinhar: 'left', contorno: false });
+    texto(cam, W - 80, 172, 26, '#ffffff', { alinhar: 'right', contorno: false });
+    const s = Math.floor(t * 30) % 1800, hh = String(3 + Math.floor(s / 600)).padStart(2, '0'), mm = String(Math.floor(s / 30) % 60).padStart(2, '0');
+    texto(`SOL ${String(EP.numero).padStart(3, '0')}  ${hh}:${mm}:${String(Math.floor(s % 30 * 2)).padStart(2, '0')}`, 80, 1780, 26, '#ffffff', { alinhar: 'left', contorno: false });
+  };
+}
+
+// 1. câmera de vigilância na sala da máquina: as luzes da máquina apagam uma a uma, alarme, o herói entra correndo
+function ttCCTV(t, k) {
+  const chao = sala(t, { vermelho: k > 0.35, janela: false });
+  const cat = (EP.problema || {}).categoria, ox = TW * 0.62;
+  objeto(cat, ox, chao + 2, 3.4, t, 0);
+  for (let i = 0; i < 4; i++) {   // painel de luzinhas ao lado: apagando
+    const viva = k < 0.1 + i * 0.07;
+    R(TW * 0.12, 120 + i * 26, 18, 14, viva ? '#4ed37a' : (Math.floor(t * 5 + i) % 2 ? COR.alerta : '#3a1a1a'));
+  }
+  if (k > 0.35) { tx.globalAlpha = 0.2 + 0.12 * Math.sin(t * 12); R(0, 0, TW, TH, '#ff2020'); tx.globalAlpha = 1; }
+  let r = null;
+  const h = heroiDaTomada();
+  if (k > 0.55) { const q = clamp((k - 0.55) / 0.3); r = ator(h.pal, { x: lerp(-30, ox - 70, suave(q)), chao: chao + 2, dir: 1, anda: q < 1 ? t * 20 : null, susto: true, agacha: q >= 1 ? 0.5 : 0 }, t, 4); }
+  cctvFiltro(t);
+  const carimbo = cctvCarimbo(t, 'CAM 03 · SALA DO AR');
+  return () => { carimbo(); if (r) etiquetaT(h.nome, r.cab, 4)(); if (k > 0.35 && k < 0.6 && Math.floor(t * 3) % 2) texto('FALHA DETECTADA', W / 2, 330, 44, COR.alerta); };
+}
+
+// 2. câmara de ar: a porta abre com vapor, quem veio dos comentários entra de mochila, o scanner passa e o crachá sai
+function ttCracha(t, k, cena) {
+  const quem = ((cena && cena.focos) || []).map((f) => {
+    const [tipo, id] = f.alvo.split(':');
+    if (tipo === 'andarilho') { const a = (EP.mundo.andarilhos || []).find((x) => x.handle === f.alvo.slice(10)); return a && { nome: '@' + a.handle, seed: a.seed, rede: a.rede, and: true }; }
+    if (tipo === 'colono') { const c = colonoPorCodigo.get(id); return c && { nome: c.nome, seed: c.seed, and: false }; }
+    return null;
+  }).filter(Boolean);
+  const q0 = quem.length ? quem[Math.min(quem.length - 1, Math.floor(k * quem.length))] : { nome: heroiDaTomada().nome, seed: 1 };
+  const kk = quem.length ? (k * quem.length) % 1 : k;
+  const chao = sala(t, { janela: false });
+  // porta da câmara de ar (abre em duas folhas) com a luz de fora
+  const px = TW * 0.5, abre = suave(clamp(kk / 0.22)) * 46;
+  R(px - 60, chao - 190, 120, 190, '#1b1530'); R(px - 50, chao - 180, 100, 180, '#d98a5c');
+  R(px - 50, chao - 180, 50 - abre, 180, '#9aa0b5'); R(px + abre, chao - 180, 50 - abre, 180, '#9aa0b5');
+  R(px - 64, chao - 200, 128, 12, Math.floor(t * 3) % 2 ? '#ffc83d' : '#e0a920');
+  for (let i = 0; i < 10; i++) { const q = (t * 0.6 + i / 10) % 1; tx.globalAlpha = (1 - q) * 0.5 * clamp(kk / 0.3); tx.fillStyle = '#eef0f8'; tx.beginPath(); tx.arc(px + (hashT(i, 2) - 0.5) * 120 * q, chao - 20 - q * 120, 8 + q * 22, 0, 7); tx.fill(); }
+  tx.globalAlpha = 1;
+  const anda = clamp((kk - 0.18) / 0.32), x = lerp(px, TW * 0.36, suave(anda));
+  const r = ator(paletaDe(q0.seed), { x, chao: chao + 2, dir: -1, anda: anda < 1 ? t * 12 : null, alegre: anda >= 1 }, t, 4.4);
+  if (q0.and) R(x + 14, chao - 96, 14, 30, '#8a5a34');   // mochila
+  if (kk > 0.5 && kk < 0.75) {   // feixe do scanner descendo pelo corpo
+    const y = lerp(chao - 150, chao, (kk - 0.5) / 0.25);
+    tx.globalAlpha = 0.7; R(x - 40, y, 80, 3, '#3fd0c9'); tx.globalAlpha = 0.2; R(x - 40, y - 14, 80, 14, '#3fd0c9'); tx.globalAlpha = 1;
+  }
+  cctvFiltro(t, 0.35);
+  const carimbo = cctvCarimbo(t, 'CAM 01 · ENTRADA');
+  return () => {
+    carimbo();
+    if (kk > 0.72) {   // crachá saindo da impressora
+      const s = saida(clamp((kk - 0.72) / 0.12)), y = 1640 - s * 120;
+      ret(W / 2 - 300, y, 600, 230, '#eef0f8'); ret(W / 2 - 300, y, 600, 46, '#e2603b');
+      texto('CRACHÁ DE COLONO', W / 2, y + 34, 28, '#ffffff', { contorno: false });
+      texto(q0.nome, W / 2, y + 120, 40, '#1b1530', { contorno: false, maxW: 540 });
+      if (q0.rede && COR_ORIGEM[q0.rede]) ret(W / 2 - 270, y + 150, 26, 26, COR_ORIGEM[q0.rede]);
+      texto(q0.and ? 'ANDARILHO · SEM CASA (AINDA)' : 'COLONO', W / 2 + 20, y + 180, 22, '#6b6f86', { contorno: false, maxW: 480 });
+    } else if (kk > 0.5) texto('ESCANEANDO...', W / 2, 330, 40, COR.agua);
+  };
+}
+
+// 3. TIMELAPSE da obra: câmera fixa no horizonte, o céu gira dia → noite → dia e a construção sobe em blocos
+function ttTimelapse(t, k, cena) {
+  const o = EP.mundo.obras.find((x) => x.slug === EP.missao_obra) || {}, [p0, p1] = (cena && cena.progresso) || [0, 1];
+  const p = lerp(p0, p1, clamp(k / 0.9)), ciclo = (k * 2.2) % 1, noite = Math.max(0, Math.sin(ciclo * Math.PI * 2));
+  const g = tx.createLinearGradient(0, 0, 0, TH * 0.6);
+  g.addColorStop(0, `rgb(${Math.round(lerp(217, 14, noite))},${Math.round(lerp(138, 10, noite))},${Math.round(lerp(92, 30, noite))})`);
+  g.addColorStop(1, `rgb(${Math.round(lerp(242, 58, noite))},${Math.round(lerp(185, 35, noite))},${Math.round(lerp(138, 66, noite))})`);
+  tx.fillStyle = g; tx.fillRect(0, 0, TW, TH);
+  if (noite > 0.3) for (let i = 0; i < 40; i++) { tx.globalAlpha = noite; R(hashT(i, 1) * TW, hashT(i, 2) * TH * 0.5, 1, 1, '#ffffff'); }
+  tx.globalAlpha = 1;
+  const sa = ciclo * Math.PI * 2; R(TW / 2 + Math.cos(sa) * 150, TH * 0.5 + Math.sin(sa) * 170, 8, 8, '#fff3d6');   // sol riscando o céu
+  const chao = TH * 0.62;
+  tx.fillStyle = noite > 0.5 ? '#2a1a30' : '#a24c30'; tx.fillRect(0, chao, TW, TH - chao);
+  const [ca, cb] = COR_OBRA[o.tipo] || ['#c9ced9', '#e2603b'];
+  const blocos = Math.round(p * 12), bx = TW / 2 - 50;
+  for (let i = 0; i < blocos; i++) { const lin = Math.floor(i / 3), col = i % 3; R(bx + col * 34, chao - 22 - lin * 22, 32, 20, lin % 2 ? cb : ca); R(bx + col * 34, chao - 22 - lin * 22, 32, 3, '#ffffff33'); }
+  if (blocos < 12) { const lin = Math.floor(blocos / 3); R(bx - 8, chao - 30 - lin * 22, 3, 30 + lin * 22, '#ffc83d'); R(bx - 8, chao - 30 - lin * 22, 120, 3, '#ffc83d'); }   // guindaste
+  if (noite > 0.4) for (let i = 0; i < blocos; i += 2) R(bx + (i % 3) * 34 + 12, chao - 14 - Math.floor(i / 3) * 22, 6, 5, '#ffe58a');   // janelas acesas
+  for (let i = 0; i < 6; i++) { const x = (hashT(i, 4) * TW + t * 160 * (i % 2 ? 1 : -1)) % TW; R((x + TW) % TW, chao - 10, 4, 10, '#1b1530'); }   // colonos passando rápido (borrão)
+  cctvFiltro(t, 0.15);
+  const carimbo = cctvCarimbo(t, 'CAM 07 · TIMELAPSE');
+  return () => {
+    carimbo();
+    texto((o.nome || 'OBRA').toUpperCase(), W / 2, 300, 40, '#ffffff', { maxW: W - 100 });
+    texto(`${Math.round(p * 100)}%`, W / 2, 420, 110, COR.ouro);
+    texto('▶▶ x1000', W - 80, 230, 26, '#ffffff', { alinhar: 'right', contorno: false });
+  };
+}
+
+// 4. fim: a câmera trava no herói, a imagem se desfaz em chiado e cai o sinal
+function ttSinal(t, k) {
+  const chao = sala(t, { vermelho: true, janela: false }), h = heroiDaTomada();
+  const congela = k > 0.35 ? 0.35 : k;   // a imagem trava
+  ator(h.pal, { x: TW * 0.5, chao: chao + 2, dir: -1, susto: true, cabeca: 3, maoF: { x: TW * 0.5 - 30, y: chao - 120 }, maoT: { x: TW * 0.5 + 24, y: chao - 116 } }, congela * 10, 5);
+  tx.globalAlpha = 0.2; R(0, 0, TW, TH, '#ff2020'); tx.globalAlpha = 1;
+  cctvFiltro(t);
+  const ruido = clamp((k - 0.4) / 0.35);
+  if (ruido > 0) {
+    const f = Math.floor(t * 24);
+    for (let y = 0; y < TH; y += 4) for (let x = 0; x < TW; x += 4) if (hashT(x * 3 + y, f) < ruido) R(x, y, 4, 4, hashT(x + y * 7, f + 1) > 0.5 ? '#d0d0d0' : '#202020');
+    for (let i = 0; i < 4; i++) { tx.globalAlpha = ruido * 0.5; R(0, hashT(i, f) * TH, TW, 4 + hashT(i + 2, f) * 18, '#ffffff'); }
+    tx.globalAlpha = 1;
+  }
+  if (k > 0.78) R(0, 0, TW, TH, '#0a0a12');
+  const carimbo = cctvCarimbo(t, 'CAM 03 · SALA DO AR');
+  return () => {
+    if (k <= 0.78) carimbo();
+    if (k > 0.35 && k <= 0.78 && Math.floor(t * 4) % 2) texto('IMAGEM CONGELADA', W / 2, 330, 36, COR.alerta);
+    if (k > 0.78) { texto('SINAL PERDIDO', W / 2, 640, 60, '#ffffff'); texto('CONTINUA NO YOUTUBE', W / 2, 1560, 34, COR.ouro); }
+  };
+}
+
+function prepararTomadasTikTok() {
+  const add = (ini, fim, tipo, cena) => { if (fim - ini > 0.8) TOMADAS.push({ ini, fim, tipo, cena }); };
+  for (const c of EP.cenas) {
+    if (c.tipo === 'problema') add(c.inicio, c.fim, 'tCCTV', c);
+    else if (c.tipo === 'boas_vindas' || c.tipo === 'andarilhos') add(c.inicio, c.fim, 'tCracha', c);
+    else if (c.tipo === 'missao') add(c.inicio, c.fim, 'tTimelapse', c);
+    else if (c.tipo === 'youtube') add(c.inicio, c.fim, 'tSinal', c);
+    else if (c.tipo === 'solucao') { add(c.inicio, c.inicio + (c.fim - c.inicio) * 0.55, 'cCorredor', c); add(c.inicio + (c.fim - c.inicio) * 0.55, c.fim, 'objeto', c); }
+  }
+}
+
 // ------------------------------------------------------------------ roteiro dos cortes
 function prepararTomadas() {
   TOMADAS = [];
+  // Instagram e TikTok: só tomadas exclusivas, e cada rede com a sua linguagem (o mesmo episódio, 2 vídeos diferentes)
+  if (EP.curto === 'tiktok') { prepararTomadasTikTok(); return; }
+  if (EP.curto) { prepararTomadasCurtas(); return; }
   const add = (ini, fim, tipo, cena) => { if (fim - ini > 0.8) TOMADAS.push({ ini, fim, tipo, cena }); };
   const prob = EP.cenas.find((c) => c.tipo === 'problema'), sol = EP.cenas.find((c) => c.tipo === 'solucao');
   const redemoinho = EP.problema && EP.problema.id === 'redemoinho';
@@ -1019,7 +1369,9 @@ function desenharTomada(tm, t) {
   const extra = { monitor: tomadaMonitor, alarme: tomadaAlarme, conserto: tomadaConserto, objeto: tomadaObjeto, obra: tomadaObra,
                   redemoinho: tomadaRedemoinho, alertaHeroi: tomadaAlertaHeroi, corrida: tomadaCorrida, abrigo: tomadaAbrigo,
                   rover: tomadaRover, marcas: tomadaMarcas, curiosos: tomadaCuriosos, fundacao: tomadaFundacao,
-                  correio: tomadaCorreio }[tm.tipo](t, k, tm.cena);
+                  correio: tomadaCorreio, cRosto: curtoRosto, cFaisca: curtoFaisca, cCorredor: curtoCorredor,
+                  cBroca: curtoBroca, cChegada: curtoChegada, tCCTV: ttCCTV, tCracha: ttCracha, tTimelapse: ttTimelapse,
+                  tSinal: ttSinal }[tm.tipo](t, k, tm.cena);
   tx.globalAlpha = 1;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;

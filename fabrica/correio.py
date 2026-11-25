@@ -120,7 +120,8 @@ def comentarios_manuais(n: int) -> list[dict]:
     if not arq.exists():
         return []
     return [{"rede": c["rede"], "id": c["id"], "autor": c["autor"].lstrip("@"), "texto": c["texto"],
-             "curtidas": c.get("curtidas", 0), "em": c.get("em"), "post": c.get("post", "")}
+             "curtidas": c.get("curtidas", 0), "em": c.get("em"), "post": c.get("post", ""),
+             "ja_respondido": bool(c.get("ja_respondido"))}
             for c in config.ler_json(arq)]
 
 
@@ -386,7 +387,9 @@ def escolher(n: int, comentarios: list[dict]) -> dict:
     for x in resposta.get("respostas_rede", []):
         c = por_id.get(x.get("id"))
         texto = re.sub(r"https?://\S+|www\.\S+", "", (x.get("texto") or "")).strip()
-        if c and texto and c["id"] not in {r["id"] for r in respostas_rede}:
+        if c and c.get("ja_respondido"):   # já respondemos na rede: a pessoa entra, mas sem resposta nova
+            entrar.add(c["id"])
+        elif c and texto and c["id"] not in {r["id"] for r in respostas_rede}:
             respostas_rede.append({"id": c["id"], "rede": c["rede"], "autor": c["autor"], "comentario": c["texto"][:200],
                                    "post": c.get("post", ""), "resposta": texto[:300], "postada": False})
             entrar.add(c["id"])

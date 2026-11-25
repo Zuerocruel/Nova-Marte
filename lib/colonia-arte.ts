@@ -44,7 +44,7 @@ const MAPAS: Record<string, string[]> = {
         '..WWTTTTWW..', '.SWWTTTTWWS.', '..WWTYTTWW..', '...TT..TT...', '...TT..TT...', '...BB..BB...'],
   // pet sentado: tirado da arte nova (fabrica/pet.js), para o ícone do item
   pet: ['...............', '...............', '.........CcCCC.', '.........ccCKC.', '.........ccCCwK', '.........ccwwww', '......CCCVV....', '.....NNCCCY....', '.....NNCCww....', '....CCCCCww....', '....CCCCCww....', '....CCCCCcC....', 'wCCCCCCC.cC....', '...wwww..ww....', '...............'],
-  rover: ['........', '..GG....', '..GV....', '.WWWWWW.', 'WWWWWWWW', 'WOOWWOOW', '.KK..KK.', '........'],
+  rover: ['.gVg....', '..G.....', '..G...WW', 'LLLLLWVV', 'WWWWWWWW', 'WOOWWWgW', 'KK.KK.KK', 'KK.KK.KK'],   // mastro com câmera, painel solar, 3 rodas
   foguete: ['...WW...', '..WWWW..', '..WVVW..', '..WWWW..', '..WOOW..', '.OWWWWO.', '.O.YY.O.', '...YY...'],
   bandeira: ['KTTTTT..', 'KTTTTT..', 'KTYYTT..', 'KTTTTT..', 'K.......', 'K.......', 'K.......', 'KK......'],
   monumento: ['...YY...', '...YY...', '..YYYY..', '..YYYY..', '..YYYY..', '.YYYYYY.', '.GGGGGG.', 'GGGGGGGG'],
