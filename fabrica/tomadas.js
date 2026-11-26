@@ -444,9 +444,8 @@ function tomadaObra(t, k, cena) {
   const rc = ator(cg.pal, { x: cxg, chao, dir: 1, anda: t * 10, maoF: { x: cxg + 6, y: chao - 40 }, maoT: { x: cxg - 4, y: chao - 41 } }, t, 2.6);
   ferramentaT('viga', { x: rc.cab.x + 4, y: rc.cab.y + 18 }, { x: rc.cab.x - 6, y: rc.cab.y + 18 }, t, 2.6);
   // rover passando na frente
-  const rx = ((t * 40) % (TW + 140)) - 70, ry = TH * 0.7;
-  R(rx, ry - 16, 60, 12, '#eef0f8'); R(rx + 40, ry - 28, 18, 12, '#eef0f8'); R(rx + 44, ry - 25, 12, 6, COR.agua);
-  for (const wx of [rx + 6, rx + 26, rx + 46]) { R(wx, ry - 6, 10, 10, '#2a2140'); R(wx + 3, ry - 3, 4, 4, '#6b6f86'); }
+  const rx = ((t * 40) % (TW + 140)) - 70;
+  roverT(rx, chao, t, { anda: true, s: 0.8 });   // o mesmo rover da tomada das dunas (rodas redondas girando)
   return () => {
     texto(`${Math.round(p * 100)}%`, W / 2, (chao - bh) * TE - 80, 60, COR.ouro);
   };
