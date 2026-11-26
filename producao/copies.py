@@ -53,12 +53,14 @@ ROTULO_CENA = {"abertura": "Abertura", "populacao": "População", "boas_vindas"
                "compras": "Novidades na vizinhança", "cratera": "Nome novo no mapa", "destaque": "Destaque do dia",
                "problema": "Alerta: problema do dia", "solucao": "Problema resolvido", "gancho": "Próximo episódio",
                "votacao": "Votação: SIM ou NÃO?", "resultado": "A colônia decidiu",
-               "fundacao": "Fundação da próxima obra"}
+               "fundacao": "Fundação da próxima obra", "correio": "Correio da colônia"}
 
 
 def capitulos(lt: dict) -> list[str]:
     linhas, missao = [], False
     for c in lt["cenas"]:
+        if c["tipo"] == "correio" and linhas and linhas[-1].endswith(ROTULO_CENA["correio"]):
+            continue   # um capítulo só para o correio inteiro
         if c["tipo"] == "missao":
             if missao:
                 continue
@@ -149,13 +151,22 @@ def pauta(d: dict, r: dict) -> list[str]:
         if prob.get("furia"):
             out.append(f"🔥 Fúria de Marte chamada por {prob['furia']['nome']}: {prob['titulo']}!")
         out.append(f"⚠️ Problema do dia: {prob['titulo']}. Resolvido por {prob['heroi']}!")
+    rv = r.get("resultado_votacao")
+    if rv:   # decisão da votação do episódio anterior (com a fala que foi ao ar, sem o "Vocês decidiram")
+        fala = re.sub(r"^.*?Vocês decidiram:\s*", "", rv.get("fala", "")).strip()
+        out.append(f"🗳️ A colônia decidiu: {fala}" if fala else f"🗳️ A colônia decidiu: {rv['resultado'].upper()}")
     respondidos = [c["correio"]["autor"] for c in r["cenas"] if c["tipo"] == "correio" and c["correio"].get("fase") == "resposta"]
     if respondidos:
         out.append("💬 Correio da colônia: Vega e Lia responderam " + " e ".join(f"@{a}" for a in respondidos) + "!")
     if r.get("obra_progresso"):
         p0, p1 = r["obra_progresso"]
-        out.append(f"🎉 {_obra(r)} INAUGURADA!" if r.get("obra_concluida") else f"🏗️ {_obra(r)}: {p0}% → {p1}%")
+        out.append(f"🎉 {_obra(r)} {_inaugurad(r).upper()}!" if r.get("obra_concluida") else f"🏗️ {_obra(r)}: {p0}% → {p1}%")
     return out
+
+
+def _inaugurad(r: dict) -> str:
+    """'inaugurado' ou 'inaugurada' pela 1ª palavra da obra (Extrator → o, Estufa → a), como no roteiro."""
+    return "inaugurada" if _obra(r).split()[0].lower().endswith("a") else "inaugurado"
 
 
 def manchete(d: dict, r: dict) -> str:
@@ -164,7 +175,7 @@ def manchete(d: dict, r: dict) -> str:
     if prob and prob.get("furia"):
         return f"{prob['titulo']} na colônia!"
     if r.get("obra_concluida"):
-        return f"{_obra(r)} inaugurada!"
+        return f"{_obra(r)} {_inaugurad(r)}!"
     novas = [c for c in d.get("crateras", []) if c.get("nova")]
     if novas:
         return f"{novas[0]['dono']} batizou uma cratera em Marte"
