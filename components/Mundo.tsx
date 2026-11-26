@@ -2,12 +2,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { gerarSprite } from '@/lib/sprite';
 import {
-  CENTRO, CHUNK, LIMITE_CHUNKS, VILA, anelMaximo, definirMoradias, ehCasa, fioDaCasa, idDoCodigo, limitesDoBairro, moradiaDe, noBairro,
+  CENTRO, CHUNK, LIMITE_CHUNKS, VILA, anelMaximo, definirMoradias, ehCasa, idDoCodigo, limitesDoBairro, moradiaDe, noBairro, ruaEm,
   type PersonagemPublico,
 } from '@/lib/mundo';
 import {
   BLOCO, CASA, COR, TRILHA_DUNAS_DESDE, blocoDeTerreno, crateraBatizada, desenharBase, desenharClima, desenharObra, desenharPraca,
-  desenharTrilha, desenharTrilhaDunas, fontePixel, trilhaDaCasa,
+  desenharTrilha, desenharTrilhaDunas, fontePixel,
   desenharBandeira, desenharCapsulaGrande, desenharComercio, desenharFoguete, desenharOutdoor, desenharRover,
   disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
 } from '@/lib/colonia-arte';
@@ -296,7 +296,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       const casa = (x: number, y: number) => ehCasa(x, y, n);
       const livre = (x: number, y: number) => !reservados.some((r) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1)
         && !noBairro(x, y, n) && !(n > 0 && noBairro(x, y, n + 400));   // sem cratera no bairro nem logo em volta
-      c = blocoDeTerreno(bx, by, livre, casa);
+      c = blocoDeTerreno(bx, by, livre, casa, (x, y) => ruaEm(x, y, n));
       if (terreno.current.size > 160) terreno.current.clear();
       terreno.current.set(k, c);
       return c;
@@ -409,14 +409,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
         }
       }
       const naCapsula = new Set((e?.capsulas ?? []).map((k) => k.codigo));
-      // fios de energia: cada casa recebe do módulo (ou de uma construção ligada, ou da casa vizinha)
-      if (e) {
-        const fontes = [e.base, ...e.obras.filter((o) => o.status !== 'planejada')]
-          .map((o) => ({ x0: o.x, y0: o.y, x1: o.x + o.w, y1: o.y + o.h }));
-        const fios = casas.filter((p) => !naCapsula.has(p.codigo)).map((p) => [p, fioDaCasa(idDoCodigo(p.codigo), Math.max(n, 1), fontes)] as const);
-        for (const [p, f] of fios) trilhaDaCasa(ctx, p.pos_x, p.pos_y, f);   // trilha de terra até o vizinho (sem fio: pedido do dono)
-        void desenharFio;
-      }
+      void desenharFio;   // casas ligadas pelas ruas dos anéis (sem fio nem trilha torta: pedido do dono)
       // a casinha grátis some do lote de quem comprou a cápsula (o colono se mudou para a Vila)
       for (const p of casas) {
         if (naCapsula.has(p.codigo)) continue;
@@ -621,12 +614,14 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
             const corRede = COR_REDE[a.rede];
             if (corRede) { ctx.fillStyle = corRede; ctx.fillRect(-5, -6, 1, 2); }   // remendo sutil da rede de origem
             ctx.restore();
-            if (zoom >= 1.6) {   // @ de quem é (perto o bastante para ler)
-              ctx.font = `6px ${fontePixel()}`; ctx.textAlign = 'center'; ctx.fillStyle = '#c9d6ff';
-              ctx.fillText(`@${a.handle}`, ax, ay - 15);
-              if (corRede) {   // quadradinho da rede antes do @
-                const lx = ax - ctx.measureText(`@${a.handle}`).width / 2 - 5;
-                ctx.fillStyle = '#1b1530'; ctx.fillRect(lx - 1, ay - 20, 5, 5); ctx.fillStyle = corRede; ctx.fillRect(lx, ay - 19, 3, 3);
+            if (zoom >= 5) {   // nome igual ao dos outros colonos (só com zoom): quem só comentou não ganha destaque,
+              // apenas o quadradinho discreto da rede de onde veio, antes do nome (pedido do dono)
+              const s = Math.min(12, 2.6 * zoom) / zoom, nome = `@${a.handle}`;
+              ctx.font = `${s}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+              ctx.fillText(nome, ax, ay + 6, CASA * 1.6);
+              if (corRede) {
+                const lx = ax - Math.min(CASA * 1.6, ctx.measureText(nome).width) / 2 - s * 0.7;
+                ctx.globalAlpha = 0.8; ctx.fillStyle = corRede; ctx.fillRect(lx - s * 0.25, ay + 6 - s * 0.6, s * 0.5, s * 0.5); ctx.globalAlpha = 1;
               }
             }
           },

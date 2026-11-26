@@ -1,31 +1,49 @@
 import colonia from '@/fabrica/colonia.json';
 
 /**
- * Geometria do mundo — precisa bater com a função casa_pos() do banco (supabase/migrations/016_vilarejo.sql),
+ * Geometria do mundo — precisa bater com a função casa_pos() do banco (supabase/migrations/018_aneis.sql),
  * com fabrica/bairro.py (casa_do_id) e com o bairro desenhado no vídeo (fabrica/diretor.js).
  *
- * VILAREJO ESPALHADO: o chão em volta do Módulo de Pouso é dividido em células de CEL x CEL casas, numeradas numa
- * espiral quadrada a partir do anel ANEL_INICIAL. Cada célula tem UMA casa, num ponto sorteado dentro dela
- * (sorteio fixo pela posição da célula), e uma em cada cinco vira CLAREIRA (fica vazia). Célula cuja casa cai em
- * cima (ou a até MARGEM casas) da base, da praça, de uma obra (mesmo planejada) ou da trilha é pulada. Sem ruas
- * retas: cada casa tem uma trilha de terra torta até o vizinho de onde vem o fio de energia.
- * Depois do anel ANEL_RESERVAS a conta volta a ser direta (sem clareiras nem reservas).
+ * VILAREJO EM ANÉIS (pedido do dono em 2026-11-26): ruas em anel (quadradas) em volta do Módulo de Pouso, a
+ * R0, R0+PASSO, R0+2*PASSO... casas do centro (o miolo é das construções), e duas avenidas retas: norte-sul na
+ * coluna do módulo (dx = 0) e leste-oeste logo abaixo dele (dy = AV_Y). As casas ficam dos dois lados de cada
+ * anel, de frente para a rua, uma a cada 2 casas; sem casa nos cantos nem coladas nas avenidas. Ordem de
+ * chegada: anel por anel, a partir da avenida sul girando para o leste, lado de dentro e lado de fora de cada
+ * ponto da rua. Casa em cima (ou a até MARGEM casas) de construção, Vila das Cápsulas ou lote de cratera é pulada.
  */
 export const CENTRO = { x: 5, y: -8 };     // centro do Módulo de Pouso, em casas
-export const CEL = 3;                      // lado da célula (em casas): uma casa por célula
-export const ANEL_INICIAL = 2;             // anel (em células) da primeira casa
+export const R0 = 14;                      // rua do primeiro anel (distância em casas do centro)
+export const PASSO = 5;                    // de um anel ao outro: rua, casa, quintal, quintal, casa
+export const AV_Y = 2;                     // avenida leste-oeste em dy = +2; a norte-sul em dx = 0
 export const MARGEM = 2;                   // casas livres em volta de cada construção
-export const ANEL_RESERVAS = 30;           // além deste anel nada é pulado (≈ 2.800 casas antes disso)
+export const CRATERAS_POR_FAIXA = 6;
+export const CRATERAS_RESERVADAS = 48;
 export const CHUNK = 32;                   // quarteirão carregado de uma vez (casas)
 export const LIMITE_CHUNKS = 64;           // |cx|, |cy| máximos aceitos pela API (≈ 4 milhões de casas)
+
+export const ruaDoAnel = (k: number) => R0 + PASSO * k;
+
+/**
+ * Crateras batizadas (item "Nomeie sua Cratera"): perto, na faixa logo depois de cada anel (6 por faixa, ângulo
+ * áureo), longe das avenidas. Centro em casas e raio em pixels do mundo. A mesma conta está em fabrica/bairro.py.
+ */
+export function posCratera(id: number): { x: number; y: number; r: number } {
+  const i = Math.max(1, Math.floor(id));
+  const faixa = Math.floor((i - 1) / CRATERAS_POR_FAIXA), d = R0 + 2 + PASSO * faixa;
+  const ang = 0.9 + (i - 1) * 2.399963, co = Math.cos(ang), si = Math.sin(ang), m = Math.max(Math.abs(co), Math.abs(si));
+  let dx = Math.floor(d * co / m + 0.5), dy = Math.floor(d * si / m + 0.5);
+  if (Math.abs(dx) <= 3) dx = dx >= 0 ? 4 : -4;
+  if (Math.abs(dy - AV_Y) <= 3) dy = AV_Y + (dy >= AV_Y ? 4 : -4);
+  return { x: CENTRO.x + dx, y: CENTRO.y + dy, r: 20 + (i * 5) % 6 };
+}
 
 type Ret = { x0: number; y0: number; x1: number; y1: number };
 const B = colonia.base, P = colonia.praca;
 /** Retângulos (em casas, fim exclusivo) onde não nasce casa. A mesma lista está no SQL. */
 export const RESERVAS: Ret[] = [
   ...[B, P, ...colonia.obras].map((o) => ({ x0: o.x - MARGEM, y0: o.y - MARGEM, x1: o.x + o.w + MARGEM, y1: o.y + o.h + MARGEM })),
-  { x0: CENTRO.x, y0: B.y + B.h, x1: CENTRO.x + 1, y1: P.y },          // trilha do módulo até a praça
   { x0: CENTRO.x + 25, y0: CENTRO.y - 9, x1: CENTRO.x + 43, y1: CENTRO.y + 23 },   // Vila das Cápsulas (VILA, até 50 cápsulas)
+  ...Array.from({ length: CRATERAS_RESERVADAS }, (_, k) => { const c = posCratera(k + 1); return { x0: c.x - 2, y0: c.y - 2, x1: c.x + 3, y1: c.y + 3 }; }),
 ];
 export const reservado = (x: number, y: number) => RESERVAS.some((r) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1);
 
@@ -44,127 +62,88 @@ export type PersonagemPublico = {
   traje_moedas?: string | null;   // traje comprado na loja de moedas (migração 013)
 };
 
-/** Célula de índice m na espiral (a 1ª de cada anel fica ao sul do centro e o anel gira para o leste). */
-function celulaDaEspiral(m: number): { u: number; v: number; r: number } {
-  const r = Math.floor((Math.floor(Math.sqrt(m)) + 1) / 2);
-  const t = m - (2 * r - 1) ** 2;
-  let u: number, v: number;
-  if (t < r) { u = t; v = r; }
-  else if (t < 3 * r) { u = r; v = r - (t - r); }
-  else if (t < 5 * r) { u = r - (t - 3 * r); v = -r; }
-  else if (t < 7 * r) { u = -r; v = -r + (t - 5 * r); }
-  else { u = -r + (t - 7 * r); v = r; }
-  return { u, v, r };
+/** Todas as casas possíveis do anel k (antes das reservas), na ordem de chegada. */
+function vagasDoAnel(k: number): { x: number; y: number }[] {
+  const d = ruaDoAnel(k), seq: [number, number, number, number][] = [];
+  for (let dx = 0; dx <= d; dx++) seq.push([dx, d, 0, 1]);
+  for (let dy = d; dy >= -d; dy--) seq.push([d, dy, 1, 0]);
+  for (let dx = d; dx >= -d; dx--) seq.push([dx, -d, 0, -1]);
+  for (let dy = -d; dy <= d; dy++) seq.push([-d, dy, -1, 0]);
+  for (let dx = -d; dx < 0; dx++) seq.push([dx, d, 0, 1]);
+  const out: { x: number; y: number }[] = [];
+  for (const [dx, dy, nx, ny] of seq) {
+    const aoLongo = ny ? dx : dy;
+    if (aoLongo % 2 !== 0 || Math.abs(aoLongo) > d - 3) continue;
+    if ((ny && Math.abs(dx) <= 1) || (nx && Math.abs(dy - AV_Y) <= 1)) continue;
+    for (const s of [-1, 1]) out.push({ x: CENTRO.x + dx + s * nx, y: CENTRO.y + dy + s * ny });   // dentro, fora
+  }
+  return out;
 }
-/** O contrário: índice m da célula (u, v). */
-function indiceDaCelula(u: number, v: number): number {
-  const r = Math.max(Math.abs(u), Math.abs(v));
-  if (r === 0) return 0;
-  const b = (2 * r - 1) ** 2;
-  if (v === r && u >= 0 && u < r) return b + u;
-  if (u === r && v > -r) return b + r + (r - v);
-  if (v === -r && u > -r) return b + 3 * r + (r - u);
-  if (u === -r && v < r) return b + 5 * r + (v + r);
-  return b + 7 * r + (u + r);
+const LOTES: { x: number; y: number; anel: number }[] = [];
+const ID_DA_CASA = new Map<string, number>();
+let aneisFeitos = 0;
+function garantir(n: number) {
+  while (LOTES.length < n) {
+    for (const c of vagasDoAnel(aneisFeitos)) {
+      if (reservado(c.x, c.y)) continue;
+      LOTES.push({ ...c, anel: aneisFeitos });
+      ID_DA_CASA.set(`${c.x},${c.y}`, LOTES.length);
+    }
+    aneisFeitos++;
+  }
 }
-/** Sorteio fixo da célula (0..1008): o mesmo número em TS, Python e SQL. */
-const sorteio = (u: number, v: number) => { const s = u * 7919 + v * 104729; return Math.abs(s * s + 31 * s + 13 * u * v) % 1009; };
-const casaDaCelula = (u: number, v: number) => {
-  const h = sorteio(u, v);
-  // ponto sorteado entre 2x2 posições da célula 3x3: entre duas casas vizinhas sobra sempre pelo menos 1 casa livre
-  return { x: CENTRO.x + CEL * u - 1 + (h % 2), y: CENTRO.y + CEL * v - 1 + (Math.floor(h / 2) % 2) };
-};
-const clareira = (u: number, v: number) => Math.floor(sorteio(u, v) / 10) % 5 === 0;
-const casaDoIndice = (m: number) => { const c = celulaDaEspiral(m); return casaDaCelula(c.u, c.v); };
-const M0 = (2 * ANEL_INICIAL - 1) ** 2, M_FIM = (2 * ANEL_RESERVAS + 1) ** 2;
-/** Células ocupáveis até o anel ANEL_RESERVAS, em ordem (o colono de id k mora na k-ésima). */
-const LIVRES: number[] = [];
-for (let m = M0; m < M_FIM; m++) {
-  const c = celulaDaEspiral(m), k = casaDaCelula(c.u, c.v);
-  if (!clareira(c.u, c.v) && !reservado(k.x, k.y)) LIVRES.push(m);
-}
-const loteDoId = (id: number) => (id <= LIVRES.length ? LIVRES[id - 1] : M_FIM + (id - LIVRES.length) - 1);
-const ID_DO_LOTE = new Map(LIVRES.map((m, i) => [m, i + 1]));
-const idDoLote = (m: number) => (m >= M_FIM ? LIVRES.length + (m - M_FIM) + 1 : ID_DO_LOTE.get(m) ?? 0);
 
 /** Onde mora o colono de id `id` (mesma conta de casa_pos no banco). */
 export function casaDoId(id: number): { x: number; y: number } {
-  return casaDoIndice(loteDoId(Math.max(1, id)));
+  const i = Math.max(1, Math.floor(id));
+  garantir(i);
+  return { x: LOTES[i - 1].x, y: LOTES[i - 1].y };
 }
 
-/** Anel (em células) do último colono: até onde o bairro já vai. */
+/** Anel do último colono: até onde o bairro já vai (-1 sem ninguém). */
 export function anelMaximo(total: number): number {
-  if (total <= 0) return ANEL_INICIAL - 1;
-  return celulaDaEspiral(loteDoId(total)).r;
+  if (total <= 0) return -1;
+  garantir(total);
+  return LOTES[total - 1].anel;
 }
 
-/** Id do colono que mora na casa (x, y), ou 0 (casa vazia, clareira, reserva). */
-export function idDaCasa(x: number, y: number): number {
-  const u = Math.floor((x - CENTRO.x + 1) / CEL), v = Math.floor((y - CENTRO.y + 1) / CEL);
-  const k = casaDaCelula(u, v);
-  if (k.x !== x || k.y !== y) return 0;
-  return idDoLote(indiceDaCelula(u, v));
+/** Id do colono que mora na casa (x, y), ou 0 (casa vazia, reserva). */
+export function idDaCasa(x: number, y: number, total: number): number {
+  garantir(Math.max(total, 1));
+  return ID_DA_CASA.get(`${x},${y}`) ?? 0;
 }
-/** Tem casa ocupada em (x, y)? (o terreno desenha o chão batido em volta) */
-export const ehCasa = (x: number, y: number, total: number) => { const id = idDaCasa(x, y); return id > 0 && id <= total; };
+/** Tem casa ocupada em (x, y)? */
+export const ehCasa = (x: number, y: number, total: number) => { const id = idDaCasa(x, y, total); return id > 0 && id <= total; };
+
+/** Distância "quadrada" (em casas) do centro da colônia: os anéis são quadrados. */
+export const distDoCentro = (x: number, y: number) => Math.max(Math.abs(x - CENTRO.x), Math.abs(y - CENTRO.y));
 
 /**
- * Fio de energia (e trilha de terra) da casa do colono `id` (em casas, do centro da casa): vai até a casa ocupada
- * mais perto que esteja mais perto do módulo (do mesmo anel ou de até dois anéis para dentro) ou, se for mais
- * perto, até a borda de uma "fonte" (o módulo e as construções já ligadas na rede). A mesma regra está em
- * fabrica/diretor.js (prepararFios).
+ * Rua em (x, y)? 'anel' (rua de um anel já ocupado), 'avenida' (as duas avenidas, até o último anel) ou null.
+ * As avenidas não passam por cima das construções (a praça corta a avenida sul). MESMA regra em fabrica/diretor.js.
  */
-export function fioDaCasa(id: number, total: number, fontes: Ret[]): { x: number; y: number } {
-  const m = loteDoId(id), { r } = celulaDaEspiral(m), c0 = casaDoIndice(m);
-  const eu = { x: c0.x + 0.5, y: c0.y + 0.5 };
-  const dBase = (x: number, y: number) => Math.hypot(x - CENTRO.x, y - CENTRO.y);
-  let melhor = { x: CENTRO.x, y: CENTRO.y }, dMelhor = Infinity;
-  for (const f of fontes) {   // ponto da borda mais perto
-    const x = Math.max(f.x0, Math.min(f.x1, eu.x)), y = Math.max(f.y0, Math.min(f.y1, eu.y));
-    const d = Math.hypot(x - eu.x, y - eu.y);
-    if (d < dMelhor) { dMelhor = d; melhor = { x, y }; }
-  }
-  const ini = (2 * Math.max(ANEL_INICIAL, r - 2) - 1) ** 2, fim = (2 * r + 1) ** 2;
-  for (let k = ini; k < fim; k++) {
-    const dono = idDoLote(k);
-    if (!dono || dono > total || k === m) continue;
-    const c = casaDoIndice(k);
-    if (dBase(c.x, c.y) >= dBase(c0.x, c0.y)) continue;
-    const d = Math.hypot(c.x + 0.5 - eu.x, c.y + 0.5 - eu.y);
-    if (d < dMelhor) { dMelhor = d; melhor = { x: c.x + 0.5, y: c.y + 0.5 }; }
-  }
-  return melhor;
+export function ruaEm(x: number, y: number, total: number): 'anel' | 'avenida' | null {
+  const kmax = anelMaximo(total);
+  if (kmax < 0) return null;
+  const dx = x - CENTRO.x, dy = y - CENTRO.y, d = Math.max(Math.abs(dx), Math.abs(dy)), dfim = ruaDoAnel(kmax);
+  if (d > dfim || (dx >= 25 && dx < 43 && dy >= -9 && dy < 23)) return null;   // nem dentro da Vila das Cápsulas
+  if (d >= R0 && (d - R0) % PASSO === 0) return 'anel';
+  const naAvenida = (dx === 0 && (dy <= -3 || dy >= AV_Y)) || dy === AV_Y;
+  if (!naAvenida) return null;
+  const emObra = [B, P, ...colonia.obras].some((o) => x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h);
+  return emObra ? null : 'avenida';
 }
 
-/** Sem ruas retas no vilarejo (mantido para quem ainda importa). */
-export const ehRua = (_x: number, _y: number) => false;   // eslint-disable-line @typescript-eslint/no-unused-vars
-
-/** Anel (em células) de uma casa qualquer do mapa. */
-export function anelDe(x: number, y: number): number {
-  return Math.max(Math.abs(Math.floor((x - CENTRO.x + 1) / CEL)), Math.abs(Math.floor((y - CENTRO.y + 1) / CEL)));
-}
-
-/** A casa (x, y) fica dentro da área do vilarejo já ocupada (entre o anel inicial e o atual, fora das construções)? */
+/** A casa (x, y) fica dentro da área do vilarejo já ocupada (do 1º anel até o atual, fora das construções)? */
 export function noBairro(x: number, y: number, total: number): boolean {
-  const a = anelDe(x, y);
-  return total > 0 && a >= ANEL_INICIAL && a <= anelMaximo(total) && !reservado(x, y);
+  const kmax = anelMaximo(total), d = distDoCentro(x, y);
+  return kmax >= 0 && d >= R0 - 2 && d <= ruaDoAnel(kmax) + 2 && !reservado(x, y);
 }
 
 /** Retângulo (em casas) que contém todo o bairro ocupado. */
 export function limitesDoBairro(total: number) {
-  const r = CEL * (anelMaximo(Math.max(total, 1)) + 1) + 1;
+  const r = ruaDoAnel(Math.max(0, anelMaximo(Math.max(total, 1)))) + 3;
   return { x0: CENTRO.x - r, x1: CENTRO.x + r, y0: CENTRO.y - r, y1: CENTRO.y + r };
-}
-
-/**
- * Crateras batizadas (item "Nomeie sua Cratera"): num anel FORA da colônia, cada uma num ângulo (ângulo áureo).
- * Centro em casas e raio em pixels do mundo. A mesma conta está em fabrica/bairro.py (pos_cratera).
- */
-export const CRATERA_RAIO = 60;   // longe do vilarejo (que só chega a 60 casas com ~850 colonos)
-export function posCratera(id: number): { x: number; y: number; r: number } {
-  const i = Math.max(1, Math.floor(id));
-  const ang = 0.9 + (i - 1) * 2.399963, dist = CRATERA_RAIO + (i * 3) % 4;
-  return { x: CENTRO.x + Math.round(dist * Math.cos(ang)), y: CENTRO.y + Math.round(dist * Math.sin(ang)), r: 38 + (i * 5) % 8 };
 }
 
 /** Número do colono a partir do código (NM000123 → 123). */

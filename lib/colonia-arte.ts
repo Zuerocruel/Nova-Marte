@@ -172,11 +172,11 @@ function pintarDuna(t: Ctx, x: number, y: number, px: number, py: number) {   //
   }
 }
 
-// Vilarejo: chão batido em volta de cada casa e uma trilha de terra torta da porta até o vizinho de onde vem o
-// fio de energia (curva sorteada pela casa). MESMA arte em lib/colonia-arte.ts e fabrica/diretor.js.
+// Vilarejo: um quintal de terra batida embaixo de cada casa (a casa fica de frente para a rua do anel).
+// MESMA arte em lib/colonia-arte.ts e fabrica/diretor.js.
 export function chaoDaCasa(t: Ctx, px: number, py: number) {   // px, py = canto da casa em pixels
-  t.fillStyle = '#c26d45'; t.beginPath(); t.ellipse(px + 8, py + 10, 13, 10, 0, 0, Math.PI * 2); t.fill();
-  t.fillStyle = '#cd7a50'; t.beginPath(); t.ellipse(px + 8, py + 11, 9, 6, 0, 0, Math.PI * 2); t.fill();
+  t.fillStyle = '#b9643f'; t.fillRect(px - 1, py, 18, 16);
+  t.fillStyle = '#c5714a'; t.fillRect(px, py + 1, 16, 14);
 }
 export function trilhaDaCasa(c: Ctx, x: number, y: number, alvo: { x: number; y: number }) {   // casa (x, y) e alvo em casas
   const ax = x * CASA + 8, ay = y * CASA + 15, bx = alvo.x * CASA, by = alvo.y * CASA;
@@ -191,9 +191,32 @@ export function trilhaDaCasa(c: Ctx, x: number, y: number, alvo: { x: number; y:
   }
 }
 
-/** Bloco do chão. `casa(x, y)`: tem casa ocupada ali (ganha o chão batido em volta). */
+// Ruas do vilarejo em anéis (lib/mundo.ts → ruaEm): terra batida lisa, borda mais escura, marcas de pneu e,
+// nas avenidas, pedrinhas brancas no meio. A rua se liga às vizinhas. MESMA arte em fabrica/diretor.js (pintarRua).
+export type TipoRua = 'anel' | 'avenida' | null;
+export function pintarRua(t: Ctx, px: number, py: number, tipo: TipoRua, viz: { n: boolean; s: boolean; l: boolean; o: boolean }) {
+  if (!tipo) return;
+  const av = tipo === 'avenida', m = av ? 1 : 2, cor = av ? '#d69a6e' : '#cc8759', borda = '#a9583a', pneu = av ? '#c4875d' : '#bb764d';
+  const caixa = (x: number, y: number, w: number, h: number, c: string) => { t.fillStyle = c; t.fillRect(px + x, py + y, w, h); };
+  caixa(m - 1, m - 1, 18 - 2 * m, 18 - 2 * m, borda);
+  if (viz.n) caixa(m - 1, 0, 18 - 2 * m, m, borda);
+  if (viz.s) caixa(m - 1, 16 - m, 18 - 2 * m, m, borda);
+  if (viz.o) caixa(0, m - 1, m, 18 - 2 * m, borda);
+  if (viz.l) caixa(16 - m, m - 1, m, 18 - 2 * m, borda);
+  caixa(m, m, 16 - 2 * m, 16 - 2 * m, cor);
+  if (viz.n) caixa(m, 0, 16 - 2 * m, m, cor);
+  if (viz.s) caixa(m, 16 - m, 16 - 2 * m, m, cor);
+  if (viz.o) caixa(0, m, m, 16 - 2 * m, cor);
+  if (viz.l) caixa(16 - m, m, m, 16 - 2 * m, cor);
+  const hor = viz.l || viz.o, ver = viz.n || viz.s;
+  if (hor) { caixa(viz.o ? 0 : 5, 5, (viz.o ? 5 : 0) + (viz.l ? 11 : 6), 1, pneu); caixa(viz.o ? 0 : 5, 10, (viz.o ? 5 : 0) + (viz.l ? 11 : 6), 1, pneu); }
+  if (ver) { caixa(5, viz.n ? 0 : 5, 1, (viz.n ? 5 : 0) + (viz.s ? 11 : 6), pneu); caixa(10, viz.n ? 0 : 5, 1, (viz.n ? 5 : 0) + (viz.s ? 11 : 6), pneu); }
+  if (av && (hor !== ver)) { if (hor) caixa(6, 7, 4, 2, '#f1d7bd'); else caixa(7, 6, 2, 4, '#f1d7bd'); }
+}
+
+/** Bloco do chão. `casa(x, y)`: tem casa ocupada ali (ganha o chão batido em volta). `rua(x, y)`: rua ali. */
 export function blocoDeTerreno(bx: number, by: number, livre: (x: number, y: number) => boolean,
-                               casa: (x: number, y: number) => boolean): HTMLCanvasElement {
+                               casa: (x: number, y: number) => boolean, rua: (x: number, y: number) => TipoRua = () => null): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = c.height = BLOCO * CASA;
   const t = c.getContext('2d')!;
@@ -218,12 +241,19 @@ export function blocoDeTerreno(bx: number, by: number, livre: (x: number, y: num
     if (cx < -k.rx * CASA - 20 || cy < -k.ry * CASA - 20 || cx > BLOCO * CASA + k.rx * CASA + 20 || cy > BLOCO * CASA + k.ry * CASA + 20) continue;
     colinaEm(t, cx, cy, k.rx * CASA, k.ry * CASA, o.x);
   }
-  // chão batido em volta das casas do vilarejo (pode passar da borda do bloco)
+  // ruas dos anéis e avenidas, depois o chão batido em volta das casas (pode passar da borda do bloco)
+  for (let y = y0; y < y0 + BLOCO; y++) for (let x = x0; x < x0 + BLOCO; x++) {
+    const tipo = rua(x, y);
+    if (tipo) pintarRua(t, (x - x0) * CASA, (y - y0) * CASA, tipo, { n: !!rua(x, y - 1), s: !!rua(x, y + 1), l: !!rua(x + 1, y), o: !!rua(x - 1, y) });
+  }
   for (let y = y0 - 1; y < y0 + BLOCO + 1; y++) for (let x = x0 - 1; x < x0 + BLOCO + 1; x++)
     if (casa(x, y)) chaoDaCasa(t, (x - x0) * CASA, (y - y0) * CASA);
   // crateras e pedras (podem passar da borda do bloco: o vizinho desenha a parte dele)
   for (let y = y0 - 2; y < y0 + BLOCO + 2; y++) for (let x = x0 - 2; x < x0 + BLOCO + 2; x++) {
     if (!livre(x, y)) continue;
+    let naRua = false;   // sem cratera nem pedra em cima das ruas
+    for (let j = -2; j <= 2 && !naRua; j++) for (let i = -2; i <= 2 && !naRua; i++) naRua = !!rua(x + i, y + j);
+    if (naRua) continue;
     if (y < DUNAS_Y - 1 && hash(x, y, 33) > 0.12) continue;   // nas dunas quase não há crateras/pedras
     const h = hash(x, y, 7), px = (x - x0) * CASA + 8, py = (y - y0) * CASA + 8;
     if (h < 0.012) {
@@ -542,8 +572,22 @@ function pintarLaboratorio(c: any, r: any, st: any, t: any) {
   }
 }
 
+function pintarComando(c: any, r: any, st: any, t: any) {
+  const x = r.x0, chao = r.y1 - 2, W = r.x1 - r.x0, cx = (r.x0 + r.x1) / 2;
+  PR(c, x + 3, chao - 22, W - 6, 22, '#9aa0b5'); PR(c, x + 4, chao - 21, W - 8, 20, '#e4e6f0');
+  PR(c, x + 4, chao - 21, W - 8, 3, '#2c4fb8');
+  for (let i = 0; i < 4; i++) PR(c, x + 7 + i * 9, chao - 15, 6, 5, st.energia ? (Math.floor(t * 0.7 + i) % 5 ? '#8fe6ff' : '#ffe58a') : '#2b2350');
+  PR(c, cx - 4, chao - 9, 8, 9, '#3a2f63'); PR(c, cx - 3, chao - 8, 6, 1, '#6b6f86');
+  PD(c, cx + 6, chao - 22, 11, '#c9ced9', 1, true); PD(c, cx + 6, chao - 22, 9, '#eef0f8', 1, true);
+  const a = -0.9 + Math.sin(t * 0.25) * 0.25, tx = cx + 6, ty = chao - 27;
+  for (let k = 0; k < 14; k++) PR(c, tx + Math.cos(a) * k - 1, ty + Math.sin(a) * k - 1, 3, 3, k > 11 ? '#2a2140' : '#6b6f86');
+  PR(c, tx - 1, chao - 33, 2, 6, '#2a2140');
+  PR(c, x + 6, chao - 34, 2, 12, '#9aa0b5'); PR(c, x + 3, chao - 35, 8, 2, '#c9ced9');
+  if (st.energia && Math.floor(t * 2) % 2 === 0) PR(c, x + 6, chao - 37, 2, 2, '#ff4d4d');
+}
+
 export const PINTORES: any = {
-  gelo: pintarGelo, oxigenio: pintarOxigenio, oficina: pintarOficina, cantina: pintarCantina,
+  gelo: pintarGelo, comando: pintarComando, oxigenio: pintarOxigenio, oficina: pintarOficina, cantina: pintarCantina,
   enfermaria: pintarEnfermaria, abrigo: pintarAbrigo, laboratorio: pintarLaboratorio,
 };
 

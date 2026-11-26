@@ -266,9 +266,10 @@ function carregarImagem(url) {
   });
 }
 
-// Vilarejo espalhado em volta da base (igual a lib/mundo.ts, fabrica/bairro.py e à casa_pos do banco): células de
-// 3x3 casas numa espiral, uma casa por célula; as posições vêm prontas do banco/bairro.py, aqui só o anel e a arte
-const CENTRO = { x: 5, y: -8 }, ANEL_INICIAL = 2, MARGEM_CASA = 2, CEL = 3;
+// Vilarejo em anéis em volta da base (igual a lib/mundo.ts, fabrica/bairro.py e à casa_pos do banco): ruas em anel
+// a R0 + PASSO*k casas do centro e duas avenidas (dx = 0 e dy = AV_Y); as casas vêm prontas do banco/bairro.py,
+// aqui só o anel, as ruas e a arte
+const CENTRO = { x: 5, y: -8 }, ANEL_INICIAL = 0, MARGEM_CASA = 2, R0 = 14, PASSO = 5, AV_Y = 2;
 let RESERVAS = [];
 function prepararReservas() {
   const m = EP.mundo, b = m.base, p = m.praca;
@@ -276,12 +277,45 @@ function prepararReservas() {
   if (p) RESERVAS.push({ x0: CENTRO.x, y0: b.y + b.h, x1: CENTRO.x + 1, y1: p.y });   // trilha do módulo até a praça
 }
 const reservadoCasa = (x, y) => RESERVAS.some((r) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1);
-const anelDe = (x, y) => Math.max(Math.abs(Math.floor((x - CENTRO.x + 1) / CEL)), Math.abs(Math.floor((y - CENTRO.y + 1) / CEL)));
+const distDoCentro = (x, y) => Math.max(Math.abs(x - CENTRO.x), Math.abs(y - CENTRO.y));
+const anelDe = (x, y) => Math.floor((distDoCentro(x, y) - R0 + 1) / PASSO);   // anel da casa (dentro: d-1, fora: d+1)
+const ruaDoAnel = (k) => R0 + PASSO * k;
+// Rua em (x, y): 'anel', 'avenida' ou null — MESMA regra de lib/mundo.ts (ruaEm)
+function ruaEm(x, y) {
+  if (!EP.lotes) return null;
+  const dx = x - CENTRO.x, dy = y - CENTRO.y, d = Math.max(Math.abs(dx), Math.abs(dy));
+  if (d > ruaDoAnel(EP.lotes.anel) || (dx >= 25 && dx < 43 && dy >= -9 && dy < 23)) return null;
+  if (d >= R0 && (d - R0) % PASSO === 0) return 'anel';
+  if (!((dx === 0 && (dy <= -3 || dy >= AV_Y)) || dy === AV_Y)) return null;
+  const m = EP.mundo;
+  return [m.base, ...(m.praca ? [m.praca] : []), ...m.obras].some((o) => x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) ? null : 'avenida';
+}
+// Ruas do vilarejo: terra batida lisa, borda mais escura, marcas de pneu e, nas avenidas, pedrinhas brancas no meio.
+// MESMA arte em lib/colonia-arte.ts (pintarRua).
+function pintarRua(t, px, py, tipo, viz) {
+  if (!tipo) return;
+  const av = tipo === 'avenida', m = av ? 1 : 2, cor = av ? '#d69a6e' : '#cc8759', borda = '#a9583a', pneu = av ? '#c4875d' : '#bb764d';
+  const caixa = (x, y, w, h, c) => { t.fillStyle = c; t.fillRect(px + x, py + y, w, h); };
+  caixa(m - 1, m - 1, 18 - 2 * m, 18 - 2 * m, borda);
+  if (viz.n) caixa(m - 1, 0, 18 - 2 * m, m, borda);
+  if (viz.s) caixa(m - 1, 16 - m, 18 - 2 * m, m, borda);
+  if (viz.o) caixa(0, m - 1, m, 18 - 2 * m, borda);
+  if (viz.l) caixa(16 - m, m - 1, m, 18 - 2 * m, borda);
+  caixa(m, m, 16 - 2 * m, 16 - 2 * m, cor);
+  if (viz.n) caixa(m, 0, 16 - 2 * m, m, cor);
+  if (viz.s) caixa(m, 16 - m, 16 - 2 * m, m, cor);
+  if (viz.o) caixa(0, m, m, 16 - 2 * m, cor);
+  if (viz.l) caixa(16 - m, m, m, 16 - 2 * m, cor);
+  const hor = viz.l || viz.o, ver = viz.n || viz.s;
+  if (hor) { caixa(viz.o ? 0 : 5, 5, (viz.o ? 5 : 0) + (viz.l ? 11 : 6), 1, pneu); caixa(viz.o ? 0 : 5, 10, (viz.o ? 5 : 0) + (viz.l ? 11 : 6), 1, pneu); }
+  if (ver) { caixa(5, viz.n ? 0 : 5, 1, (viz.n ? 5 : 0) + (viz.s ? 11 : 6), pneu); caixa(10, viz.n ? 0 : 5, 1, (viz.n ? 5 : 0) + (viz.s ? 11 : 6), pneu); }
+  if (av && (hor !== ver)) { if (hor) caixa(6, 7, 4, 2, '#f1d7bd'); else caixa(7, 6, 2, 4, '#f1d7bd'); }
+}
 // Vilarejo: chão batido em volta de cada casa e uma trilha de terra torta da porta até o vizinho de onde vem o
 // fio de energia (curva sorteada pela casa). MESMA arte em lib/colonia-arte.ts e fabrica/diretor.js.
-function chaoDaCasa(t, px, py) {   // px, py = canto da casa em pixels
-  t.fillStyle = '#c26d45'; t.beginPath(); t.ellipse(px + 8, py + 10, 13, 10, 0, 0, Math.PI * 2); t.fill();
-  t.fillStyle = '#cd7a50'; t.beginPath(); t.ellipse(px + 8, py + 11, 9, 6, 0, 0, Math.PI * 2); t.fill();
+function chaoDaCasa(t, px, py) {   // px, py = canto da casa em pixels: quintal de terra batida (casa de frente para a rua)
+  t.fillStyle = '#b9643f'; t.fillRect(px - 1, py, 18, 16);
+  t.fillStyle = '#c5714a'; t.fillRect(px, py + 1, 16, 14);
 }
 function trilhaDaCasa(c, x, y, alvo) {   // casa (x, y) e alvo em casas
   const ax = x * CASA + 8, ay = y * CASA + 15, bx = alvo.x * CASA, by = alvo.y * CASA;
@@ -349,7 +383,7 @@ function prepararTerreno() {
     anel = Math.max(anel, anelDe(c.x, c.y));
   }
   EP.lotes = m.colonos.length ? { anel } : null;
-  const noBairro = (x, y) => !!EP.lotes && !reservadoCasa(x, y) && (() => { const a = anelDe(x, y); return a >= ANEL_INICIAL && a <= EP.lotes.anel; })();
+  const noBairro = (x, y) => !!EP.lotes && !reservadoCasa(x, y) && distDoCentro(x, y) >= R0 - 2 && distDoCentro(x, y) <= ruaDoAnel(EP.lotes.anel) + 2;
 
   const tx0 = Math.max(-200, Math.min(-48, minX - 40)), ty0 = Math.max(-220, Math.min(-64, minY - 40));
   const tx1 = Math.min(220, Math.max(80, maxX + 40));
@@ -360,7 +394,7 @@ function prepararTerreno() {
   const t = terreno.getContext('2d');
   const reservados = [m.base, ...m.obras, ...(m.praca ? [m.praca] : [])].map((o) => ({ x0: o.x - 1, y0: o.y - 1, x1: o.x + o.w + 1, y1: o.y + o.h + 1 }));
   const livre = (x, y) => !reservados.some((r) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1)
-    && !(EP.lotes && (() => { const a = anelDe(x, y); return a >= ANEL_INICIAL - 1 && a <= EP.lotes.anel + 1; })());
+    && !(EP.lotes && distDoCentro(x, y) >= R0 - 3 && distDoCentro(x, y) <= ruaDoAnel(EP.lotes.anel) + 3);
   const solos = ['#b85a37', '#bc5e3a', '#b35538', '#c0623d'];
 
   for (let y = ty0; y < ty1; y++) for (let x = tx0; x < tx1; x++) {
@@ -381,7 +415,12 @@ function prepararTerreno() {
     const c = o.colina, cx = (o.x + o.w / 2 + (c.dx || 0) - tx0) * CASA, cy = (o.y + o.h / 2 + (c.dy || 0) - ty0) * CASA;
     colinaEm(t, cx, cy, c.rx * CASA, c.ry * CASA, o.x);
   }
-  // vilarejo: chão batido em volta de cada casa (igual ao site); quem foi para a Vila das Cápsulas deixa o lote
+  // vilarejo: ruas dos anéis e avenidas, e o quintal de cada casa (igual ao site); quem foi para a Vila das
+  // Cápsulas deixa o lote
+  for (let y = ty0; y < ty1; y++) for (let x = tx0; x < tx1; x++) {
+    const tipo = ruaEm(x, y);
+    if (tipo) pintarRua(t, (x - tx0) * CASA, (y - ty0) * CASA, tipo, { n: !!ruaEm(x, y - 1), s: !!ruaEm(x, y + 1), l: !!ruaEm(x + 1, y), o: !!ruaEm(x - 1, y) });
+  }
   for (const c of m.colonos) if (!c.vila) chaoDaCasa(t, (c.x - tx0) * CASA, (c.y - ty0) * CASA);
   void noBairro;
   // praça da colônia
@@ -397,9 +436,10 @@ function prepararTerreno() {
   }
   // crateras e pedras
   const batizadas = m.crateras || [];
+  const pertoDeRua = (x, y) => { for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (ruaEm(x + i, y + j)) return true; return false; };
   const longeDasBatizadas = (x, y) => !batizadas.some((c) => Math.hypot(x - c.x, y - c.y) * CASA < c.r + 34);
   for (let y = ty0; y < ty1; y++) for (let x = tx0; x < tx1; x++) {
-    if (!livre(x, y) || !longeDasBatizadas(x, y)) continue;
+    if (!livre(x, y) || !longeDasBatizadas(x, y) || pertoDeRua(x, y)) continue;
     if (y < DUNAS_Y - 1 && hash(x, y, 33) > 0.12) continue;   // nas dunas quase não há crateras/pedras
     const h = hash(x, y, 7), px = (x - tx0) * CASA + 8, py = (y - ty0) * CASA + 8;
     if (h < 0.012) {
@@ -1261,7 +1301,22 @@ function pintarLaboratorio(c, r, st, t) {
   }
 }
 
+function pintarComando(c, r, st, t) {
+  const x = r.x0, chao = r.y1 - 2, W = r.x1 - r.x0, cx = (r.x0 + r.x1) / 2;
+  PR(c, x + 3, chao - 22, W - 6, 22, '#9aa0b5'); PR(c, x + 4, chao - 21, W - 8, 20, '#e4e6f0');
+  PR(c, x + 4, chao - 21, W - 8, 3, '#2c4fb8');
+  for (let i = 0; i < 4; i++) PR(c, x + 7 + i * 9, chao - 15, 6, 5, st.energia ? (Math.floor(t * 0.7 + i) % 5 ? '#8fe6ff' : '#ffe58a') : '#2b2350');
+  PR(c, cx - 4, chao - 9, 8, 9, '#3a2f63'); PR(c, cx - 3, chao - 8, 6, 1, '#6b6f86');
+  PD(c, cx + 6, chao - 22, 11, '#c9ced9', 1, true); PD(c, cx + 6, chao - 22, 9, '#eef0f8', 1, true);
+  const a = -0.9 + Math.sin(t * 0.25) * 0.25, tx = cx + 6, ty = chao - 27;
+  for (let k = 0; k < 14; k++) PR(c, tx + Math.cos(a) * k - 1, ty + Math.sin(a) * k - 1, 3, 3, k > 11 ? '#2a2140' : '#6b6f86');
+  PR(c, tx - 1, chao - 33, 2, 6, '#2a2140');
+  PR(c, x + 6, chao - 34, 2, 12, '#9aa0b5'); PR(c, x + 3, chao - 35, 8, 2, '#c9ced9');
+  if (st.energia && Math.floor(t * 2) % 2 === 0) PR(c, x + 6, chao - 37, 2, 2, '#ff4d4d');
+}
+
 const PINTORES = {
+  comando: pintarComando,
   gelo: pintarGelo, oxigenio: pintarOxigenio, oficina: pintarOficina, cantina: pintarCantina,
   enfermaria: pintarEnfermaria, abrigo: pintarAbrigo, laboratorio: pintarLaboratorio,
 };
@@ -1796,7 +1851,6 @@ function prepararFios() {
 const FIOS_NAS_CASAS = false;
 function desenharCasas(view, t, energia) {
   const fora = (x, y) => x < view.x0 - 3 || x > view.x1 + 3 || y < view.y0 - 3 || y > view.y1 + 3;
-  for (const c of EP.mundo.colonos) if (c.fio && !c.vila && !(fora(c.x, c.y) && fora(c.fio.x, c.fio.y))) trilhaDaCasa(ctx, c.x, c.y, c.fio);
   for (const c of EP.mundo.colonos) {   // fios das casas desligados (pedido do dono: ficava bagunçado); só a trilha
     if (FIOS_NAS_CASAS === false || !c.fio || (fora(c.x, c.y) && fora(c.fio.x, c.fio.y))) continue;
     const ax = c.x * CASA + 8, ay = c.y * CASA + 12, bx = c.fio.x * CASA, by = c.fio.y * CASA;

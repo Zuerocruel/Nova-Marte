@@ -289,7 +289,14 @@ def contexto_da_historia(n: int) -> str:
     if r.get("resultado_votacao"):
         linhas.append(f"Votação anterior: {r['resultado_votacao']['tela']} → {r['resultado_votacao']['resultado'].upper()}.")
     if r.get("votacao"):
-        linhas.append(f"Votação aberta nos comentários: {r['votacao']['tela']}")
+        linhas.append(f"Votação aberta nos comentários: {r['votacao']['tela']} (JÁ ENCERRADA: não peça mais votos nela)")
+        marcado = config.pasta_episodio(n - 1) / "votacao.json"
+        if marcado.exists():   # o dono já marcou o resultado no painel: a resposta tem que bater com a decisão
+            m = config.ler_json(marcado)
+            v = next((x for x in json.loads((config.FABRICA / "votacoes.json").read_text(encoding="utf-8"))["votacoes"]
+                      if x["id"] == m.get("id")), None)
+            if v and m.get("resultado") in ("sim", "nao"):
+                linhas.append(f"Resultado dessa votação (vai ao ar hoje): {v[m['resultado']]}")
     linhas.append(f"Próximo episódio: {r.get('proxima', '')}.")
     linhas += [f"- {c['fala']}" for c in r["cenas"] if c["tipo"] in ("problema", "resultado", "solucao", "missao", "fundacao")][:8]
     return "\n".join(linhas)

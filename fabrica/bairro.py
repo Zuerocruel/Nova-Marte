@@ -1,9 +1,20 @@
 """Onde mora cada colono: a MESMA conta de lib/mundo.ts (casaDoId) e da função casa_pos() do banco
-(supabase/migrations/016_vilarejo.sql). VILAREJO ESPALHADO: células de CEL x CEL casas numa espiral em volta do
-Módulo de Pouso, uma casa por célula num ponto sorteado dentro dela, 1 em cada 5 células vira clareira, e
-células cuja casa cai nas construções (colonia.json) ou a até MARGEM casas delas são puladas.
+(supabase/migrations/018_aneis.sql). VILAREJO EM ANÉIS (pedido do dono em 2026-11-26):
 
-    python bairro.py 20      # mostra as 20 primeiras casas e um mapinha
+  * ruas em ANEL (quadradas) em volta do Módulo de Pouso, a R0, R0+PASSO, R0+2*PASSO... casas do centro
+    (o miolo, até ~12 casas, é das construções);
+  * duas AVENIDAS retas cruzando a colônia: norte-sul na coluna do módulo (dx = 0) e leste-oeste logo abaixo
+    dele (dy = +2), indo até o último anel;
+  * as casas ficam dos DOIS lados de cada anel, de frente para a rua, uma a cada 2 casas (1 de quintal entre
+    vizinhas); sem casa nos cantos nem coladas nas avenidas;
+  * ordem de chegada: anel por anel; dentro do anel, a partir da avenida sul, girando para o leste, o lado de
+    dentro e o de fora de cada ponto da rua (a rua vai sendo ocupada dos dois lados);
+  * casa em cima (ou a até MARGEM casas) de uma construção, da Vila das Cápsulas ou de um lote de cratera é pulada.
+
+CRATERAS BATIZADAS: ficam perto, na faixa logo depois de cada anel (6 por faixa, em ângulos diferentes), como
+lugares já explorados; o vilarejo cresce desviando delas (o lote da cratera é reservado).
+
+    python bairro.py 40      # mostra as 40 primeiras casas e um mapinha
 """
 from __future__ import annotations
 
@@ -14,45 +25,37 @@ from functools import lru_cache
 import config
 
 CENTRO = (5, -8)
-CEL = 3
-ANEL_INICIAL = 2
+R0 = 14            # distância (em casas, do centro) da rua do primeiro anel
+PASSO = 5          # de um anel ao outro: rua, casa, quintal, quintal, casa
+AV_Y = 2           # avenida leste-oeste: dy = +2 (logo abaixo do módulo); a norte-sul é dx = 0
 MARGEM = 2
-ANEL_RESERVAS = 30
+CRATERAS_POR_FAIXA = 6
+CRATERAS_RESERVADAS = 48   # lotes de cratera guardados (além disso a cratera não reserva lote)
 
 
-def _celula(m: int) -> tuple[int, int, int]:
-    r = (math.isqrt(m) + 1) // 2
-    t = m - (2 * r - 1) ** 2
-    if t < r:
-        u, v = t, r
-    elif t < 3 * r:
-        u, v = r, r - (t - r)
-    elif t < 5 * r:
-        u, v = r - (t - 3 * r), -r
-    elif t < 7 * r:
-        u, v = -r, -r + (t - 5 * r)
-    else:
-        u, v = -r + (t - 7 * r), r
-    return u, v, r
+def rua_do_anel(k: int) -> int:
+    return R0 + PASSO * k
 
 
-def _sorteio(u: int, v: int) -> int:
-    s = u * 7919 + v * 104729
-    return abs(s * s + 31 * s + 13 * u * v) % 1009
+def _arred(v: float) -> int:
+    return math.floor(v + 0.5)   # igual em TS (Math.floor(v + 0.5)) e SQL (floor(v + 0.5))
 
 
-def _casa_da_celula(u: int, v: int) -> tuple[int, int]:
-    h = _sorteio(u, v)
-    return CENTRO[0] + CEL * u - 1 + h % 2, CENTRO[1] + CEL * v - 1 + (h // 2) % 2   # 2x2 posições: sempre 1 casa livre entre vizinhos
-
-
-def _clareira(u: int, v: int) -> bool:
-    return (_sorteio(u, v) // 10) % 5 == 0
-
-
-def _casa_do_indice(m: int) -> tuple[int, int]:
-    u, v, _ = _celula(m)
-    return _casa_da_celula(u, v)
+# ---------- crateras batizadas (item "Nomeie sua Cratera") ----------
+def pos_cratera(id_: int) -> dict:
+    """Centro (em casas) e raio (em pixels do mundo, CASA = 16) da cratera do resgate `id_`."""
+    i = max(1, int(id_))
+    faixa = (i - 1) // CRATERAS_POR_FAIXA
+    d = R0 + 2 + PASSO * faixa                       # meio da faixa entre o anel `faixa` e o seguinte
+    ang = 0.9 + (i - 1) * 2.399963                    # ângulo áureo: não empilha
+    co, si = math.cos(ang), math.sin(ang)
+    m = max(abs(co), abs(si))
+    dx, dy = _arred(d * co / m), _arred(d * si / m)
+    if abs(dx) <= 3:                                  # longe das avenidas
+        dx = 4 if dx >= 0 else -4
+    if abs(dy - AV_Y) <= 3:
+        dy = AV_Y + (4 if dy >= AV_Y else -4)
+    return {"x": CENTRO[0] + dx, "y": CENTRO[1] + dy, "r": 20 + (i * 5) % 6}
 
 
 @lru_cache(maxsize=1)
@@ -61,8 +64,10 @@ def reservas() -> list[tuple[int, int, int, int]]:
     b, p = col["base"], col["praca"]
     rs = [(o["x"] - MARGEM, o["y"] - MARGEM, o["x"] + o["w"] + MARGEM, o["y"] + o["h"] + MARGEM)
           for o in [b, p, *col["obras"]]]
-    rs.append((CENTRO[0], b["y"] + b["h"], CENTRO[0] + 1, p["y"]))   # trilha do módulo até a praça
     rs.append((CENTRO[0] + 25, CENTRO[1] - 9, CENTRO[0] + 43, CENTRO[1] + 23))   # Vila das Cápsulas (até 50 cápsulas)
+    for i in range(1, CRATERAS_RESERVADAS + 1):
+        c = pos_cratera(i)
+        rs.append((c["x"] - 2, c["y"] - 2, c["x"] + 3, c["y"] + 3))
     return rs
 
 
@@ -70,44 +75,84 @@ def reservado(x: int, y: int) -> bool:
     return any(x0 <= x < x1 and y0 <= y < y1 for x0, y0, x1, y1 in reservas())
 
 
-@lru_cache(maxsize=1)
-def _livres() -> list[int]:
-    m0, mfim = (2 * ANEL_INICIAL - 1) ** 2, (2 * ANEL_RESERVAS + 1) ** 2
+def vagas_do_anel(k: int) -> list[tuple[int, int]]:
+    """Todas as casas possíveis do anel k (antes das reservas), na ordem de chegada."""
+    d = rua_do_anel(k)
+    seq = ([(dx, d, 0, 1) for dx in range(0, d + 1)] + [(d, dy, 1, 0) for dy in range(d, -d - 1, -1)]
+           + [(dx, -d, 0, -1) for dx in range(d, -d - 1, -1)] + [(-d, dy, -1, 0) for dy in range(-d, d + 1)]
+           + [(dx, d, 0, 1) for dx in range(-d, 0)])
     out = []
-    for m in range(m0, mfim):
-        u, v, _ = _celula(m)
-        if not _clareira(u, v) and not reservado(*_casa_da_celula(u, v)):
-            out.append(m)
+    for dx, dy, nx, ny in seq:
+        ao_longo = dx if ny else dy
+        if ao_longo % 2 or abs(ao_longo) > d - 3:
+            continue
+        if (ny and abs(dx) <= 1) or (nx and abs(dy - AV_Y) <= 1):
+            continue
+        for s in (-1, 1):   # lado de dentro, lado de fora
+            out.append((CENTRO[0] + dx + s * nx, CENTRO[1] + dy + s * ny))
     return out
+
+
+_LOTES: list[tuple[int, int]] = []
+_ANEL_DO_LOTE: list[int] = []
+_ANEIS_FEITOS = [0]
+
+
+def _garantir(n: int) -> None:
+    while len(_LOTES) < n:
+        k = _ANEIS_FEITOS[0]
+        for c in vagas_do_anel(k):
+            if not reservado(*c):
+                _LOTES.append(c)
+                _ANEL_DO_LOTE.append(k)
+        _ANEIS_FEITOS[0] += 1
 
 
 def casa_do_id(id_: int) -> tuple[int, int]:
     id_ = max(1, int(id_))
-    livres, mfim = _livres(), (2 * ANEL_RESERVAS + 1) ** 2
-    return _casa_do_indice(livres[id_ - 1] if id_ <= len(livres) else mfim + (id_ - len(livres)) - 1)
+    _garantir(id_)
+    return _LOTES[id_ - 1]
+
+
+def anel_do_id(id_: int) -> int:
+    id_ = max(1, int(id_))
+    _garantir(id_)
+    return _ANEL_DO_LOTE[id_ - 1]
 
 
 def casa_do_codigo(codigo: str) -> tuple[int, int]:
     return casa_do_id(int("".join(ch for ch in codigo if ch.isdigit()) or 1))
 
 
-# ---------- crateras batizadas (item "Nomeie sua Cratera") ----------
-# Ficam num anel FORA da colônia (as obras vão até ~14 casas do módulo), cada uma num ângulo (ângulo áureo, sem
-# empilhar). A mesma conta está em lib/crateras.ts. O vilarejo só chega nesse anel perto de ~850 colonos.
-CRATERA_RAIO = 60   # longe do vilarejo (que só chega a 60 casas com ~850 colonos)
-
-
-def pos_cratera(id_: int) -> dict:
-    """Centro (em casas) e raio (em pixels do mundo, CASA = 16) da cratera do resgate `id_`."""
-    id_ = max(1, int(id_))
-    ang = 0.9 + (id_ - 1) * 2.399963
-    dist = CRATERA_RAIO + (id_ * 3) % 4
-    return {"x": CENTRO[0] + round(dist * math.cos(ang)), "y": CENTRO[1] + round(dist * math.sin(ang)),
-            "r": 38 + (id_ * 5) % 8}
+def mapinha(n: int, crateras: int = 6) -> str:
+    casas = {casa_do_id(i): i for i in range(1, n + 1)}
+    kmax = anel_do_id(n) + 1
+    r = rua_do_anel(kmax) + 2
+    col = config.colonia()
+    linhas = []
+    for y in range(CENTRO[1] - r, CENTRO[1] + r + 1):
+        s = ""
+        for x in range(CENTRO[0] - r, CENTRO[0] + r + 1):
+            dx, dy = x - CENTRO[0], y - CENTRO[1]
+            ch = " ."[(x + y) % 2 == 0 and False]
+            ch = " "
+            if any(o["x"] <= x < o["x"] + o["w"] and o["y"] <= y < o["y"] + o["h"] for o in [col["base"], col["praca"], *col["obras"]]):
+                ch = "#"
+            elif (x, y) in casas:
+                ch = "h"
+            elif any(max(abs(dx), abs(dy)) == rua_do_anel(k) for k in range(kmax)) or (dx == 0 and abs(dy) > 2) or dy == AV_Y:
+                ch = "·"
+            for i in range(1, crateras + 1):
+                c = pos_cratera(i)
+                if (x, y) == (c["x"], c["y"]):
+                    ch = "O"
+            s += ch
+        linhas.append(s)
+    return "\n".join(linhas)
 
 
 if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 20
-    casas = [casa_do_id(i) for i in range(1, n + 1)]
-    for i, c in enumerate(casas[:n], 1):
-        print(f"colono {i:>4} → {c}")
+    for i in range(1, min(n, 12) + 1):
+        print(f"colono {i:>4} → {casa_do_id(i)}")
+    print(mapinha(n))

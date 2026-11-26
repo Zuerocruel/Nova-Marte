@@ -357,7 +357,7 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
     })
     mundo = db.todos("personagens", {"select": campos, **visiveis, "order": "id.asc"})
     if any((p["pos_x"], p["pos_y"]) != bairro.casa_do_codigo(p["codigo"]) for p in mundo):
-        print("aviso: as casas no banco ainda estão no bairro antigo: rode supabase/migrations/016_vilarejo.sql "
+        print("aviso: as casas no banco ainda estão no bairro antigo: rode supabase/migrations/018_aneis.sql "
               "no SQL Editor do Supabase (o vídeo já usa o bairro novo; o site só muda depois disso)")
 
     # compras pagas desde o último episódio. "atualizado_em" pega o Pix gerado antes

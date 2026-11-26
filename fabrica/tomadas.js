@@ -401,7 +401,7 @@ function tomadaObjeto(t, k) {   // close do objeto ficando verde, com brilho de 
 }
 
 // obra vista de lado: céu, dunas, o prédio subindo em fileiras, andaime, soldador no topo, rover passando
-const COR_OBRA = { estufa: ['#8fe6ff', '#eef0f8'], antena: ['#e2603b', '#eef0f8'], gelo: ['#9aa0b5', '#3fd0c9'], oxigenio: ['#eef0f8', '#3fd0c9'],
+const COR_OBRA = { comando: ['#e4e6f0', '#2c4fb8'], estufa: ['#8fe6ff', '#eef0f8'], antena: ['#e2603b', '#eef0f8'], gelo: ['#9aa0b5', '#3fd0c9'], oxigenio: ['#eef0f8', '#3fd0c9'],
   oficina: ['#9aa0b5', '#ffc83d'], cantina: ['#f4b46b', '#e89a55'], enfermaria: ['#eef0f8', '#e04f5f'], abrigo: ['#a0613f', '#5e2c1b'], laboratorio: ['#e4e6f0', '#8fe6ff'] };
 function tomadaObra(t, k, cena) {
   const o = EP.mundo.obras.find((x) => x.slug === EP.missao_obra) || {};
@@ -429,6 +429,16 @@ function tomadaObra(t, k, cena) {
       if (Math.floor(y / 6) % 3 === 0) R(TW / 2 - w / 2, y - 1, w, 2, '#c9ced9');
     }
     if (p > 0.95) { tx.fillStyle = '#e4e6f0'; tx.beginPath(); tx.ellipse(TW / 2, chao - bh - 10, 40, 14, -0.3, 0, Math.PI); tx.fill(); }
+  } else if (o.tipo === 'gelo') {   // Extrator: torre da broca treliçada subindo + tanque ao lado
+    const tw = 70, tq = { x: bx - 4, w: 56 }, alt = bh * 1.3 * p;
+    for (let y = 0; y < alt; y += 6) { const w = lerp(tw, 18, y / (bh * 1.3)); R(TW / 2 + 30 - w / 2, chao - y - 3, 3, 6, '#9aa0b5'); R(TW / 2 + 30 + w / 2 - 3, chao - y - 3, 3, 6, '#9aa0b5'); if (y % 18 === 0) R(TW / 2 + 30 - w / 2, chao - y, w, 2, '#6b6f86'); }
+    const th = Math.min(1, p * 1.4) * 90;
+    R(tq.x, chao - th, tq.w, th, '#c9ced9'); R(tq.x + 4, chao - th, 6, th, '#eef0f8');
+    if (th > 20) R(tq.x + 20, chao - th + 10, 16, th - 16, '#3fd0c9');
+  } else if (o.tipo === 'comando') {   // Módulo de Comando: paredes, janelas e a cúpula do telescópio no fim
+    R(bx, topo, bw, chao - topo, ca); R(bx, topo, bw, 8, cb);
+    for (let y = chao - 30; y > topo + 12; y -= 30) for (let x = bx + 14; x < bx + bw - 20; x += 28) R(x, y, 16, 12, '#8fe6ff');
+    if (p > 0.8) { const q = (p - 0.8) / 0.2; tx.fillStyle = '#eef0f8'; tx.beginPath(); tx.arc(bx + bw - 40, topo, 30 * q, Math.PI, 0); tx.fill(); }
   } else {   // prédio subindo em fileiras (paredes e janelas)
     R(bx, topo, bw, chao - topo, ca);
     for (let y = chao - 24; y > topo + 6; y -= 30) for (let x = bx + 12; x < bx + bw - 20; x += 26) R(x, y, 14, 12, cb);
@@ -1317,6 +1327,236 @@ function prepararTomadasTikTok() {
 }
 
 // ------------------------------------------------------------------ roteiro dos cortes
+// ================================================================== tomadas novas (refino do ep. 8, pedido do dono)
+// Cenas que antes ficavam só no mapa ganham corte próprio: a chegada de quem entrou, o batismo da cratera, o
+// resultado da votação do telescópio, a inauguração da obra e a assembleia da votação nova.
+function pessoaDoCodigo(cod, i = 0) { const c = cod && colonoPorCodigo.get(cod); return c ? pessoaT(c) : colonoQualquer(i); }
+
+// ---- BOAS-VINDAS: a câmara de ar abre (luz vermelha → verde, vapor da pressurização) e quem chegou entra;
+// a Comandante Vega recebe acenando
+function tomadaBoasVindas(t, k, cena) {
+  TREMOR = 0;
+  const chao = sala(t, { janela: false });
+  const pw = 74, ph = 136, px = TW - pw - 22, py = chao - ph;
+  R(px - 10, py - 10, pw + 20, ph + 10, '#1b1530'); R(px - 6, py - 6, pw + 12, ph + 6, '#6b6f86');
+  const g = tx.createLinearGradient(0, py, 0, chao); g.addColorStop(0, '#f0b88c'); g.addColorStop(1, '#c4643c');
+  tx.fillStyle = g; tx.fillRect(px, py, pw, ph);
+  tx.fillStyle = '#b85a37'; tx.beginPath(); tx.moveTo(px, chao);
+  for (let x = 0; x <= pw; x += 4) tx.lineTo(px + x, chao - 26 - Math.sin(x * 0.09) * 6); tx.lineTo(px + pw, chao); tx.fill();
+  const abre = suave(clamp((k - 0.06) / 0.22)), folha = ph * (1 - abre);
+  R(px, py, pw, folha, '#9aa0b5');
+  for (let y = py + 10; y < py + folha - 4; y += 18) R(px, y, pw, 2, '#6b6f86');
+  if (folha > 8) R(px + pw / 2 - 8, py + folha - 10, 16, 5, '#ffc83d');
+  R(px + pw / 2 - 5, py - 22, 10, 7, abre > 0.97 ? COR.ok : (Math.floor(t * 4) % 2 ? COR.alerta : '#7a2a2a'));
+  if (abre > 0.02 && k < 0.6) for (let i = 0; i < 16; i++) {   // vapor saindo da câmara
+    const q = (t * 0.9 + i / 16) % 1;
+    tx.globalAlpha = (1 - q) * 0.45 * (1 - clamp((k - 0.4) / 0.2));
+    R(px + hashT(i, 3) * pw - q * 60, chao - 8 - q * 70 - hashT(i, 4) * 50, 6 + q * 12, 4 + q * 8, '#eef0f8');
+  }
+  tx.globalAlpha = 1;
+  const novos = (cena.colonos || []).map((c) => colonoPorCodigo.get(c)).filter(Boolean).slice(0, 3).map(pessoaT);
+  if (!novos.length) novos.push(colonoQualquer(0));
+  const rs = [];
+  novos.forEach((p, i) => {
+    const q = clamp((k - 0.26 - i * 0.12) / 0.38);
+    if (q <= 0) return;
+    const x = lerp(px + pw / 2, TW * 0.54 - i * 40, suave(q)), parado = q >= 1;
+    rs.push({ p, r: ator(p.pal, { x, chao, dir: -1, anda: parado ? null : t * 11, alegre: parado,
+      maoF: parado && i === 0 ? { x: x - 20, y: chao - 92 + Math.sin(t * 9) * 6 } : null }, t, 3.2) });
+  });
+  const xv = TW * 0.17;
+  ator(FUNDADOR_PAL.vega, { x: xv, chao, dir: 1, alegre: k > 0.45, maoF: k > 0.45 ? { x: xv + 22, y: chao - 92 + Math.sin(t * 9 + 1) * 6 } : null }, t, 3.2);
+  return () => {
+    texto('GENTE NOVA NA COLÔNIA', W / 2, 220, 42, COR.ouro, { maxW: W - 140 });
+    for (const { p, r } of rs) texto(p.nome, r.cab.x * TE, (r.cab.y - 12) * TE, 30, '#ffffff', { maxW: 420 });
+  };
+}
+
+// ---- CRATERA: quem batizou chega na borda com a placa, crava o poste a marteladas e a placa ganha o nome
+function tomadaCratera(t, k, cena) {
+  TREMOR = 0;
+  ceuT(); R(40 + t * 2, 46, 6, 6, '#fff3d6'); dunasLonge(t, 0.42);
+  const chao = TH * 0.6;
+  const cr = (EP.mundo.crateras || []).find((c) => (cena.crateras || []).includes(c.id)) || { nome: 'Cratera', codigo: null };
+  chaoT(chao);
+  const cx = TW * 0.72, rx = 66, fundo = 60;
+  for (const lado of [-1, 1]) {   // bordas levantadas
+    tx.fillStyle = '#c46c44'; tx.beginPath(); tx.ellipse(cx + lado * rx, chao, 26, 13, 0, Math.PI, 0); tx.fill();
+    tx.fillStyle = '#d98a5c'; tx.beginPath(); tx.ellipse(cx + lado * rx - 4, chao - 2, 16, 8, 0, Math.PI, Math.PI * 1.6); tx.fill();
+  }
+  tx.save(); tx.beginPath(); tx.rect(0, chao, TW, TH); tx.clip();
+  tx.fillStyle = '#6b2f1d'; tx.beginPath(); tx.ellipse(cx, chao, rx, fundo, 0, 0, Math.PI * 2); tx.fill();
+  tx.fillStyle = '#8f4129'; tx.beginPath(); tx.ellipse(cx + 12, chao + 8, rx - 18, fundo - 16, 0, 0, Math.PI * 2); tx.fill();
+  tx.fillStyle = '#a14b2f'; tx.beginPath(); tx.ellipse(cx + 22, chao + 18, rx - 44, fundo - 36, 0, 0, Math.PI * 2); tx.fill();
+  tx.restore();
+  for (let i = 0; i < 7; i++) R(cx - rx + 10 + hashT(i, 61) * rx * 2 - 20, chao + 10 + hashT(i, 62) * 30, 4, 3, '#5a2a18');   // pedras no fundo
+  const sx = cx - rx - 40, p = pessoaDoCodigo(cr.codigo, 3), E = 3;
+  const anda = clamp(k / 0.28), martela = clamp((k - 0.3) / 0.3), pronto = k > 0.62;
+  const alt = 40 + 56 * suave(martela);                         // poste entrando no chão (de cima: fica mais alto à vista)
+  const xp = lerp(-30, sx - 34, suave(anda));
+  if (martela > 0) {
+    R(sx - 1.5, chao - alt, 3, alt, '#d8dbe8');
+    R(sx - 46, chao - alt - 26, 92, 26, '#5a3a22'); R(sx - 44, chao - alt - 24, 88, 22, pronto ? '#8a5a34' : '#6b4a2e');
+    if (pronto) { R(sx + 1, chao - alt - 46, 2, 20, '#d8dbe8'); R(sx + 3, chao - alt - 46, 14, 8, COR.ouro); }
+  }
+  const golpe = martela > 0 && martela < 1 ? Math.abs(Math.sin(t * 9)) : 0;
+  const r = ator(p.pal, { x: xp, chao, dir: 1, anda: anda < 1 ? t * 10 : null, alegre: pronto, pulo: pronto ? Math.abs(Math.sin(t * 6)) * 6 : 0,
+    maoF: martela > 0 && !pronto ? { x: sx - 6, y: chao - alt - 30 + golpe * 18 } : (pronto ? { x: xp + 6, y: chao - 96 } : null),
+    maoT: anda < 1 ? { x: xp + 8, y: chao - 50 } : null }, t, E);
+  if (anda < 1) seg({ x: xp - 6, y: chao - 52 }, { x: xp + 40, y: chao - 46 }, 3, '#d8dbe8');   // carregando o poste
+  if (martela > 0 && !pronto) ferramentaT('chave', r.maoF, r.cotF, t, E);
+  if (golpe > 0.95) for (let i = 0; i < 5; i++) R(sx - 6 + (hashT(i, Math.floor(t * 9)) - 0.5) * 20, chao - alt - 28 - hashT(i + 5, Math.floor(t * 9)) * 10, 2, 2, '#ffffff');
+  return () => {
+    texto('NOME NOVO NO MAPA', W / 2, 220, 40, COR.ouro, { maxW: W - 140 });
+    if (pronto) texto(cr.nome.toUpperCase(), sx * TE, (chao - alt - 13) * TE, 20, '#ffffff', { maxW: 84 * TE });
+    if (!pronto) texto(p.nome, r.cab.x * TE, (r.cab.y - 10) * TE, 26, '#ffffff', { maxW: 360 });
+    else texto(`BATIZADA POR ${p.nome.toUpperCase()}`, W / 2, 280, 26, '#ffffff', { maxW: W - 140 });
+  };
+}
+
+// ---- RESULTADO DO TELESCÓPIO (votação SIM): o telescópio no teto do Módulo de Pouso — o teto afunda, estala e
+// todo mundo pula para trás; corta para a planta azul do Módulo de Comando, logo acima do módulo, com a cúpula
+function tomadaTelescopioTeto(t, k) {
+  TREMOR = k > 0.35 && k < 0.7 ? 0.35 : 0;
+  const g = tx.createLinearGradient(0, 0, 0, TH); g.addColorStop(0, '#0d0a1c'); g.addColorStop(0.7, '#3a2342'); g.addColorStop(1, '#7a3a2a');
+  tx.fillStyle = g; tx.fillRect(0, 0, TW, TH);
+  for (let i = 0; i < 60; i++) R(hashT(i, 71) * TW, hashT(i, 72) * TH * 0.55, 1, 1, i % 7 ? '#ffffff' : '#8fe6ff');
+  R(TW * 0.8, TH * 0.16, 3, 3, '#6fb8ff');                                   // a Terra, um pontinho azul
+  const chao = TH * 0.66;
+  chaoT(chao, '#5a2a1a', '#3d1b12');
+  const mx = TW / 2, mw = 150, mh = 80, topo = chao - mh, afunda = 18 * suave(clamp((k - 0.3) / 0.4));
+  R(mx - mw / 2, topo, mw, mh, '#c9ced9'); R(mx - mw / 2 + 4, topo + 4, mw - 8, mh - 8, '#e4e6f0');
+  R(mx - mw / 2, topo + 30, mw, 6, '#e2603b');
+  for (let i = 0; i < 4; i++) R(mx - 56 + i * 32, topo + 46, 16, 12, '#3fd0c9');
+  tx.fillStyle = '#d2d5e2'; tx.beginPath(); tx.moveTo(mx - mw / 2, topo);   // teto (cúpula) que afunda no meio
+  tx.quadraticCurveTo(mx, topo - 50 + afunda * 2.4, mx + mw / 2, topo); tx.fill();
+  const ty = topo - 34 + afunda * 1.8, ang = -0.8 + afunda * 0.02;
+  seg({ x: mx - 14, y: ty + 16 }, { x: mx, y: ty }, 3, '#6b6f86'); seg({ x: mx + 14, y: ty + 16 }, { x: mx, y: ty }, 3, '#6b6f86');
+  for (let i = 0; i < 38; i++) R(mx + Math.cos(ang) * i - 3, ty + Math.sin(ang) * i - 3, 7, 7, i > 32 ? '#2a2140' : '#9aa0b5');
+  if (k > 0.42) {   // rachaduras e pedacinhos caindo
+    tx.strokeStyle = '#2a2140'; tx.lineWidth = 2; tx.beginPath();
+    tx.moveTo(mx - 20, topo - 14 + afunda); tx.lineTo(mx - 8, topo - 4 + afunda); tx.lineTo(mx - 16, topo + 6); tx.moveTo(mx + 12, topo - 12 + afunda); tx.lineTo(mx + 22, topo); tx.stroke();
+    for (let i = 0; i < 6; i++) { const q = ((t * 1.3 + i / 6) % 1); R(mx - 30 + i * 12, topo + q * (mh + 10), 3, 3, '#9aa0b5'); }
+  }
+  const rs = [];
+  for (let i = 0; i < 3; i++) {
+    const c = colonoQualquer(i + 9), x0 = [TW * 0.14, TW * 0.86, TW * 0.3][i], fuga = clamp((k - 0.5) / 0.2) * (i === 1 ? 26 : -26);
+    rs.push(ator(c.pal, { x: x0 + fuga, chao, dir: i === 1 ? -1 : 1, cabeca: -4, susto: k > 0.48, pulo: k > 0.48 && k < 0.6 ? 10 : 0 }, t, 2.6));
+  }
+  if (k > 0.45) rs.forEach((r, i) => exclamacao(r.cab.x, r.cab.y - 4, t + i * 0.3, 2.6));
+  return () => { if (k > 0.45) texto('O TETO NÃO AGUENTA!', W / 2, 220, 40, COR.alerta, { maxW: W - 140 }); };
+}
+function tomadaPlantaComando(t, k) {
+  TREMOR = 0;
+  R(0, 0, TW, TH, '#163a80');
+  for (let x = 0; x < TW; x += 15) R(x, 0, 1, TH, '#2a56a8');
+  for (let y = 0; y < TH; y += 15) R(0, y, TW, 1, '#2a56a8');
+  const linha = '#eaf2ff', prog = (a, b) => clamp((k - a) / (b - a));
+  const tr = (x0, y0, x1, y1, q) => { if (q > 0) seg({ x: x0, y: y0 }, { x: lerp(x0, x1, q), y: lerp(y0, y1, q) }, 2, linha); };
+  const caixa = (x, y, w, h, q) => { tr(x, y, x + w, y, clamp(q * 4)); tr(x + w, y, x + w, y + h, clamp(q * 4 - 1)); tr(x + w, y + h, x, y + h, clamp(q * 4 - 2)); tr(x, y + h, x, y, clamp(q * 4 - 3)); };
+  // Módulo de Pouso (já existe): embaixo, tracejado
+  const mx = TW / 2 - 50, my = TH * 0.62;
+  caixa(mx, my, 100, 64, 1);
+  for (let x = mx + 6; x < mx + 96; x += 12) R(x, my + 30, 6, 2, linha);
+  // Módulo de Comando (novo), logo acima, com a cúpula e o telescópio
+  const cy = my - 130, q1 = prog(0.12, 0.55), q2 = prog(0.5, 0.78), q3 = prog(0.74, 0.95);
+  caixa(mx + 6, cy, 88, 70, q1);
+  if (q2 > 0) {
+    tx.strokeStyle = linha; tx.lineWidth = 2; tx.beginPath(); tx.arc(mx + 66, cy, 22, Math.PI, Math.PI + Math.PI * q2); tx.stroke();
+    for (let i = 0; i < 4; i++) if (q2 > (i + 1) / 5) R(mx + 16 + i * 14, cy + 22, 8, 8, linha);
+  }
+  if (q3 > 0) tr(mx + 66, cy - 12, mx + 66 + 40, cy - 52, q3);
+  for (let y = my - 6; y > cy + 74; y -= 8) if (k > 0.3) R(TW / 2 - 1, y, 2, 4, '#ffc83d');   // ligação entre os dois
+  return () => {
+    texto('MÓDULO DE COMANDO', W / 2, 200, 42, '#ffffff', { maxW: W - 140 });
+    if (k > 0.78) texto('TELESCÓPIO', (mx + 110) * TE, (cy - 62) * TE, 24, COR.ouro);
+    texto('MÓDULO DE POUSO', W / 2, (my + 84) * TE, 22, '#bcd2ff');
+  };
+}
+
+// ---- INAUGURAÇÃO: a Comandante corta a fita na frente da obra pronta; depois a obra "liga" (Extrator: o
+// tanque enche com a água tirada do gelo; as outras: as luzes acendem) e a colônia comemora com confete
+function tomadaInauguracao(t, k) {
+  TREMOR = 0;
+  const o = EP.mundo.obras.find((x) => x.slug === EP.missao_obra) || {};
+  ceuT(0.25); R(TW * 0.8, 60, 8, 8, '#fff3d6'); dunasLonge(t, 0.46);
+  const chao = TH * 0.62, corta = 0.22, liga = clamp((k - 0.3) / 0.5);
+  chaoT(chao);
+  const [ca, cb] = COR_OBRA[o.tipo] || ['#c9ced9', '#e2603b'];
+  if (o.tipo === 'gelo') {
+    const tq = { x: TW * 0.2, w: 84, h: 120 };   // tanque
+    R(tq.x - 2, chao - tq.h - 2, tq.w + 4, tq.h + 2, '#6b6f86'); R(tq.x, chao - tq.h, tq.w, tq.h, '#c9ced9');
+    tx.fillStyle = '#e4e6f0'; tx.beginPath(); tx.ellipse(tq.x + tq.w / 2, chao - tq.h, tq.w / 2, 12, 0, Math.PI, 0); tx.fill();
+    const nivel = (tq.h - 16) * liga;
+    R(tq.x + 30, chao - tq.h + 10, 24, tq.h - 18, '#2a2140');   // visor do nível
+    R(tq.x + 31, chao - 9 - nivel, 22, nivel, COR.agua);
+    if (liga > 0 && liga < 1) R(tq.x + 31, chao - 9 - nivel, 22, 2, '#bff8ff');
+    const torre = TW * 0.68;   // torre da broca treliçada, cano até o tanque
+    for (let y = 0; y < 170; y += 6) { const w = lerp(56, 14, y / 170); R(torre - w / 2, chao - y - 3, 3, 6, cb === '#3fd0c9' ? '#9aa0b5' : cb); R(torre + w / 2 - 3, chao - y - 3, 3, 6, '#9aa0b5'); if (y % 18 === 0) R(torre - w / 2, chao - y, w, 2, '#6b6f86'); }
+    R(torre - 8, chao - 178, 16, 10, '#e2603b');
+    R(tq.x + tq.w, chao - 30, torre - tq.x - tq.w - 10, 8, '#9aa0b5');
+    if (liga > 0) for (let i = 0; i < 6; i++) { const q = (t * 1.6 + i / 6) % 1; R(lerp(torre - 12, tq.x + tq.w, q), chao - 28, 6, 4, COR.agua); }
+    R(torre - 4, chao, 8, TH - chao, '#6b6f86');   // broca descendo até o gelo
+    R(0, TH - 34, TW, 34, '#bfe7f5'); for (let i = 0; i < 10; i++) R(i * 28 + 4, TH - 30, 20, 3, '#ffffff');
+  } else {
+    const bw = 140, bh = 120, bx = TW / 2 - bw / 2 + 30;
+    R(bx, chao - bh, bw, bh, ca); R(bx, chao - bh, bw, 5, '#ffffff55');
+    let n = 0;
+    for (let y = chao - bh + 18; y < chao - 24; y += 30) for (let x = bx + 12; x < bx + bw - 16; x += 26, n++)
+      R(x, y, 14, 12, liga * 9 > n ? '#ffe58a' : cb);
+    if (o.tipo === 'comando') { tx.fillStyle = '#eef0f8'; tx.beginPath(); tx.arc(bx + bw - 34, chao - bh, 22, Math.PI, 0); tx.fill(); seg({ x: bx + bw - 34, y: chao - bh - 12 }, { x: bx + bw, y: chao - bh - 46 }, 6, '#9aa0b5'); }
+  }
+  // fita vermelha na frente (a Comandante corta) e os colonos
+  const fy = chao - 40;
+  if (k < corta) R(TW * 0.08, fy, TW * 0.84, 4, '#e04f5f');
+  else { const q = clamp((k - corta) / 0.12); for (const s of [-1, 1]) seg({ x: TW / 2 + s * 4, y: fy + q * 30 }, { x: TW / 2 + s * TW * 0.42, y: fy }, 3, '#e04f5f'); }
+  const xv = TW / 2 - 16;
+  const rv = ator(FUNDADOR_PAL.vega, { x: xv, chao, dir: 1, alegre: k > corta, maoF: k < corta + 0.05 ? { x: TW / 2 - 2, y: fy + 1 } : { x: xv + 8, y: chao - 92 } }, t, 3);
+  if (k < corta + 0.05) { seg(rv.maoF, { x: rv.maoF.x + 8, y: rv.maoF.y - 4 + (Math.floor(t * 10) % 2) * 6 }, 2, '#c9ced9'); }
+  for (let i = 0; i < 4; i++) {
+    const c = colonoQualquer(i + 13), x = [TW * 0.1, TW * 0.24, TW * 0.78, TW * 0.92][i], festa = k > 0.55;
+    ator(c.pal, { x, chao: chao + 30, dir: x < TW / 2 ? 1 : -1, alegre: festa, pulo: festa ? Math.abs(Math.sin(t * 7 + i)) * 10 : 0,
+      maoF: festa ? { x: x + (x < TW / 2 ? 6 : -6), y: chao - 66 } : null }, t, 2.8);
+  }
+  if (k > corta) for (let i = 0; i < 40; i++) {   // confete
+    const q = ((t * 0.35 + hashT(i, 81)) % 1), x = hashT(i, 82) * TW + Math.sin(t * 3 + i) * 8;
+    R(x, q * TH * 0.8, 3, 4, ['#ffc83d', '#e04f5f', '#3fd0c9', '#4ed37a', '#eef0f8'][i % 5]);
+  }
+  return () => {
+    texto((o.nome || 'OBRA').toUpperCase(), W / 2, 200, 40, COR.ouro, { maxW: W - 140 });
+    texto(k < corta + 0.05 ? 'INAUGURAÇÃO' : 'FUNCIONANDO!', W / 2, 260, 34, '#ffffff', { maxW: W - 140 });
+  };
+}
+
+// ---- ASSEMBLEIA (votação nova): a colônia reunida na frente do telão com a pergunta; uns levantam a mão (SIM),
+// outros cruzam os braços (NÃO), e o telão pisca pedindo o voto de quem está assistindo
+function tomadaAssembleia(t, k, cena) {
+  TREMOR = 0;
+  const chao = sala(t, { janela: false });
+  tx.globalAlpha = 0.35; R(0, 0, TW, TH, '#0a0818'); tx.globalAlpha = 1;
+  const sx = 26, sy = 44, sw = TW - 52, sh = 120;
+  R(sx - 6, sy - 6, sw + 12, sh + 12, '#1b1530'); R(sx, sy, sw, sh, '#22357a');
+  for (let y = sy; y < sy + sh; y += 3) { tx.globalAlpha = 0.15; R(sx, y, sw, 1, '#000'); } tx.globalAlpha = 1;
+  R(sx + 20, sy + sh - 38, 90, 26, '#2bb673'); R(sx + sw - 110, sy + sh - 38, 90, 26, '#e04f5f');
+  if (k > 0.65 && Math.floor(t * 4) % 2) { tx.strokeStyle = COR.ouro; tx.lineWidth = 3; tx.strokeRect(sx - 3, sy - 3, sw + 6, sh + 6); }
+  tx.globalCompositeOperation = 'lighter';
+  const gl = tx.createLinearGradient(0, sy + sh, 0, chao + 60); gl.addColorStop(0, 'rgba(120,160,255,0.2)'); gl.addColorStop(1, 'rgba(120,160,255,0)');
+  tx.fillStyle = gl; tx.fillRect(sx, sy + sh, sw, chao + 60 - sy - sh); tx.globalCompositeOperation = 'source-over';
+  const E = 3.2, base = chao + 34;
+  for (let i = 0; i < 5; i++) {
+    const c = colonoQualquer(i + 17), x = TW * (0.12 + i * 0.19), sim = i % 2 === 0, q = clamp((k - 0.2 - i * 0.07) / 0.1);
+    ator(c.pal, { x, chao: base, dir: x < TW / 2 ? 1 : -1, cabeca: -4,
+      maoF: sim && q > 0 ? { x: x + (x < TW / 2 ? 4 : -4), y: base - 70 - 30 * q } : (!sim && q > 0 ? { x: x + (x < TW / 2 ? 6 : -6), y: base - 46 } : null),
+      maoT: !sim && q > 0 ? { x: x + (x < TW / 2 ? 8 : -8), y: base - 44 } : null }, t, E);
+  }
+  const v = cena.votacao || {};
+  return () => {
+    texto(v.tela || 'VOTAÇÃO DA COLÔNIA', W / 2, (sy + 34) * TE, 30, '#ffffff', { maxW: (sw - 20) * TE });
+    texto('SIM', (sx + 65) * TE, (sy + sh - 25) * TE, 34, '#ffffff'); texto('NÃO', (sx + sw - 65) * TE, (sy + sh - 25) * TE, 34, '#ffffff');
+    if (k > 0.65) texto('COMENTA O SEU VOTO!', W / 2, (sy + sh + 30) * TE, 30, COR.ouro, { maxW: W - 140 });
+  };
+}
+
 function prepararTomadas() {
   TOMADAS = [];
   // Instagram e TikTok: só tomadas exclusivas, e cada rede com a sua linguagem (o mesmo episódio, 2 vídeos diferentes)
@@ -1352,6 +1592,21 @@ function prepararTomadas() {
     add(Math.max(ninguem - 0.1, DUNAS_MAPA.t0 + 1.8), r.fim - 0.2, 'curiosos', r);
   }
   if (FUND) add(FUND.ini, FUND.fim, 'fundacao', FUND.c);
+  // refino (ep. 8): chegada de quem entrou, batismo da cratera, resultado do telescópio, inauguração e assembleia
+  const bv = EP.cenas.find((c) => c.tipo === 'boas_vindas');
+  if (bv) add(bv.fala_inicio + 0.2, (palavraEm(bv, /^casa/i, bv.fala_inicio + 1) ?? bv.fim) - 0.35, 'boasVindas', bv);
+  const cr = EP.cenas.find((c) => c.tipo === 'cratera');
+  if (cr) { const f = (cr.focos || []).find((x) => x.alvo.startsWith('cratera:')); add(cr.fala_inicio + 0.3, (f ? f.t : cr.fim) - 0.1, 'cratera', cr); }
+  const res = EP.cenas.find((c) => c.tipo === 'resultado' && c.votacao && c.votacao.id === 'telescopio' && c.votacao.resultado === 'sim');
+  if (res) {
+    const teto = palavraEm(res, /^teto/i) ?? res.fala_inicio + (res.fim - res.fala_inicio) * 0.4;
+    const entao = palavraEm(res, /^ent[aã]o/i, teto) ?? teto + (res.fim - teto) * 0.4;
+    add(teto - 0.6, entao - 0.05, 'telescopioTeto', res); add(entao - 0.05, res.fim - 0.2, 'plantaComando', res);
+  }
+  const lig = EP.cenas.find((c) => c.tipo === 'missao' && c.acao === 'ligar');
+  if (lig) add(lig.fala_inicio + 0.1, lig.fim - 0.2, 'inauguracao', lig);
+  const vt = EP.cenas.find((c) => c.tipo === 'votacao');
+  if (vt) add(vt.fala_inicio + 0.3, (palavraEm(vt, /^escreve/i, vt.fala_inicio + 2) ?? vt.fim) - 0.2, 'assembleia', vt);
   // Correio da colônia: uma tomada só do primeiro ao último comentário respondido (o estúdio não corta no meio)
   const correio = EP.cenas.filter((c) => c.tipo === 'correio');
   if (correio.length) add(correio[0].inicio + 0.25, correio[correio.length - 1].fim - 0.15, 'correio', correio[0]);
@@ -1370,7 +1625,8 @@ function desenharTomada(tm, t) {
                   rover: tomadaRover, marcas: tomadaMarcas, curiosos: tomadaCuriosos, fundacao: tomadaFundacao,
                   correio: tomadaCorreio, cRosto: curtoRosto, cFaisca: curtoFaisca, cCorredor: curtoCorredor,
                   cBroca: curtoBroca, cChegada: curtoChegada, tCCTV: ttCCTV, tCracha: ttCracha, tTimelapse: ttTimelapse,
-                  tSinal: ttSinal }[tm.tipo](t, k, tm.cena);
+                  tSinal: ttSinal, boasVindas: tomadaBoasVindas, cratera: tomadaCratera, telescopioTeto: tomadaTelescopioTeto,
+                  plantaComando: tomadaPlantaComando, inauguracao: tomadaInauguracao, assembleia: tomadaAssembleia }[tm.tipo](t, k, tm.cena);
   tx.globalAlpha = 1;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;
