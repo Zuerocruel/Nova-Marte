@@ -1174,13 +1174,20 @@ function curtoChegada(t, k, cena) {
 }
 
 function prepararTomadasCurtas() {
+  // cada fala ganha a animação do que ela conta (pedido do dono): ventania → lona rasgando; amarra/fecha → lona presa
+  // e persianas; obra chegando a 100% → a obra terminando; tanque enche/ligou → inauguração; chegou → câmara de ar
   const add = (ini, fim, tipo, cena) => { if (fim - ini > 0.8) TOMADAS.push({ ini, fim, tipo, cena }); };
   for (const c of EP.cenas) {
     const a = c.inicio, d = c.fim - a;
-    if (c.tipo === 'problema') { add(a, a + d * 0.42, 'cRosto', c); add(a + d * 0.42, c.fim, 'cFaisca', c); }
-    else if (c.tipo === 'solucao') { add(a, a + d * 0.55, 'cCorredor', c); add(a + d * 0.55, c.fim, 'objeto', c); }
-    else if (c.tipo === 'boas_vindas' || c.tipo === 'andarilhos') add(a, c.fim, 'cChegada', c);
-    else if (c.tipo === 'missao') add(a, c.fim, 'cBroca', c);
+    if (c.tipo === 'problema') {
+      if (ehVentania()) { add(a, a + d * 0.3, 'cRosto', c); add(a + d * 0.3, c.fim, 'ventania', c); }
+      else { add(a, a + d * 0.42, 'cRosto', c); add(a + d * 0.42, c.fim, 'cFaisca', c); }
+    } else if (c.tipo === 'solucao') {
+      if (ehVentania()) { const f = palavraEm(c, /^fecha/i, a + 1) ?? a + d * 0.6; add(a, f - 0.1, 'amarraLona', c); add(f - 0.1, c.fim, 'persiana', c); }
+      else { add(a, a + d * 0.55, 'cCorredor', c); add(a + d * 0.55, c.fim, 'objeto', c); }
+    } else if (c.tipo === 'boas_vindas') add(a, c.fim, 'boasVindas', c);
+    else if (c.tipo === 'andarilhos') add(a, c.fim, 'cChegada', c);
+    else if (c.tipo === 'missao') add(a, c.fim, c.acao === 'ligar' ? 'inauguracao' : ((c.progresso || [0, 0])[1] >= 1 ? 'obra' : 'cBroca'), c);
     else if (c.tipo === 'youtube') add(a, c.fim, 'cRosto', c);   // fim: TikTok no suspense (?), Instagram sorrindo com o play
   }
 }
@@ -1318,11 +1325,15 @@ function ttSinal(t, k) {
 function prepararTomadasTikTok() {
   const add = (ini, fim, tipo, cena) => { if (fim - ini > 0.8) TOMADAS.push({ ini, fim, tipo, cena }); };
   for (const c of EP.cenas) {
-    if (c.tipo === 'problema') add(c.inicio, c.fim, 'tCCTV', c);
-    else if (c.tipo === 'boas_vindas' || c.tipo === 'andarilhos') add(c.inicio, c.fim, 'tCracha', c);
-    else if (c.tipo === 'missao') add(c.inicio, c.fim, 'tTimelapse', c);
-    else if (c.tipo === 'youtube') add(c.inicio, c.fim, 'tSinal', c);
-    else if (c.tipo === 'solucao') { add(c.inicio, c.inicio + (c.fim - c.inicio) * 0.55, 'cCorredor', c); add(c.inicio + (c.fim - c.inicio) * 0.55, c.fim, 'objeto', c); }
+    const a = c.inicio, d = c.fim - a;
+    if (c.tipo === 'problema') { if (ehVentania()) { add(a, a + d * 0.35, 'tCCTV', c); add(a + d * 0.35, c.fim, 'tVentania', c); } else add(a, c.fim, 'tCCTV', c); }
+    else if (c.tipo === 'boas_vindas' || c.tipo === 'andarilhos') add(a, c.fim, 'tCracha', c);
+    else if (c.tipo === 'missao') add(a, c.fim, c.acao === 'ligar' ? 'tInauguracao' : 'tTimelapse', c);
+    else if (c.tipo === 'youtube') add(a, c.fim, 'tSinal', c);
+    else if (c.tipo === 'solucao') {
+      if (ehVentania()) { const f = palavraEm(c, /^fecha/i, a + 1) ?? a + d * 0.6; add(a, f - 0.1, 'tAmarra', c); add(f - 0.1, c.fim, 'tPersiana', c); }
+      else { add(a, a + d * 0.55, 'cCorredor', c); add(a + d * 0.55, c.fim, 'objeto', c); }
+    }
   }
 }
 
@@ -1523,8 +1534,9 @@ function tomadaInauguracao(t, k) {
     R(x, q * TH * 0.8, 3, 4, ['#ffc83d', '#e04f5f', '#3fd0c9', '#4ed37a', '#eef0f8'][i % 5]);
   }
   return () => {
-    texto((o.nome || 'OBRA').toUpperCase(), W / 2, 200, 40, COR.ouro, { maxW: W - 140 });
-    texto(k < corta + 0.05 ? 'INAUGURAÇÃO' : 'FUNCIONANDO!', W / 2, 260, 34, '#ffffff', { maxW: W - 140 });
+    const y0 = EP.curto === 'tiktok' ? 280 : 200;   // no TikTok, abaixo do letreiro da câmera
+    texto((o.nome || 'OBRA').toUpperCase(), W / 2, y0, 40, COR.ouro, { maxW: W - 140 });
+    texto(k < corta + 0.05 ? 'INAUGURAÇÃO' : 'FUNCIONANDO!', W / 2, y0 + 60, 34, '#ffffff', { maxW: W - 140 });
   };
 }
 
@@ -1557,6 +1569,123 @@ function tomadaAssembleia(t, k, cena) {
   };
 }
 
+// ================================================================== ventania (problema 'ventania'): a animação do que a fala diz
+// lona da obra batendo e rasgando, pedra voando nas casas → o herói amarra a lona com cabo de aço → as persianas
+// de metal descem e a pedra bate e volta. Usadas no episódio e nos dois cortes (no TikTok com o filtro de câmera).
+function lonaT(x0, y0, w, h, t, solta, presa) {   // lona presa no topo; 'solta' = 0..1 do canto rasgando, 'presa' = cabo esticado
+  const amp = (1 - presa) * 14, cor = '#3f8efc', esc = '#2b62b5';
+  for (let i = 0; i <= w; i += 3) {
+    const q = i / w, onda = Math.sin(t * 9 + q * 6) * amp * q, voa = solta * q * q * 60;
+    const fundo = y0 + h + onda - voa * 0.6, xx = x0 + i - voa * 1.4 * q;
+    R(xx, y0 + onda * 0.3, 3, fundo - y0, i % 12 < 6 ? cor : esc);
+  }
+  R(x0 - 2, y0 - 3, w + 4, 3, '#6b6f86');
+}
+function casinhaT(x, chao, persiana, t) {   // casinha vista de lado com janela; persiana 0..1 (descendo)
+  R(x, chao - 54, 70, 54, '#c9ced9'); R(x + 2, chao - 52, 66, 50, '#e4e6f0');
+  tx.fillStyle = '#e04f5f'; tx.beginPath(); tx.moveTo(x - 6, chao - 54); tx.lineTo(x + 35, chao - 80); tx.lineTo(x + 76, chao - 54); tx.fill();
+  const jx = x + 38, jy = chao - 42, jw = 24, jh = 20;
+  R(jx - 2, jy - 2, jw + 4, jh + 4, '#6b6f86'); R(jx, jy, jw, jh, '#ffe58a');
+  const fecha = jh * persiana;
+  for (let y = 0; y < fecha; y += 3) R(jx, jy + y, jw, 2, '#9aa0b5');
+  R(jx - 3, jy - 5, jw + 6, 3, '#4a4466');
+  R(x + 10, chao - 30, 14, 30, '#3a2f63');
+}
+function pedrasT(t, alvoX, alvoY, n, rebate) {
+  for (let i = 0; i < n; i++) {
+    const q = (t * (0.9 + hashT(i, 91) * 0.6) + hashT(i, 92)) % 1, y0 = alvoY - 30 + hashT(i, 93) * 50;
+    let x = lerp(TW + 20, alvoX, q), y = lerp(y0 - 20, y0, q);
+    if (rebate && q > 0.8) { const b = (q - 0.8) / 0.2; x = alvoX + b * 30; y = y0 - Math.sin(b * Math.PI) * 14; }
+    R(x, y, 4, 3, '#5a2a18');
+    if (!rebate && q > 0.96) for (let j = 0; j < 3; j++) R(alvoX - 4 + j * 3, y0 - 3 + j * 2, 2, 2, '#ffffff');
+  }
+}
+function tomadaVentania(t, k) {
+  TREMOR = 0.28;
+  ceuT(0.15, 0.35); dunasLonge(t, 0.5, ['#c98a5e', '#b8754f']);
+  const chao = TH * 0.66;
+  chaoT(chao);
+  vento(t, 50, 1.6);
+  // andaime da obra com a lona azul batendo; o canto rasga em k ~ 0.45
+  const ax = TW * 0.52, aw = 104, ay = chao - 150;
+  for (const x of [ax, ax + aw]) R(x - 2, ay - 6, 4, chao - ay + 6, '#ffc83d');
+  for (let y = ay + 20; y < chao; y += 36) R(ax, y, aw, 2, '#e0a920');
+  lonaT(ax + 2, ay, aw - 4, 110, t, suave(clamp((k - 0.45) / 0.4)), 0);
+  casinhaT(TW * 0.06, chao, 0, t);
+  pedrasT(t, TW * 0.06 + 70, chao - 34, 7, false);
+  vento(t, 24, 2.2, '#f0c8a0');
+  return () => {
+    texto('VENTO LÁ FORA', W / 2, 220, 34, '#ffffff', { maxW: W - 140 });
+    texto(`${Math.round(lerp(96, 128, k))} KM/H`, W / 2, 290, 60, COR.alerta);
+  };
+}
+function tomadaAmarraLona(t, k) {
+  TREMOR = 0.15;
+  ceuT(0.1, 0.25); dunasLonge(t, 0.5, ['#c98a5e', '#b8754f']);
+  const chao = TH * 0.66;
+  chaoT(chao);
+  vento(t, 36, 1.3);
+  const ax = TW * 0.46, aw = 110, ay = chao - 150, presa = suave(clamp((k - 0.35) / 0.45));
+  for (const x of [ax, ax + aw]) R(x - 2, ay - 6, 4, chao - ay + 6, '#ffc83d');
+  lonaT(ax + 2, ay, aw - 4, 110, t, 0, presa);
+  const h = heroiDaTomada(), E = 3.2, hx = lerp(-30, ax - 26, suave(clamp(k / 0.3)));
+  const anc = { x: ax - 40, y: chao - 2 };   // estaca no chão
+  R(anc.x - 3, anc.y - 8, 6, 10, '#6b6f86');
+  const canto = { x: ax + 4, y: ay + 108 };
+  const puxa = k > 0.3 ? Math.sin(t * 10) * 3 * (1 - presa) : 0;
+  const r = ator(h.pal, { x: hx, chao, dir: 1, agacha: k > 0.3 ? 0.5 : 0, anda: k < 0.3 ? t * 12 : null, alegre: presa > 0.95,
+    maoF: k > 0.3 ? { x: hx + 22 + puxa, y: chao - 40 } : null, maoT: k > 0.3 ? { x: hx + 14 + puxa, y: chao - 36 } : null }, t, E);
+  if (k > 0.3) { seg(canto, r.maoF, 2, '#c9ced9'); seg(r.maoF, anc, 2, presa > 0.9 ? '#c9ced9' : '#9aa0b5'); }
+  return () => {
+    etiquetaT(h.nome, r.cab, E)();
+    if (presa > 0.95) texto('LONA PRESA!', W / 2, 240, 44, COR.ok);
+    else texto('CABO DE AÇO', W / 2, 240, 36, '#ffffff');
+  };
+}
+function tomadaPersiana(t, k) {
+  TREMOR = 0.12;
+  ceuT(0.1, 0.25);
+  const chao = TH * 0.7;
+  chaoT(chao);
+  vento(t, 30, 1.2);
+  const desce = suave(clamp((k - 0.1) / 0.45)), x0 = TW * 0.3;
+  tx.save(); tx.translate(TW / 2, chao); tx.scale(1.9, 1.9); tx.translate(-TW / 2, -chao);   // casinha de perto
+  casinhaT(x0, chao, desce, t);
+  pedrasT(t, x0 + 62, chao - 32, 5, desce > 0.95);
+  tx.restore();
+  const h = heroiDaTomada();
+  const r = ator(h.pal, { x: TW * 0.14, chao: chao + 40, dir: 1, alegre: desce > 0.95, maoF: { x: TW * 0.14 + 18, y: chao - 30 } }, t, 3);
+  R(TW * 0.14 + 16, chao - 34, 8, 8, '#2a2140'); R(TW * 0.14 + 18, chao - 32, 4, 4, desce > 0.95 ? COR.ok : COR.alerta);   // botão
+  return () => {
+    etiquetaT(h.nome, r.cab, 3)();
+    texto(desce > 0.95 ? 'PERSIANAS FECHADAS' : 'PERSIANAS DE METAL', W / 2, 240, 38, desce > 0.95 ? COR.ok : '#ffffff', { maxW: W - 140 });
+  };
+}
+// versão "câmera de segurança" (TikTok) de qualquer tomada
+function comCCTV(fn, cam) { return (t, k, cena) => { const f = fn(t, k, cena); cctvFiltro(t, 0.4); const c = cctvCarimbo(t, cam); return () => { if (f) f(); c(); }; }; }
+const ehVentania = () => (EP.problema || {}).id === 'ventania';
+
+// ---- AMOSTRA: a Doutora Lia no laboratório, gelo no microscópio, a tela confere e acende "sem sal tóxico"
+function tomadaAmostra(t, k) {
+  TREMOR = 0;
+  const chao = sala(t, { janela: true });
+  R(TW * 0.36, chao - 50, TW * 0.6, 8, '#9aa0b5'); R(TW * 0.38, chao - 42, 6, 42, '#6b6f86'); R(TW * 0.9, chao - 42, 6, 42, '#6b6f86');   // bancada
+  objeto('descoberta', TW * 0.62, chao - 50, 3, t, clamp((k - 0.4) / 0.3));
+  const tela = { x: TW * 0.72, y: chao - 140, w: 64, h: 50 }, ok = k > 0.48;   // monitor da análise
+  R(tela.x - 3, tela.y - 3, tela.w + 6, tela.h + 6, '#1b1530'); R(tela.x, tela.y, tela.w, tela.h, ok ? '#0f2a1f' : '#101a2e');
+  for (let i = 0; i < 5; i++) { const w = (tela.w - 12) * clamp((k - 0.1 - i * 0.06) / 0.15); R(tela.x + 6, tela.y + 7 + i * 8, w, 3, ok ? COR.ok : COR.agua); }
+  const tubo = { x: TW * 0.5, y: chao - 64 };   // tubinho com o gelo derretendo
+  R(tubo.x, tubo.y - 22, 8, 22, '#eef0f8'); R(tubo.x + 1, tubo.y - 12, 6, 10, '#bfe7f5');
+  const xl = TW * 0.3;
+  const r = ator(FUNDADOR_PAL.lia, { x: xl, chao, dir: 1, cabeca: 3, alegre: ok,
+    maoF: k < 0.45 ? { x: tubo.x + 4, y: tubo.y - 14 } : { x: TW * 0.6, y: chao - 78 } }, t, 3.4);
+  return () => {
+    etiquetaT('Doutora Lia', r.cab, 3.4)();
+    texto(ok ? 'GELO LIMPO' : 'ANALISANDO...', W / 2, 230, 44, ok ? COR.ok : '#ffffff');
+    if (ok) texto('SEM SAL TÓXICO', W / 2, 290, 30, '#ffffff');
+  };
+}
+
 function prepararTomadas() {
   TOMADAS = [];
   // Instagram e TikTok: só tomadas exclusivas, e cada rede com a sua linguagem (o mesmo episódio, 2 vídeos diferentes)
@@ -1568,7 +1697,7 @@ function prepararTomadas() {
   if (prob && redemoinho) add(prob.fala_inicio + 0.9, prob.fim - 0.2, 'redemoinho', prob);
   else if (prob) {
     const a = prob.fala_inicio + 1.4, d = prob.fim - a;
-    add(a, a + d * 0.45, 'monitor', prob); add(a + d * 0.45, prob.fim - 0.25, 'alarme', prob);
+    add(a, a + d * 0.45, 'monitor', prob); add(a + d * 0.45, prob.fim - 0.25, ehVentania() ? 'ventania' : 'alarme', prob);
   }
   if (sol && redemoinho) {   // alerta no telescópio → corrida para dentro → abrigo tremendo → varrer a poeira
     const foco = sol.focos.find((f) => f.alvo.startsWith('colono:'));
@@ -1578,6 +1707,10 @@ function prepararTomadas() {
     const depois = palavraEm(sol, /^depois/i, espera) ?? espera + (sol.fim - espera) * 0.5;
     add(a, todo - 0.1, 'alertaHeroi', sol); add(todo - 0.1, espera, 'corrida', sol);
     add(espera, depois - 0.05, 'abrigo', sol); add(depois - 0.05, sol.fim - 0.2, 'conserto', sol);
+  } else if (sol && ehVentania()) {   // "amarra as lonas com cabo de aço e fecha as persianas de metal"
+    const a = palavraEm(sol, /^amarra/i) ?? sol.fala_inicio + (sol.fim - sol.fala_inicio) * 0.3;
+    const f = palavraEm(sol, /^fecha/i, a) ?? a + (sol.fim - a) * 0.55;
+    add(a - 0.2, f - 0.1, 'amarraLona', sol); add(f - 0.1, sol.fim - 0.2, 'persiana', sol);
   } else if (sol) {
     const a = sol.fala_inicio + (sol.fim - sol.fala_inicio) * 0.3, d = sol.fim - a;
     add(a, a + d * 0.68, 'conserto', sol); add(a + d * 0.68, sol.fim - 0.2, 'objeto', sol);
@@ -1603,6 +1736,10 @@ function prepararTomadas() {
     const entao = palavraEm(res, /^ent[aã]o/i, teto) ?? teto + (res.fim - teto) * 0.4;
     add(teto - 0.6, entao - 0.05, 'telescopioTeto', res); add(entao - 0.05, res.fim - 0.2, 'plantaComando', res);
   }
+  // falas da missão que contam uma ação ganham a animação dela (não só o boneco andando no mapa)
+  for (const m of EP.cenas.filter((c) => c.tipo === 'missao' && c.acao !== 'ligar')) {
+    if (/amostra/i.test(m.fala) && !TOMADAS.some((x) => x.cena === m)) add(m.fala_inicio + 0.2, m.fim - 0.2, 'amostra', m);
+  }
   const lig = EP.cenas.find((c) => c.tipo === 'missao' && c.acao === 'ligar');
   if (lig) add(lig.fala_inicio + 0.1, lig.fim - 0.2, 'inauguracao', lig);
   const vt = EP.cenas.find((c) => c.tipo === 'votacao');
@@ -1626,7 +1763,10 @@ function desenharTomada(tm, t) {
                   correio: tomadaCorreio, cRosto: curtoRosto, cFaisca: curtoFaisca, cCorredor: curtoCorredor,
                   cBroca: curtoBroca, cChegada: curtoChegada, tCCTV: ttCCTV, tCracha: ttCracha, tTimelapse: ttTimelapse,
                   tSinal: ttSinal, boasVindas: tomadaBoasVindas, cratera: tomadaCratera, telescopioTeto: tomadaTelescopioTeto,
-                  plantaComando: tomadaPlantaComando, inauguracao: tomadaInauguracao, assembleia: tomadaAssembleia }[tm.tipo](t, k, tm.cena);
+                  plantaComando: tomadaPlantaComando, inauguracao: tomadaInauguracao, assembleia: tomadaAssembleia,
+                  amostra: tomadaAmostra, ventania: tomadaVentania, amarraLona: tomadaAmarraLona, persiana: tomadaPersiana,
+                  tVentania: comCCTV(tomadaVentania, 'CAM 01 · CANTEIRO'), tAmarra: comCCTV(tomadaAmarraLona, 'CAM 01 · CANTEIRO'),
+                  tPersiana: comCCTV(tomadaPersiana, 'CAM 05 · VILAREJO'), tInauguracao: comCCTV(tomadaInauguracao, 'CAM 02 · EXTRATOR') }[tm.tipo](t, k, tm.cena);
   tx.globalAlpha = 1;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;
