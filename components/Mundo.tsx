@@ -16,7 +16,7 @@ import { achados, definirLugares, melhoriasDaCasa, registrarCargo, situacao, sit
 import { descricaoPet, situacaoPet } from '@/lib/pet';
 import { desenharBola, desenharPet } from '@/lib/pet-arte';
 import { cargoDe } from '@/lib/cargos';
-import type { EstadoColonia } from '@/lib/colonia';
+import type { AndarilhoNoMapa, EstadoColonia } from '@/lib/colonia';
 import LojaModal from './LojaModal';
 import { liderancaDe, nomeComTitulo, vestirTraje, type Lideranca } from '@/lib/liderancas';
 
@@ -89,6 +89,9 @@ function quebrarLinhas(ctx: CanvasRenderingContext2D, texto: string, largura: nu
 
 type Chunk = { dados: PersonagemPublico[]; em: number } | 'carregando';
 type Pessoa = { p: PersonagemPublico; id: number; s: Situacao };
+/** Andarilho na tela agora (entrou pelos comentários, sem casa): para o clique e para a câmera seguir. */
+type AndarilhoNaTela = { a: AndarilhoNoMapa; i: number; x: number; y: number; andando: boolean };
+const NOME_REDE: Record<string, string> = { youtube: 'YouTube', instagram: 'Instagram', tiktok: 'TikTok' };
 
 const TELHADOS = ['#e04f5f', '#3f8efc', '#2bb673', '#f4b400', '#9b59b6', '#ff7f50', '#00b8a9', '#ec407a'];
 
@@ -169,10 +172,13 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
   const chegada = useRef(new Map<number, number>());   // id da mensagem → quando chegou (para o balão)
   const pessoasRef = useRef<Pessoa[]>([]);              // quem está desenhado agora (para o clique)
   const achadosCache = useRef<{ em: number; lista: Achado[] }>({ em: 0, lista: [] });
-  const seguindo = useRef<string | null>(null);          // código do colono que a câmera está seguindo
+  const seguindo = useRef<string | null>(null);          // código do colono (ou '@handle' do andarilho) que a câmera segue
+  const andarilhosRef = useRef<AndarilhoNaTela[]>([]);   // andarilhos e onde estão agora (clique e câmera)
+  const andarilhoSelRef = useRef<AndarilhoNoMapa | null>(null);
   const nomes = useRef(new Map<number, string>());       // id → nome, de quem já foi carregado
 
   const [selecionado, setSelecionado] = useState<PersonagemPublico | null>(null);
+  const [andarilhoSel, setAndarilhoSel] = useState<AndarilhoNoMapa | null>(null);
   const [fazendo, setFazendo] = useState('');
   const [q, setQ] = useState('');
   const [resultados, setResultados] = useState<PersonagemPublico[] | null>(null);
@@ -220,6 +226,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
   const selecionar = useCallback((p: PersonagemPublico | null, centralizar = true) => {
     selecionadoRef.current = p;
     setSelecionado(p);
+    if (p) { andarilhoSelRef.current = null; setAndarilhoSel(null); }
     if (p && centralizar) { const m = moradiaDe(idDoCodigo(p.codigo)); centralizarEm((m.x + (m.grande ? 1 : 0.5)) * CASA, (m.y + (m.grande ? 1 : 0.5)) * CASA, 4); }
     seguindo.current = p ? p.codigo : null;   // achou alguém (busca ou clique): a câmera vai junto com ele
   }, [centralizarEm]);
@@ -284,9 +291,21 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codigoInicial]);
 
+  // o que o andarilho selecionado está fazendo
+  useEffect(() => {
+    if (!andarilhoSel) return;
+    const atualizar = () => {
+      const ag = andarilhosRef.current.find((x) => x.a.handle === andarilhoSel.handle);
+      setFazendo(!ag ? 'andando pela colônia de mochila' : ag.andando ? 'andando pela colônia de mochila nas costas' : 'parado, olhando a colônia');
+    };
+    atualizar();
+    const t = setInterval(atualizar, 1000);
+    return () => clearInterval(t);
+  }, [andarilhoSel]);
+
   // o que o selecionado está fazendo (atualiza a ficha)
   useEffect(() => {
-    if (!selecionado) { setFazendo(''); return; }
+    if (!selecionado) { if (!andarilhoSelRef.current) setFazendo(''); return; }
     const atualizar = () => {
       const e = estadoRef.current;
       const obra = e?.obras.find((o) => o.status !== 'concluida') ?? null;
@@ -345,9 +364,12 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
         c.pronta = true;
       }
       if (seguindo.current && w > 0) {   // a câmera acompanha os passos do colono clicado (suave)
-        const alvo = pessoasRef.current.find((x) => x.p.codigo === seguindo.current);
+        const sg = seguindo.current;
+        const ag = sg.startsWith('@') ? andarilhosRef.current.find((x) => '@' + x.a.handle === sg) : null;
+        const pp = ag ? null : pessoasRef.current.find((x) => x.p.codigo === sg);
+        const alvo = ag ? { x: ag.x, y: ag.y } : pp ? { x: pp.s.x, y: pp.s.y } : null;
         if (alvo) {
-          const tx = alvo.s.x - w / 2 / c.zoom, ty = alvo.s.y - 8 - h / 2 / c.zoom;
+          const tx = alvo.x - w / 2 / c.zoom, ty = alvo.y - 8 - h / 2 / c.zoom;
           c.x += (tx - c.x) * 0.08; c.y += (ty - c.y) * 0.08;
         }
       }
@@ -643,10 +665,13 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       }
       // andarilhos: entraram pelos comentários e ainda não têm casa; andam de um ponto a outro em volta da base
       // (mesma ideia do vídeo: caminho fixo pelo seed) com uma mochila nas costas
+      const naTela: AndarilhoNaTela[] = [];
       if (e) (e.andarilhos ?? []).forEach((a, i) => {
         const cx = (e.base.x + e.base.w / 2) * CASA, cy = (e.base.y + e.base.h / 2) * CASA + 4 * CASA;
         const sa = situacaoAndarilho((a.seed % 9973) + i * 17, i, { x: cx, y: cy }, agoraS);   // zanza, para, olha, segue
         const ax = sa.x, ay = sa.y, anda = sa.andando, dir = sa.dir;
+        naTela.push({ a, i, x: ax, y: ay, andando: anda });
+        const ehSel = andarilhoSelRef.current?.handle === a.handle;
         if (ax < camX - 40 || ax > camX + w / zoom + 40 || ay < camY - 40 || ay > camY + h / zoom + 40) return;
         atores.push({
           x: ax, y: ay,
@@ -659,7 +684,10 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
             const corRede = COR_REDE[a.rede];
             if (corRede) { ctx.fillStyle = corRede; ctx.fillRect(-5, -6, 1, 2); }   // remendo sutil da rede de origem
             ctx.restore();
-            if (zoom >= 5) {   // nome igual ao dos outros colonos (só com zoom): quem só comentou não ganha destaque,
+            if (ehSel) {   // selecionado: contorno discreto em volta (como o colono selecionado)
+              ctx.strokeStyle = '#3fd0c9'; ctx.lineWidth = 0.6; ctx.strokeRect(Math.round(ax) - 7, Math.round(ay) - 14, 14, 15);
+            }
+            if (zoom >= 5 || ehSel) {   // nome igual ao dos outros colonos (só com zoom): quem só comentou não ganha destaque,
               // apenas o quadradinho discreto da rede de onde veio, antes do nome (pedido do dono)
               const s = Math.min(12, 2.6 * zoom) / zoom, nome = `@${a.handle}`;
               ctx.font = `${s}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
@@ -675,6 +703,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       atores.sort((a, b) => a.y - b.y);
       for (const a of atores) a.desenha();
       pessoasRef.current = pessoas;
+      andarilhosRef.current = naTela;
 
       // ---- tela (pixels da tela)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -898,9 +927,22 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       // 1º: alguém andando/parado ali? (o boneco ocupa ~12 px acima dos pés)
       let melhor: Pessoa | null = null, dist = 9;
       for (const pe of pessoasRef.current) {
+        if (pe.s.dentro && selecionadoRef.current?.codigo !== pe.p.codigo) continue;   // quem está lá dentro não está ali
         const d = Math.hypot(pe.s.x - wx, pe.s.y - 6 - wy);
         if (d < dist) { dist = d; melhor = pe; }
       }
+      let andar: AndarilhoNaTela | null = null;
+      for (const ag of andarilhosRef.current) {
+        const d = Math.hypot(ag.x - wx, ag.y - 6 - wy);
+        if (d < dist) { dist = d; andar = ag; melhor = null; }
+      }
+      if (andar) {   // andarilho: ficha própria (sem código nem casa) e a câmera vai atrás dele
+        selecionadoRef.current = null; setSelecionado(null);
+        andarilhoSelRef.current = andar.a; setAndarilhoSel(andar.a);
+        seguindo.current = '@' + andar.a.handle;
+        return;
+      }
+      andarilhoSelRef.current = null; setAndarilhoSel(null);
       if (melhor) { selecionar(melhor.p, false); seguindo.current = melhor.p.codigo; return; }
       seguindo.current = null;
       // 2º: a casa clicada
@@ -1018,6 +1060,16 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
 
           {chat && <div className={chatAberto ? 'chat-gaveta aberta' : 'chat-gaveta'} aria-hidden={!chatAberto}>{chat}</div>}
 
+          {andarilhoSel && !selecionado && (
+            <div className="ficha">
+              <strong>@{andarilhoSel.handle}</strong> · chegou pelos comentários do {NOME_REDE[andarilhoSel.rede] ?? andarilhoSel.rede}<br />
+              {cargoDe(andarilhoSel.cargo) && <span className="selo-cargo" style={{ margin: '4px 0' }}>{cargoDe(andarilhoSel.cargo)!.emoji} {cargoDe(andarilhoSel.cargo)!.nome}</span>}
+              {cargoDe(andarilhoSel.cargo) && <br />}
+              {fazendo && <span style={{ color: 'var(--areia)' }}>Agora: {fazendo}<br /></span>}
+              <span className="mudo">🎒 Andarilho: ainda sem casa na colônia.</span><br />
+              <a href="/">É você? Cadastre-se e ganhe sua cápsula grátis →</a>
+            </div>
+          )}
           {selecionado && (
             <div className="ficha">
               <strong style={liderancaDe(selecionado.lideranca) ? { color: liderancaDe(selecionado.lideranca)!.cor } : undefined}>
