@@ -11,7 +11,7 @@ import {
   desenharBandeira, desenharCapsulaGrande, desenharComercio, desenharFoguete, desenharOutdoor, desenharRover,
   disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
 } from '@/lib/colonia-arte';
-import { situacao, type Situacao } from '@/lib/vida';
+import { situacao, situacaoAndarilho, situacaoFundador, situacaoRobo, virarParaConversar, type Situacao } from '@/lib/vida';
 import { descricaoPet, situacaoPet } from '@/lib/pet';
 import { desenharBola, desenharPet } from '@/lib/pet-arte';
 import { cargoDe } from '@/lib/cargos';
@@ -89,9 +89,6 @@ function quebrarLinhas(ctx: CanvasRenderingContext2D, texto: string, largura: nu
 type Chunk = { dados: PersonagemPublico[]; em: number } | 'carregando';
 type Pessoa = { p: PersonagemPublico; id: number; s: Situacao };
 
-const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
-const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
-const suave = (k: number) => (k = clamp(k), k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
 const TELHADOS = ['#e04f5f', '#3f8efc', '#2bb673', '#f4b400', '#9b59b6', '#ff7f50', '#00b8a9', '#ec407a'];
 
 const spritesColono = new Map<number, HTMLCanvasElement>();
@@ -408,6 +405,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
           pessoas.push({ p, id, s: situacao(id, Math.max(n, 1), agoraS, e?.praca ?? null, obraAtual, cantina) });
         }
       }
+      virarParaConversar(pessoas);   // quem está parado perto de alguém vira para ele (rodinha, mesa, obra)
       const naCapsula = new Set((e?.capsulas ?? []).map((k) => k.codigo));
       void desenharFio;   // casas ligadas pelas ruas dos anéis (sem fio nem trilha torta: pedido do dono)
       // a casinha grátis some do lote de quem comprou a cápsula (o colono se mudou para a Vila)
@@ -444,13 +442,10 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
         const alvo = obraAtual
           ? { x: (obraAtual.x + obraAtual.w / 2 + (i ? 1.2 : -1.2)) * CASA, y: (obraAtual.y + obraAtual.h + 0.6) * CASA }
           : { x: casa.x + (i ? 24 : -24), y: casa.y + 10 };
-        const fase = ((agoraS + i * 13) / 32) % 1;
-        let k = 0;
-        if (fase < 0.3) k = 0; else if (fase < 0.45) k = suave((fase - 0.3) / 0.15);
-        else if (fase < 0.8) k = 1; else if (fase < 0.95) k = 1 - suave((fase - 0.8) / 0.15);
-        const andando = (fase > 0.3 && fase < 0.45) || (fase > 0.8 && fase < 0.95);
-        const dir = (fase < 0.6 ? alvo.x - casa.x : casa.x - alvo.x) >= 0 ? 1 : -1;
-        const px = lerp(casa.x, alvo.x, k), py = lerp(casa.y, alvo.y, k);
+        void alvo;
+        // agenda própria (lib/vida.ts): obra com passos pelo canteiro, passada na praça, volta ao Módulo
+        const sf = situacaoFundador(i, casa, agoraS, obraAtual, e.praca ?? null);
+        const px = sf.x, py = sf.y, andando = sf.andando, dir = sf.dir, k = sf.trabalhando ? 1 : 0;
         atores.push({
           x: px, y: py, nome: f.curto, ehFundador: true,
           desenha: () => {
@@ -529,14 +524,13 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
         const de = { x: (oficina.x + oficina.w / 2) * CASA, y: (oficina.y + oficina.h) * CASA + 4 };
         const para = obraAtual ? { x: (obraAtual.x + obraAtual.w / 2) * CASA + (i ? 10 : -10), y: (obraAtual.y + obraAtual.h) * CASA + 10 }
           : { x: (e.base.x + e.base.w / 2) * CASA + (i ? 14 : -14), y: (e.base.y + e.base.h) * CASA + 6 };
-        const fase = ((agoraS + i * 11) / 26) % 1;
-        const k = fase < 0.45 ? suave(fase / 0.45) : fase < 0.55 ? 1 : 1 - suave((fase - 0.55) / 0.45);
-        const rx = lerp(de.x, para.x, k), ry = lerp(de.y, para.y, k), indo = fase < 0.5;
+        const sr = situacaoRobo(i, de, para, agoraS);   // viagens com carga/descarga de tempos diferentes e recarga
+        const rx = sr.x, ry = sr.y, indo = sr.carregado;
         atores.push({
           x: rx, y: ry,
           desenha: () => {
             ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(rx - 5, ry - 1, 10, 2);
-            ctx.save(); ctx.translate(Math.round(rx), Math.round(ry)); if ((para.x - de.x) * (indo ? 1 : -1) < 0) ctx.scale(-1, 1);
+            ctx.save(); ctx.translate(Math.round(rx), Math.round(ry)); if (sr.dir < 0) ctx.scale(-1, 1);
             ctx.drawImage(spriteMapa('rover'), -5, -9, 10, 10); ctx.restore();
             if (indo) { ctx.fillStyle = '#a0613f'; ctx.fillRect(rx - 2, ry - 11, 4, 3); }   // caixa de material
           },
@@ -595,13 +589,8 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       // (mesma ideia do vídeo: caminho fixo pelo seed) com uma mochila nas costas
       if (e) (e.andarilhos ?? []).forEach((a, i) => {
         const cx = (e.base.x + e.base.w / 2) * CASA, cy = (e.base.y + e.base.h / 2) * CASA + 4 * CASA;
-        const sd = (a.seed % 9973) + i * 17, per = 6 + (sd % 5);
-        const hs = (k: number, q: number) => { const v = Math.sin(sd * 127.1 + k * 311.7 + q * 74.7) * 43758.5453; return v - Math.floor(v); };
-        const ponto = (k: number) => { const ang = hs(k, 11) * Math.PI * 2, d = (0.3 + 0.7 * hs(k, 12)) * 9 * CASA;
-          return { x: cx + Math.cos(ang) * d, y: cy + Math.sin(ang) * d * 0.7 }; };
-        const xx = t + (sd % 37) / 7, k = Math.floor(xx / per), f = (xx - k * per) / per;
-        const de = ponto(k), para = ponto(k + 1), ka = Math.min(1, f / 0.6), sv = ka * ka * (3 - 2 * ka);
-        const ax = de.x + (para.x - de.x) * sv, ay = de.y + (para.y - de.y) * sv, anda = ka < 1, dir = para.x >= de.x ? 1 : -1;
+        const sa = situacaoAndarilho((a.seed % 9973) + i * 17, i, { x: cx, y: cy }, agoraS);   // zanza, para, olha, segue
+        const ax = sa.x, ay = sa.y, anda = sa.andando, dir = sa.dir;
         if (ax < camX - 40 || ax > camX + w / zoom + 40 || ay < camY - 40 || ay > camY + h / zoom + 40) return;
         atores.push({
           x: ax, y: ay,
