@@ -134,6 +134,58 @@ ROTEIROS["solar"] = {
                 "Cada seguidor vira colono na Operação Marte Zero. Link na bio 👆\n\n"
                 "#operacaomartezero #marte #pixelart #energiasolar #colonizarmarte"),
 }
+ROTEIROS["gelo"] = {
+    "nome": "Extrator de Gelo",
+    # cena toda exclusiva (construcao_gelo.js): aplaina e faz fundação como a série, mas com máquinas próprias
+    # (motoniveladora + laser, pórtico de micro-ondas); sem trator, guindaste ou concreto das outras obras
+    "etapas": [
+        {"id": "abertura", "min": 6,
+         "fala": "Como se tira água de Marte, do zero? Volta comigo para o primeiro dia do Extrator de Gelo."},
+        {"id": "radar", "etapa": 1, "sol": 1, "titulo": "RADAR DE SOLO", "sub": "Procurando água embaixo da poeira", "min": 13,
+         "fala": "Etapa um: o radar. Os colonos empurram um radar de solo pelo terreno, e as ondas descem pela terra. "
+                 "A dois metros de profundidade, elas voltam batendo em algo duro e brilhante. Gelo!"},
+        {"id": "aplainar", "etapa": 2, "sol": 2, "titulo": "TERRAPLANAGEM", "sub": "Lâmina guiada por laser", "min": 14,
+         "fala": "Etapa dois: aplainar o terreno. Um nível a laser gira no tripé e marca a altura certa. "
+                 "A motoniveladora passa faixa por faixa, e a lâmina corta só o que passa da linha do laser."},
+        {"id": "fundacao", "etapa": 3, "sol": 3, "titulo": "FUNDAÇÃO", "sub": "Laje de poeira derretida", "min": 16,
+         "fala": "Etapa três: a fundação, sem concreto. Um pórtico de micro-ondas corre nos trilhos e derrete a própria "
+                 "poeira de Marte a mais de mil graus. Ela esfria e vira uma laje dura como vidro. Depois, seis chumbadores."},
+        {"id": "base", "etapa": 4, "sol": 5, "titulo": "PISO DE AÇO", "sub": "6 colunas nos chumbadores", "min": 13,
+         "fala": "Etapa quatro: o piso de aço. Seis colunas são parafusadas nos chumbadores, as vigas fecham o quadro "
+                 "e as chapas descem uma por uma."},
+        {"id": "mastro", "etapa": 5, "sol": 6, "titulo": "MASTRO DA BROCA", "sub": "Montado deitado, erguido pelo guincho", "min": 18,
+         "fala": "Etapa cinco: o mastro. Os módulos são parafusados com o mastro deitado, porque lá em cima ninguém alcança. "
+                 "Depois o guincho puxa o cabo, e o mastro inteiro se levanta, girando na dobradiça. Travado!"},
+        {"id": "perfuracao", "etapa": 6, "sol": 8, "titulo": "PERFURAÇÃO", "sub": "Broca descendo até o gelo", "min": 15,
+         "fala": "Etapa seis: a perfuração. A broca gira devagar e desce pela poeira, depois pela rocha. "
+                 "Um metro, um metro e meio, dois metros. Chegou no gelo!"},
+        {"id": "aquecimento", "etapa": 7, "sol": 10, "titulo": "ÁGUA QUENTE", "sub": "Derretendo o gelo lá embaixo", "min": 15,
+         "fala": "Etapa sete: derreter o gelo. A caldeira manda água quente pelo cano, e o gelo derrete lá no fundo, "
+                 "formando um bolsão de água. Uma bomba puxa essa água de volta para cima."},
+        {"id": "filtragem", "etapa": 8, "sol": 11, "titulo": "FILTRAGEM", "sub": "Tirando a poeira e os sais", "min": 14,
+         "fala": "Etapa oito: a filtragem. A água de Marte vem com poeira e com percloratos, uns sais perigosos. "
+                 "Ela passa por três filtros, e a amostra passa no teste: água limpa, sem sal tóxico."},
+        {"id": "tanque", "etapa": 9, "sol": 12, "titulo": "TANQUE", "sub": "5 mil litros guardados", "min": 13,
+         "fala": "Etapa nove: o tanque. A água limpa enche o tanque pela primeira vez, e o cano leva tudo até a colônia. "
+                 "Água para beber, para a estufa e, um dia, para virar oxigênio."},
+        {"id": "voo", "sol": 12, "min": 8,
+         "fala": "Extrator de Gelo: do chão torto à água de Marte, com a mão de cada colono."},
+        {"id": "convite", "min": 6,
+         "fala": "Qual construção você quer ver sendo feita na próxima? Comenta aí. E cada seguidor vira colono em Marte."},
+    ],
+    # capa: instante da cena (s, na linha do tempo sem voz), enquadramento e título (ajustar com --previa)
+    "capa": {"t": 140.0, "plano": {"tx": 0.9, "ty": 0.0, "tz": 2.85, "zoom": 19, "pitch": 0.36},
+             "linhas": [["COMO SE TIRA ÁGUA", 46, "#ffffff"], ["DO GELO", 96, "#8fe6ff"],
+                        ["DE MARTE?", 84, "#ffd04a"]],
+             "thumb": {"y0": 560, "plano": {"tx": 0.0, "ty": 0.0, "tz": 1.45, "zoom": 17, "pitch": 0.36},
+                       "linhas": [["EXTRATOR DE GELO", 60, "#8fe6ff"], ["EM MARTE", 72, "#ffd04a"]]}},
+    "legenda": ("Como se tira ÁGUA do gelo de Marte? 🧊💧🚀 Do radar achando o gelo a 2 metros até o tanque cheio, "
+                "etapa por etapa: terreno aplainado a laser, fundação de poeira derretida, mastro erguido no guincho, broca, água quente e filtros. "
+                "Com os colonos de verdade trabalhando na obra.\n\n"
+                "Qual construção você quer ver na próxima? Comenta! 👇\n"
+                "Cada seguidor vira colono na Operação Marte Zero. Link na bio 👆\n\n"
+                "#operacaomartezero #marte #pixelart #aguaemmarte #colonizarmarte"),
+}
 INICIO_FALA = 0.45     # respiro entre o começo da etapa e a narração
 SOBRA = 0.9            # respiro depois da fala
 
