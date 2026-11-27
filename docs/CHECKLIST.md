@@ -9,8 +9,8 @@ Legenda: ✅ já existe no código · 🆕 ideia nova (ainda não feita).
 
 - [ ] Commit + push das mudanças de 21/11 (crateras batizadas, Fúria de Marte, Destaque, compras agrupadas). O push põe o site no ar (Vercel).
 - [ ] Gerar o ep. 4 de verdade (com voz) e assistir: cratera BuracoNegrote, Lanu e elchapo chegando.
-- [ ] `docs/PROCESSOS.md` ainda fala em rotina semanal → episódios são **diários**.
-- [ ] YouTube Studio: descrição do canal + link `/l/yt-bio`, foto de perfil e banner (à mão).
+- [x] `docs/PROCESSOS.md` com a rotina **diária** (27/11).
+- [x] YouTube Studio: descrição do canal + link `/l/yt-bio`, foto de perfil e banner (à mão).
 - [ ] POVs soltos do ep. 2 e do ep. 3 ainda não postados (4 cenas de cada).
 - [ ] Carrossel e thumbnail ainda são postados à mão.
 - [ ] Miniatura do POV do ep. 3 no Instagram estava preta logo depois de postar: conferir.

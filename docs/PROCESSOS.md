@@ -1,32 +1,36 @@
 # Processos
 
-## O ciclo (uma volta por episódio)
+## O ciclo (uma volta por dia = um episódio)
 
 ```mermaid
 flowchart LR
-  A[Episódio publicado<br/>com CTA + link /l/] --> B[Pessoas se cadastram<br/>e ganham boneco provisório]
-  B --> C[Painel: exportar fila<br/>CSV status=fila]
-  C --> D[Arte: desenhar sprites<br/>do lote da semana]
-  D --> E[Painel: status=desenhado<br/>+ sprite_url]
-  E --> F[Roteiro do próximo episódio<br/>usa os novos personagens<br/>+ 1–3 itens da loja]
-  F --> G[Publicar nas 3 redes]
-  G --> H[Painel: status=estreou + nº do ep.<br/>avisar quem aceitou WhatsApp]
-  H --> A
+  A[Episódio publicado<br/>com CTA + link /l/] --> B[Pessoas se cadastram,<br/>compram e comentam]
+  B --> C[Painel: marcar o resultado<br/>da votação do ep. anterior]
+  C --> D[fabricar.py: coleta, correio,<br/>roteiro, vídeo, cortes]
+  D --> E[Painel: assistir, aprovar,<br/>copies e conteúdo extra]
+  E --> F[Postagem automática:<br/>YouTube n8n + IG/TT celular]
+  F --> G[Conferir os perfis<br/>e marcar publicado]
+  G --> A
 ```
 
-## Rotina semanal
+## Rotina diária
+
+Episódio novo **todo dia** (Shorts / Reels / TikTok). A fábrica desenha os colonos sozinha: quem se cadastra entra no
+próximo episódio, sem lote nem sprite feito à mão.
 
 | Quando | O quê | Onde |
 |---|---|---|
-| **Segunda** | Olhar o painel: cadastros, origem e funil por link. Decidir o lote de personagens da semana (ex.: 30 por episódio). | `/painel` |
-| **Segunda** | Baixar a fila (`Baixar fila (CSV)`) e escolher o lote. Sugestão: ordem de chegada, com espaço reservado para quem veio do episódio anterior (recompensa o engajamento). | `/painel` |
-| **Ter–Qua** | Desenhar os sprites. Subir os PNGs no Supabase Storage (bucket público `sprites/`) e colar a URL no painel: código, `desenhado`, URL. | Supabase Storage + `/painel` |
-| **Qua** | Definir 1–3 itens do episódio. Criar cada produto na Cakto, inserir na tabela `produtos` com `episodio_id`. Desenhar o item em pixel art (`imagem_url`). | Cakto + Supabase |
-| **Qua** | Criar o registro do episódio em `episodios` e os links rastreáveis: `ig-ep013`, `tt-ep013`, `yt-ep013`, `ig-ep013-story`… | Supabase → Table Editor |
-| **Qui** | Produzir e montar o episódio. No final, CTA: *“Quer virar personagem? Link na bio”*. Mostrar nomes/@ na tela (todos autorizaram no cadastro). | Edição |
-| **Sex** | Publicar nas 3 redes, cada uma com o **seu** link `/l/`. Marcar o lote como `estreou` + nº do episódio. | Redes + `/painel` |
-| **Sex** | Avisar no WhatsApp **só quem marcou “quero receber aviso”** (`aceita_whatsapp = true`). | WhatsApp Business |
+| **Antes de gerar** | Marcar o resultado da votação SIM/NÃO do episódio anterior (card do episódio). | `painel.py` |
+| **Gerar** | `python fabricar.py`: puxa cadastros, compras (Fúria, Destaque, itens), comentários (YouTube pela API, Instagram e TikTok pelo navegador) e o Correio da Colônia; monta roteiro, vídeo, cortes IG/TT, imagens. | `fabrica/` |
+| **Revisar** | Assistir o episódio e os cortes. Pedir ajustes antes de aprovar. | `fabrica/saida/epNNN/` |
+| **Aprovar** | Gerar as copies (`copies.py`), revisar manchete/pauta/ganchos e aprovar as 3 redes. Aprovar o carrossel no Conteúdo extra. | `painel.py` |
+| **Agendar** | Aprovar = postar no horário marcado (`auto_postar`): YouTube pelo n8n 30 min antes, Instagram e TikTok pelo celular. PC ligado e celular no cabo. Instagram e TikTok **nunca** com link. | `painel.py` + celular |
+| **Depois de postar** | Conferir os perfis (IG @operacaomartezero, TikTok @operacaomartezero, YouTube Studio) e só então marcar `publicado`. Postar o carrossel no IG e atualizar `ig-comentar`. | Redes + `painel.py` |
 | **Diário** | O cron puxa os seguidores às 8h (horário de Brasília). Se uma API falhar, o painel mostra o último valor, e dá para lançar à mão. | automático |
+
+Extras (não substituem o episódio do dia): vídeos "Como se constrói…" (`construcao.py`), POVs, divulgação.
+O único formato **semanal** é o vídeo longo 16:9 do YouTube que junta os episódios da semana (ver `docs/CHECKLIST.md`).
+Produto novo na loja: criar na Cakto e marcar o produto no webhook, senão a compra não chega.
 
 ## Nomes dos links (padrão)
 
