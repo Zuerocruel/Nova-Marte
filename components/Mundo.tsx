@@ -11,7 +11,8 @@ import {
   desenharBandeira, desenharCapsulaGrande, desenharComercio, desenharFoguete, desenharOutdoor, desenharRover,
   disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
 } from '@/lib/colonia-arte';
-import { situacao, situacaoAndarilho, situacaoFundador, situacaoRobo, virarParaConversar, type Situacao } from '@/lib/vida';
+import { achados, definirLugares, melhoriasDaCasa, registrarCargo, situacao, situacaoAndarilho, situacaoFundador, situacaoRobo,
+         virarParaConversar, type Achado, type Situacao } from '@/lib/vida';
 import { descricaoPet, situacaoPet } from '@/lib/pet';
 import { desenharBola, desenharPet } from '@/lib/pet-arte';
 import { cargoDe } from '@/lib/cargos';
@@ -119,14 +120,32 @@ function desenharFio(ctx: CanvasRenderingContext2D, casa: { pos_x: number; pos_y
 }
 
 /** Casinha do lote (cúpula com a porta e uma janela acesa quando tem gente em casa). */
-function desenharCasinha(ctx: CanvasRenderingContext2D, cx: number, cy: number, seed: number, temGente: boolean) {
+function desenharCasinha(ctx: CanvasRenderingContext2D, cx: number, cy: number, seed: number, temGente: boolean, melhorias = 0) {
   const x = cx * CASA, y = cy * CASA;
   ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(x + 1, y + 12, 12, 2);
+  if (melhorias >= 5) { ctx.fillStyle = '#8a6a52'; for (let i = 0; i < 4; i++) ctx.fillRect(x - 1 + i * 4, y + 13, 1, 2); ctx.fillRect(x - 1, y + 13, 14, 1); }   // cerquinha
   disco(ctx, x + 7, y + 8, 6, '#6b6f86');
   disco(ctx, x + 7, y + 8, 5, '#e4e6f0');
   ctx.fillStyle = TELHADOS[seed % TELHADOS.length]; ctx.fillRect(x + 2, y + 8, 11, 2);
   ctx.fillStyle = '#3a2f63'; ctx.fillRect(x + 6, y + 9, 3, 4);
   ctx.fillStyle = temGente ? '#ffe58a' : '#2b2350'; ctx.fillRect(x + 4, y + 5, 2, 2);
+  if (melhorias >= 1) { ctx.fillStyle = '#a0613f'; ctx.fillRect(x + 11, y + 11, 2, 2); ctx.fillStyle = '#4ed37a'; ctx.fillRect(x + 10, y + 9, 2, 2); ctx.fillRect(x + 12, y + 10, 1, 1); }   // vaso
+  if (melhorias >= 2) { ctx.fillStyle = '#9aa0b5'; ctx.fillRect(x + 9, y, 1, 3); ctx.fillStyle = '#e2603b'; ctx.fillRect(x + 9, y - 1, 1, 1); }   // antena
+  if (melhorias >= 3) { ctx.fillStyle = '#3a5fb8'; ctx.fillRect(x + 3, y + 2, 3, 2); ctx.fillStyle = '#8fb0ff'; ctx.fillRect(x + 3, y + 2, 1, 1); }   // placa solar
+  if (melhorias >= 4) { ctx.fillStyle = '#ffe58a'; ctx.fillRect(x + 1, y + 10, 1, 2); }   // lanterna na entrada
+  if (melhorias >= 6) { ctx.fillStyle = '#6b6f86'; ctx.fillRect(x + 12, y + 1, 1, 6); ctx.fillStyle = TELHADOS[(seed + 3) % TELHADOS.length]; ctx.fillRect(x + 13, y + 1, 3, 2); }   // bandeirinha
+}
+
+/** Achado no solo (cristal, meteorito, fóssil, gelo, rocha): o recente pisca por 20 s. */
+function desenharAchado(ctx: CanvasRenderingContext2D, a: Achado, agoraS: number, t: number) {
+  const x = Math.round(a.x), y = Math.round(a.y);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 2, y, 5, 1);
+  ctx.fillStyle = '#7a3520'; ctx.fillRect(x - 3, y - 1, 7, 1);   // terra revirada
+  const cor = { cristal: ['#b07cff', '#e6d4ff'], meteorito: ['#3a3048', '#ff9a4a'], fossil: ['#e8d8b0', '#b8a070'], gelo: ['#bff0ff', '#ffffff'], rocha: ['#8f6a52', '#c49a7a'] }[a.tipo];
+  ctx.fillStyle = cor[0]; ctx.fillRect(x - 1, y - 3, 3, 3);
+  ctx.fillStyle = cor[1]; ctx.fillRect(x - 1, y - 3, 1, 1);
+  if (a.tipo === 'cristal') { ctx.fillStyle = cor[0]; ctx.fillRect(x, y - 5, 1, 2); }
+  if (agoraS - a.desde < 20 && Math.floor(t * 5) % 2) { ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 2, y - 6, 1, 1); ctx.fillRect(x - 3, y - 5, 1, 1); }
 }
 
 export default function Mundo({ codigoInicial, novo, mensagens = [], online = [], onlineN, chat, chatAberto = false, aoChat, naoLidas = 0 }: {
@@ -149,6 +168,8 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
   const mensagensRef = useRef<MensagemChat[]>([]);
   const chegada = useRef(new Map<number, number>());   // id da mensagem → quando chegou (para o balão)
   const pessoasRef = useRef<Pessoa[]>([]);              // quem está desenhado agora (para o clique)
+  const achadosCache = useRef<{ em: number; lista: Achado[] }>({ em: 0, lista: [] });
+  const seguindo = useRef<string | null>(null);          // código do colono que a câmera está seguindo
   const nomes = useRef(new Map<number, string>());       // id → nome, de quem já foi carregado
 
   const [selecionado, setSelecionado] = useState<PersonagemPublico | null>(null);
@@ -200,6 +221,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
     selecionadoRef.current = p;
     setSelecionado(p);
     if (p && centralizar) { const m = moradiaDe(idDoCodigo(p.codigo)); centralizarEm((m.x + (m.grande ? 1 : 0.5)) * CASA, (m.y + (m.grande ? 1 : 0.5)) * CASA, 4); }
+    seguindo.current = p ? p.codigo : null;   // achou alguém (busca ou clique): a câmera vai junto com ele
   }, [centralizarEm]);
 
   // ---------- dados ----------
@@ -213,7 +235,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       const r = await fetch(`/api/mundo/area?cx=${cx}&cy=${cy}`);
       const dados: PersonagemPublico[] = await r.json();
       if (!r.ok || !Array.isArray(dados)) throw new Error('quarteirão não veio');
-      for (const p of dados) nomes.current.set(idDoCodigo(p.codigo), p.nome);
+      for (const p of dados) { nomes.current.set(idDoCodigo(p.codigo), p.nome); registrarCargo(idDoCodigo(p.codigo), p.cargo); }
       chunks.current.set(k, { dados, em: Date.now() });
     } catch {
       // falhou: quem já estava no mapa continua lá (tenta de novo em ~5 s); sem nada ainda, tenta no próximo quadro
@@ -235,6 +257,13 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
         if (j && j.base) {
           definirMoradias((j.capsulas ?? []).map((k: { codigo: string; x: number; y: number }) => ({ id: idDoCodigo(k.codigo), x: k.x, y: k.y })));
           estadoRef.current = j; setEstado(j);
+          const lugares: Record<string, { x: number; y: number; w: number; h: number }> = { base: j.base };
+          if (j.praca) lugares.praca = j.praca;
+          for (const o of j.obras ?? []) {
+            if (o.status === 'concluida') lugares[o.slug] = { x: o.x, y: o.y, w: o.w, h: o.h };
+            else if (!lugares['@obra']) lugares['@obra'] = { x: o.x, y: o.y, w: o.w, h: o.h };
+          }
+          definirLugares(lugares);   // postos de trabalho dos cargos (lib/vida.ts)
         }
       }).catch(() => {});
     resumo(); colonia();
@@ -314,6 +343,13 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
         c.x = (CENTRO.x + 0.5) * CASA - w / 2 / c.zoom;
         c.y = (CENTRO.y + 3) * CASA - h / 2 / c.zoom;
         c.pronta = true;
+      }
+      if (seguindo.current && w > 0) {   // a câmera acompanha os passos do colono clicado (suave)
+        const alvo = pessoasRef.current.find((x) => x.p.codigo === seguindo.current);
+        if (alvo) {
+          const tx = alvo.s.x - w / 2 / c.zoom, ty = alvo.s.y - 8 - h / 2 / c.zoom;
+          c.x += (tx - c.x) * 0.08; c.y += (ty - c.y) * 0.08;
+        }
       }
       const { x: camX, y: camY, zoom } = c;
       const n = Math.max(totalRef.current, 0);
@@ -405,14 +441,19 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
           pessoas.push({ p, id, s: situacao(id, Math.max(n, 1), agoraS, e?.praca ?? null, obraAtual, cantina) });
         }
       }
-      virarParaConversar(pessoas);   // quem está parado perto de alguém vira para ele (rodinha, mesa, obra)
+      virarParaConversar(pessoas, agoraS);   // quem está parado perto de alguém vira para ele e os dois conversam
+      if (agoraS - achadosCache.current.em > 3) {
+        achadosCache.current = { em: agoraS, lista: achados(pessoas.map((x) => x.id), Math.max(n, 1), agoraS, e?.praca ?? null, obraAtual, cantina) };
+      }
+      for (const a of achadosCache.current.lista)
+        if (a.x > camX - 10 && a.x < camX + w / zoom + 10 && a.y > camY - 10 && a.y < camY + h / zoom + 10) desenharAchado(ctx, a, agoraS, t);
       const naCapsula = new Set((e?.capsulas ?? []).map((k) => k.codigo));
       void desenharFio;   // casas ligadas pelas ruas dos anéis (sem fio nem trilha torta: pedido do dono)
       // a casinha grátis some do lote de quem comprou a cápsula (o colono se mudou para a Vila)
       for (const p of casas) {
         if (naCapsula.has(p.codigo)) continue;
         const pessoa = pessoas.find((x) => x.p === p);
-        desenharCasinha(ctx, p.pos_x, p.pos_y, p.seed, !!pessoa && pessoa.s.tipo === 'casa');
+        desenharCasinha(ctx, p.pos_x, p.pos_y, p.seed, !!pessoa && pessoa.s.tipo === 'casa', melhoriasDaCasa(idDoCodigo(p.codigo), agoraS));
       }
       // Vila das Cápsulas: placa na entrada e uma cápsula grande (2x2) em cada lote ocupado
       if (e && e.capsulas?.length) {
@@ -550,6 +591,8 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       for (const pe of pessoas) {
         const { s, p } = pe;
         if (s.x < camX - 40 || s.x > camX + w / zoom + 40 || s.y < camY - 40 || s.y > camY + h / zoom + 40) continue;
+        // dentro de casa: não aparece (a janela acesa mostra que tem gente), a não ser que seja o colono procurado
+        if (s.dentro && selecionadoRef.current?.codigo !== p.codigo) continue;
         const fora = s.tipo !== 'casa' && s.tipo !== 'recebe';
         if (comRover.has(p.codigo) && fora) {   // saiu de casa: vai de rover (dirigindo) e estaciona do lado dele
           const cabeca = spriteColono(p.seed, p.lideranca, p.traje_moedas);
@@ -560,15 +603,24 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
         atores.push({
           x: s.x, y: s.y,
           desenha: () => {
+            if (s.dentro) ctx.globalAlpha = 0.35;   // o selecionado está lá dentro: aparece "fantasma" na porta
             let img: HTMLImageElement | undefined;
             if (p.sprite_url) {
               img = imagens.current.get(p.sprite_url);
               if (!img) { img = new Image(); img.src = p.sprite_url; imagens.current.set(p.sprite_url, img); }
             }
             const pulo = s.andando ? (Math.floor(t * 8 + pe.id) % 2 ? -1 : 0)
-              : (s.tipo === 'praca' && Math.sin(t * 4 + pe.id) > 0.8 ? -2 : s.tipo === 'obra' && Math.floor(t * 3 + pe.id) % 2 ? -1 : 0);
+              : (s.tipo === 'praca' && Math.sin(t * 4 + pe.id) > 0.8 ? -2 : (s.acao === 'faisca' || s.acao === 'reforma') && Math.floor(t * 3 + pe.id) % 2 ? -1 : 0);
+            const agachado = s.acao === 'agacha' || s.acao === 'escava';
             ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(s.x - 4, s.y - 1, 8, 2);
+            if (s.acao === 'escava') {   // buraco + terra voando
+              ctx.fillStyle = '#5a2414'; ctx.fillRect(s.x + 3 * s.dir - 2, s.y - 1, 5, 2);
+              const f = Math.floor(t * 6 + pe.id);
+              for (let i = 0; i < 3; i++) { const q = ((t * 1.5 + i / 3 + pe.id * 0.1) % 1); ctx.fillStyle = i % 2 ? '#a24c30' : '#7a3520'; ctx.fillRect(s.x + 3 * s.dir + (i - 1) * 2 + q * 3 * s.dir, s.y - 2 - Math.sin(q * Math.PI) * 6, 1, 1); }
+              void f;
+            }
             ctx.save(); ctx.translate(Math.round(s.x), Math.round(s.y + pulo)); if (s.dir < 0) ctx.scale(-1, 1);
+            if (agachado) { ctx.translate(0, 0); ctx.scale(1, 0.8); }
             if (img && img.complete && img.naturalWidth && !p.lideranca && !p.traje_moedas) ctx.drawImage(img, -6, -12, 12, 12);
             else ctx.drawImage(spriteColono(p.seed, p.lideranca, p.traje_moedas), -6, -12, 12, 12);
             ctx.restore();
@@ -581,7 +633,11 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
             }
             if (onlineRef.current.has(p.codigo)) { ctx.fillStyle = '#4ed37a'; ctx.fillRect(s.x - 1, s.y - 16, 2.5, 2.5); }   // online agora
             if (p.status === 'estreou') { ctx.fillStyle = '#ffd84a'; ctx.fillRect(s.x + 4, s.y - 13, 2.5, 2.5); }
-            if (s.tipo === 'obra' && Math.floor(t * 4 + pe.id) % 3 === 0) { ctx.fillStyle = COR.ouro; ctx.fillRect(s.x + 5 * s.dir, s.y - 7, 2, 2); }
+            if (s.acao === 'faisca' && Math.floor(t * 4 + pe.id) % 3 === 0) { ctx.fillStyle = COR.ouro; ctx.fillRect(s.x + 5 * s.dir, s.y - 7, 2, 2); }
+            if (s.acao === 'reforma' && Math.floor(t * 3 + pe.id) % 2 === 0) { ctx.fillStyle = '#c9ced9'; ctx.fillRect(s.x + 5 * s.dir, s.y - 9, 1, 3); ctx.fillStyle = '#8a5a34'; ctx.fillRect(s.x + 4 * s.dir, s.y - 9, 3, 1); }   // martelo
+            if (s.acao === 'tablet') { ctx.fillStyle = '#1b1530'; ctx.fillRect(s.x + 4 * s.dir - 1, s.y - 7, 3, 2); ctx.fillStyle = Math.floor(t * 2 + pe.id) % 2 ? '#3fd0c9' : '#8ff0ea'; ctx.fillRect(s.x + 4 * s.dir - 1, s.y - 7, 2, 1); }
+            ctx.globalAlpha = 1;
+            if (s.carga) { const cy = Math.round(s.y + pulo) - 15; ctx.fillStyle = '#6b4a2e'; ctx.fillRect(s.x - 3, cy, 6, 4); ctx.fillStyle = s.carga; ctx.fillRect(s.x - 2, cy - 1, 4, 2); }   // caixa na cabeça
           },
         });
       }
@@ -824,7 +880,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
         return;
       }
       const dx = p.x - ant.x, dy = p.y - ant.y;
-      if (Math.abs(dx) + Math.abs(dy) > 3) arrastou = true;
+      if (Math.abs(dx) + Math.abs(dy) > 3) { arrastou = true; seguindo.current = null; }   // arrastou: para de seguir
       const c = cam.current;
       const r = raioHex(totalRef.current) * CASA, hx = (CENTRO.x + 0.5) * CASA, hy = (CENTRO.y + 0.5) * CASA;
       const vw = cv.clientWidth / c.zoom, vh = cv.clientHeight / c.zoom;   // o centro da tela não sai do hexágono
@@ -845,7 +901,8 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
         const d = Math.hypot(pe.s.x - wx, pe.s.y - 6 - wy);
         if (d < dist) { dist = d; melhor = pe; }
       }
-      if (melhor) { selecionar(melhor.p, false); return; }
+      if (melhor) { selecionar(melhor.p, false); seguindo.current = melhor.p.codigo; return; }
+      seguindo.current = null;
       // 2º: a casa clicada
       const tx = Math.floor(wx / CASA), ty = Math.floor(wy / CASA);
       const ch = chunks.current.get(`${Math.floor(tx / CHUNK)},${Math.floor(ty / CHUNK)}`);
