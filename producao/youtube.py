@@ -38,6 +38,8 @@ import publicacao as pub  # noqa: E402
 LIMITE_BYTES = 15 * 1000 * 1000        # "abaixo de 15 MB" (usa a conta menor: 15 milhões de bytes)
 ALVO_BYTES = int(LIMITE_BYTES * 0.92)   # folga para o cabeçalho do MP4 e a variação do encoder
 AUDIO_KBPS = 128
+SHORTS_MAX_S = 178.0    # Shorts aceita até 3 min (180 s): folga de 2 s
+SHORTS_FATOR_MAX = 1.10  # acelera no máximo 10% (voz ainda natural); passou disso, o episódio precisa ser encurtado
 MINUTOS_AGENDAMENTO = 30
 MINUTOS_MINIMO = 20
 FUSO_BR = timezone(timedelta(hours=-3))   # America/Sao_Paulo (sem horário de verão desde 2019)
@@ -68,25 +70,31 @@ def duracao(video: Path) -> float:
 
 def compactar(origem: Path, log=print) -> Path:
     destino = origem.with_name("episodio_yt.mp4" if origem.stem.startswith("episodio") else f"{origem.stem}_yt.mp4")
-    if destino.exists() and destino.stat().st_mtime >= origem.stat().st_mtime and destino.stat().st_size < LIMITE_BYTES:
+    seg_origem = duracao(origem)
+    fator = fator_shorts(seg_origem)
+    if (destino.exists() and destino.stat().st_mtime >= origem.stat().st_mtime and destino.stat().st_size < LIMITE_BYTES
+            and duracao(destino) <= SHORTS_MAX_S + 0.5):
         log(f"  cópia compactada já existe e está em dia: {destino.name} ({destino.stat().st_size / 1e6:.1f} MB)")
         return destino
-    if origem.stat().st_size < ALVO_BYTES:
+    if fator > 1:
+        log(f"  {seg_origem:.0f} s passa de 3 min (limite do Shorts): acelero {(fator - 1) * 100:.1f}% → {seg_origem / fator:.0f} s")
+    if fator == 1 and origem.stat().st_size < ALVO_BYTES:
         log(f"  o original já tem {origem.stat().st_size / 1e6:.1f} MB: só copio com faststart")
         subprocess.run([ffmpeg(), "-y", "-v", "error", "-i", str(origem), "-c", "copy", "-movflags", "+faststart",
                         str(destino)], check=True, timeout=300)
         return destino
 
-    seg = duracao(origem)
+    seg = seg_origem / fator
     total_kbps = ALVO_BYTES * 8 / 1000 / seg
     video_kbps = int(total_kbps - AUDIO_KBPS)
     with tempfile.TemporaryDirectory() as tmp:
         passlog = str(Path(tmp) / "passe")
         for tentativa in range(4):
             # pixel art: mantém 1080x1920; só reduz (sem borrar: neighbor) se o bitrate ficar baixo demais
-            escala = [] if video_kbps >= 900 else ["-vf", "scale=720:1280:flags=neighbor"]
+            filtros = ([f"setpts=PTS/{fator:.5f}"] if fator > 1 else []) + ([] if video_kbps >= 900 else ["scale=720:1280:flags=neighbor"])
+            escala = (["-vf", ",".join(filtros)] if filtros else []) + (["-af", f"atempo={fator:.5f}"] if fator > 1 else [])
             log(f"  FFmpeg 2 passadas: vídeo {video_kbps} kbps + áudio {AUDIO_KBPS} kbps ({seg:.0f} s)"
-                + (" · 720x1280" if escala else ""))
+                + (" · 720x1280" if video_kbps < 900 else ""))
             base = [ffmpeg(), "-y", "-v", "error", "-i", str(origem), *escala, "-c:v", "libx264", "-preset", "slow",
                     "-tune", "animation", "-pix_fmt", "yuv420p", "-b:v", f"{video_kbps}k",
                     "-maxrate", f"{int(video_kbps * 1.4)}k", "-bufsize", f"{video_kbps * 2}k", "-passlogfile", passlog]
@@ -100,6 +108,27 @@ def compactar(origem: Path, log=print) -> Path:
             video_kbps = int(video_kbps * 0.85)
     destino.unlink(missing_ok=True)
     raise RuntimeError("não consegui deixar o vídeo abaixo de 15 MB")
+
+
+def fator_shorts(seg: float) -> float:
+    """Quanto acelerar para caber no Shorts (1 = nada). Os episódios são Shorts diários, nunca vídeo normal."""
+    if seg <= SHORTS_MAX_S:
+        return 1.0
+    fator = seg / SHORTS_MAX_S
+    if fator > SHORTS_FATOR_MAX:
+        raise RuntimeError(f"o vídeo tem {seg:.0f} s: nem acelerando {(SHORTS_FATOR_MAX - 1) * 100:.0f}% cabe nos 3 min do "
+                           "Shorts. Encurte o episódio antes de mandar.")
+    return fator
+
+
+def ajustar_capitulos(descricao: str, fator: float) -> str:
+    """Com o vídeo acelerado, os tempos dos capítulos (m:ss no começo da linha) encolhem junto."""
+    if fator <= 1:
+        return descricao
+    def troca(m):
+        t = int((int(m.group(1)) * 60 + int(m.group(2))) / fator)
+        return f"{t // 60}:{t % 60:02d}"
+    return re.sub(r"(?m)^(\d{1,2}):(\d{2})(?=\s)", troca, descricao)
 
 
 # ------------------------------------------------------------------ texto
@@ -138,9 +167,12 @@ def copy_extra(numero: int, item: str, legenda: str) -> dict:
     return {"titulo": titulo, "descricao": descricao, "tags": tags}
 
 
-def montar(numero: int, copy: dict, video: Path, minutos: int, item: str = "") -> dict:
-    titulo = limpar(copy["titulo"])[:100]
-    descricao = limitar_hashtags(limpar(copy["descricao"]))[:5000]
+def montar(numero: int, copy: dict, video: Path, minutos: int, item: str = "", fator: float = 1.0) -> dict:
+    titulo = limpar(copy["titulo"])
+    if "#shorts" not in titulo.lower() and len(titulo) + 8 <= 100:
+        titulo += " #Shorts"   # a série principal no YouTube é Shorts
+    titulo = titulo[:100]
+    descricao = limitar_hashtags(ajustar_capitulos(limpar(copy["descricao"]), fator))[:5000]
     tags, total = [], 0
     for t in (x.strip().lstrip("#") for x in copy.get("tags", "").split(",")):
         if t and total + len(t) + 1 <= 500:
@@ -216,7 +248,8 @@ def postar(numero: int, ensaio: bool, minutos: int = MINUTOS_AGENDAMENTO, log=pr
                 pub.marcar(chave_pub, "youtube", "erro", origem="youtube", detalhe=f"compactação: {e}"[:300])
             log(f"[YouTube] ✖ falhou ao compactar (pode tentar de novo): {e}")
             return False
-        campos = montar(numero, lib["copy"], video, minutos, extra or "")
+        fator = fator_shorts(duracao(lib["video"]))
+        campos = montar(numero, lib["copy"], video, minutos, extra or "", fator)
         log(f"  título: {campos['titulo']}")
         log(f"  agendado para: {campos['publicar_em']} · {len(campos['tags'].split(','))} tags · "
             f"{pub.contar_hashtags(campos['descricao'])} hashtags na descrição")

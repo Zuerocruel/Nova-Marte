@@ -1,5 +1,5 @@
 {
-  "_leia": "Votação do fim do episódio (roteiro.py → cena 'votacao'): a colônia pergunta SIM ou NÃO e quem comenta decide. O dono marca o resultado no painel (card do episódio → Votação) e o episódio SEGUINTE começa com a decisão (cena 'resultado', fala 'sim' ou 'nao'). Sem resultado marcado, o episódio seguinte não fala da votação. 'tela' = pergunta curta que aparece no vídeo (até ~30 letras). 'fala' = narração (termina pedindo SIM ou NÃO). 'requer' (opcional) = obra que precisa estar concluída. A mesma pergunta não volta antes de 'sem_repetir' episódios. A decisão só muda a história contada, nunca o andamento das obras. 'camera' (opcional): para onde a câmera vai na pergunta e no resultado (ex.: {\"alvo\": \"dunas\"}).",
+  "_leia": "Votação do fim do episódio (roteiro.py → cena 'votacao'): a colônia pergunta SIM ou NÃO e quem comenta decide. O dono marca o resultado no painel (card do episódio → Votação) e o episódio SEGUINTE começa com a decisão (cena 'resultado', fala 'sim' ou 'nao'). Sem resultado marcado, o episódio seguinte não fala da votação. 'tela' = pergunta curta que aparece no vídeo (até ~30 letras). 'fala' = narração (termina pedindo SIM ou NÃO). 'requer' (opcional) = obra que precisa estar concluída. A mesma pergunta não volta antes de 'sem_repetir' episódios. A decisão só muda a história contada, nunca o andamento das obras. 'camera' (opcional): para onde a câmera vai na pergunta e no resultado (ex.: {\"alvo\": \"dunas\"}). 'palavras' (opcional): se o pedido do dia (comentário escolhido pelo correio) falar de uma delas, essa votação tem prioridade, para a pergunta do fim conversar com o pedido.",
   "sem_repetir": 12,
   "votacoes": [
     {
@@ -122,6 +122,24 @@
         "alvo": "dunas",
         "zoom": 3.2
       }
+    },
+    {
+      "id": "expedicao-norte",
+      "tela": "EXPEDIÇÃO PRO NORTE?",
+      "fala": "Além das dunas ainda tem aquelas marcas de pneu que não são nossas. Mandamos uma expedição com o rover pro norte, atrás delas? Comenta SIM ou NÃO.",
+      "sim": "Vocês decidiram: SIM! O rover partiu pro norte com a equipe da expedição, cruzou as dunas e seguiu as marcas de pneu até a areia apagar a trilha. Eles montaram acampamento ali e voltam com notícias.",
+      "nao": "Vocês decidiram: NÃO. O norte fica para depois: o rover ficou de prontidão na base, e as marcas de pneu continuam um mistério.",
+      "camera": {
+        "alvo": "dunas",
+        "zoom": 3.2
+      },
+      "palavras": [
+        "norte",
+        "expedição",
+        "expedicao",
+        "dunas",
+        "explorar"
+      ]
     }
   ]
 }

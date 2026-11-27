@@ -552,6 +552,26 @@
               1
             ]
           }
+        ],
+        "etapas": [
+          {
+            "de": 0.15,
+            "ate": 0.4,
+            "tomada": "cmdAranha",
+            "fala": "Uma aranha de carga, de seis patas, ergue os arcos de aço."
+          },
+          {
+            "de": 0.4,
+            "ate": 0.65,
+            "tomada": "cmdCasco",
+            "fala": "Placa por placa, o casco blindado fecha as paredes."
+          },
+          {
+            "de": 0.65,
+            "ate": 0.88,
+            "tomada": "cmdJanelas",
+            "fala": "Depois, as janelas de vidro grosso, viradas para a colônia."
+          }
         ]
       }
     },

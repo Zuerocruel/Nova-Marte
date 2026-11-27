@@ -242,6 +242,7 @@ MAO_DE_OBRA_MAIS = ["Hoje a obra ganhou reforço: são {pop} trabalhando, {novos
 CONSTRUIR = ["Viga por viga, {a} {obra} vai tomando forma.",
              "Os robôs de carga trazem material do módulo de pouso, e a estrutura sobe mais um pouco.",
              "Solda, encaixe, aperto. {A} {obra} está cada vez mais perto de ficar {pronta}."]
+AVANCO_CURTO = "Fim do turno: {p1} por cento."   # depois da fala de uma etapa (a obra já foi dita)
 AVANCO = ["Fim do turno: {a} {obra} chegou a {p1} por cento.",
           "Hoje a obra avançou {ganho} por cento. Já são {p1} por cento {da} {obra}."]
 FIM_DO_DIA = ["O sol se põe em Marte. Amanhã a obra continua, e cada novo colono deixa a construção mais rápida.",
@@ -269,6 +270,11 @@ def escolher_votacao(n: int, d: dict) -> dict | None:
     prontas = {o["slug"] for o in d.get("obras", []) if o.get("status") == "concluida"}
     ok = [v for v in banco["votacoes"] if (not v.get("requer") or v["requer"] in prontas)]
     opcoes = [v for v in ok if v["id"] not in recentes] or ok
+    # a votação conversa com o pedido do dia (ex.: alguém pediu para explorar o norte → "Expedição pro norte?")
+    ped = (ler_correio(n).get("pedido") or {}).get("fala", "").lower()
+    ligadas = [v for v in opcoes if ped and any(p in ped for p in v.get("palavras", []))]
+    if ligadas:
+        opcoes = ligadas
     return random.Random(f"votacao:{n}").choice(opcoes) if opcoes else None
 
 
@@ -360,22 +366,49 @@ def cenas_da_missao(d: dict, obra: dict, missao: dict, p0: int, p1: int, rnd: ra
     def generica(fala: str, acao: str, alvo: str, zoom: float, prog) -> dict:
         return {"fala": fala, "acao": acao, "camera": {"alvo": alvo, "zoom": zoom}, "progresso": prog, "atores": {}}
 
+    # etapas próprias da obra (colonia.json missao.etapas): cada trecho do progresso tem fala e animação exclusivas,
+    # então cada episódio mostra uma parte diferente da construção (pedido do dono: nada de animação repetida)
+    etapas = missao.get("etapas") or []
+    usadas: set[int] = set()
+
+    def com_etapas(fallback: str, de: float, ate: float, depois: str = "") -> tuple[str, list]:
+        """Fala das etapas que caem em [de, ate) (ainda não usadas) + as tomadas, cada uma com a sua fração da fala."""
+        achadas = [i for i, e in enumerate(etapas) if i not in usadas and e["de"] < max(ate, de + 0.001) and e["ate"] > de]
+        if not achadas:
+            return fallback, []
+        usadas.update(achadas)
+        partes = [etapas[i]["fala"] for i in achadas]
+        texto = " ".join(partes + ([depois] if depois else []))
+        tomadas, pos = [], 0
+        for i, parte in zip(achadas, partes):
+            ini = texto.index(parte, pos)
+            pos = ini + len(parte)
+            tomadas.append({"tipo": etapas[i]["tomada"], "frac": [round(ini / len(texto), 3), round(pos / len(texto), 3)]})
+        return texto, tomadas
+
+    def construir(de, ate, fallback_txt, alvo="obra", zoom=6, depois=""):
+        fala, tms = com_etapas(fallback_txt, de, ate, depois)
+        g = generica(fala, "construir", alvo, zoom, [de, ate])
+        if tms:
+            g["tomadas"] = tms
+        return g
+
     mao = gen(MAO_DE_OBRA_MAIS if pop > antes else MAO_DE_OBRA_IGUAL)
     if p0 == 0 and p1 >= 100:          # colônia grande: a obra inteira num dia (cenas originais)
         return [original(i) for i in range(5)]
     if p0 == 0:                        # primeiro dia da obra, ela continua amanhã
         return [original(0, [0, 0]), original(1, [0, 0]), original(2, [a, meio]),
-                generica(gen(AVANCO), "construir", "obra", 6, [meio, b]),
+                construir(meio, b, gen(AVANCO), depois=AVANCO_CURTO.format(**fmt) if etapas else ""),
                 generica(gen(FIM_DO_DIA), "construir", "colonia", 3.2, [b, b])]
     if p1 >= 100:                      # dia da conclusão: fecha com as cenas originais (ligar)
         return [generica(gen(RETOMAR), "apresentar", "obra", 4.5, [a, a]),
                 generica(mao, "construir", "obra", 5, [a, a]),
-                generica(gen(CONSTRUIR), "construir", "obra", 6, [a, meio]),
+                construir(a, meio, gen(CONSTRUIR)),
                 original(3, [meio, 1]), original(4, [1, 1])]
     return [generica(gen(RETOMAR), "apresentar", "obra", 4.5, [a, a]),   # dia do meio
             generica(mao, "construir", "obra", 5, [a, a]),
-            generica(gen(CONSTRUIR), "construir", "obra", 6, [a, meio]),
-            generica(gen(AVANCO), "construir", "obra", 6, [meio, b]),
+            construir(a, meio, gen(CONSTRUIR)),
+            construir(meio, b, gen(AVANCO), depois=AVANCO_CURTO.format(**fmt)),
             generica(gen(FIM_DO_DIA), "construir", "colonia", 3.2, [b, b])]
 
 
@@ -526,7 +559,8 @@ def montar(d: dict) -> dict:
     for i, mc in enumerate(cenas_da_missao(d, obra, missao, p0, p1, rnd), 1):
         cenas.append(cena(f"missao_{i}", "missao", Fala().add(mc["fala"]),
                           passo=i, acao=mc["acao"], camera=mc["camera"], extra=mc.get("extra", 0),
-                          progresso=mc["progresso"], atores=mc["atores"]))
+                          progresso=mc["progresso"], atores=mc["atores"],
+                          **({"tomadas": mc["tomadas"]} if mc.get("tomadas") else {})))
     proxima = missao["proxima"] if concluida else f"a obra {'da' if obra['nome'].split()[0].lower().endswith('a') else 'do'} {obra['nome']} continua"
 
     # 5a'. obra pronta hoje: no fim do dia a colônia já começa a PRÓXIMA obra e deixa a fundação pronta

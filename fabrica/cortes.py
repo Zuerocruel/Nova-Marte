@@ -106,8 +106,13 @@ def _obra(r: dict, rnd: random.Random) -> list[dict]:
         return [constroi, liga]
     fala = rnd.choice([f"Enquanto isso, {art} {nome} chegou a {R.extenso(p1)} por cento.",
                        f"E a obra não para: {nome}, {R.extenso(p1)} por cento."])
+    # as etapas exclusivas do dia (as mesmas animações do episódio) passam em sequência durante a fala
+    tipos = [e["tipo"] for c in missao for e in c.get("tomadas", [])]
+    etapas = ({"tomadas": [{"tipo": tp, "frac": [round(i / len(tipos), 3), round((i + 1) / len(tipos), 3)]}
+                           for i, tp in enumerate(tipos)]} if tipos else {})
     return [R.cena("missao_1", "missao", R.Fala().add(fala), passo=4, acao="construir",
-                   camera={"alvo": "obra", "zoom": 6}, extra=0, progresso=[p0 / 100, p1 / 100], atores={})]
+                   camera={"alvo": "obra", "zoom": 6}, extra=1.2 * len(tipos) / 2 if tipos else 0,
+                   progresso=[p0 / 100, p1 / 100], atores={}, **etapas)]
 
 
 def montar(d: dict, r: dict, rede: str) -> dict:

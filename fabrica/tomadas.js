@@ -1187,6 +1187,7 @@ function prepararTomadasCurtas() {
       else { add(a, a + d * 0.55, 'cCorredor', c); add(a + d * 0.55, c.fim, 'objeto', c); }
     } else if (c.tipo === 'boas_vindas') add(a, c.fim, 'boasVindas', c);
     else if (c.tipo === 'andarilhos') add(a, c.fim, 'cChegada', c);
+    else if (c.tipo === 'missao' && (c.tomadas || []).length) for (const [i0, i1, tipo] of trechosDasEtapas(c, true)) add(i0, i1, tipo, c);
     else if (c.tipo === 'missao') add(a, c.fim, c.acao === 'ligar' ? 'inauguracao' : ((c.progresso || [0, 0])[1] >= 1 ? 'obra' : 'cBroca'), c);
     else if (c.tipo === 'youtube') add(a, c.fim, 'cRosto', c);   // fim: TikTok no suspense (?), Instagram sorrindo com o play
   }
@@ -1328,6 +1329,7 @@ function prepararTomadasTikTok() {
     const a = c.inicio, d = c.fim - a;
     if (c.tipo === 'problema') { if (ehVentania()) { add(a, a + d * 0.35, 'tCCTV', c); add(a + d * 0.35, c.fim, 'tVentania', c); } else add(a, c.fim, 'tCCTV', c); }
     else if (c.tipo === 'boas_vindas' || c.tipo === 'andarilhos') add(a, c.fim, 'tCracha', c);
+    else if (c.tipo === 'missao' && (c.tomadas || []).length) for (const [i0, i1, tipo] of trechosDasEtapas(c, true)) add(i0, i1, 'cctv:' + tipo, c);
     else if (c.tipo === 'missao') add(a, c.fim, c.acao === 'ligar' ? 'tInauguracao' : 'tTimelapse', c);
     else if (c.tipo === 'youtube') add(a, c.fim, 'tSinal', c);
     else if (c.tipo === 'solucao') {
@@ -1686,6 +1688,131 @@ function tomadaAmostra(t, k) {
   };
 }
 
+// ================================================================== etapas exclusivas das obras (colonia.json missao.etapas)
+// Cada trecho do progresso de uma obra tem a SUA animação (pedido do dono: a construção não pode repetir entre
+// episódios). A fala da missão diz a etapa e a tomada mostra exatamente aquilo. Módulo de Comando: estrutura (aranha
+// de carga com os arcos de aço), casco blindado (placas na ventosa + gel azul nas emendas) e janelas (vista de dentro).
+function pctDaEtapa(cena, t) {   // a % corre pela CENA inteira (não recomeça a cada etapa)
+  const [p0, p1] = (cena && cena.progresso) || [0, 1], ini = cena.fala_inicio ?? cena.inicio;
+  return Math.round(lerp(p0, p1, clamp((t - ini) / Math.max(0.1, cena.fim - 0.3 - ini))) * 100);
+}
+function placaEtapa(rot, cena, t, y = 250) {
+  const p = pctDaEtapa(cena, t);
+  return () => { texto(rot, W / 2, y, 40, '#ffffff', { maxW: W - 100 }); texto(p + '%', W / 2, y + 120, 110, COR.ouro); };
+}
+function arcoT(cx, base, rx, ry, cor, w = 4) {   // arco de aço (meia elipse), em "pixels" quadrados
+  for (let a = 0; a <= 40; a++) {
+    const q = Math.PI + (a / 40) * Math.PI;
+    R(cx + Math.cos(q) * rx - w / 2, base + Math.sin(q) * ry - w / 2, w, w, cor);
+  }
+}
+function aranhaT(x, y, t, anda, carga) {   // robô de seis patas: corpo laranja, olho ciano, patas em passo alternado
+  for (let i = 0; i < 6; i++) {
+    const lado = i < 3 ? -1 : 1, j = i % 3, fase = anda ? Math.sin(t * 7 + i * Math.PI / 1.5 + (i % 2) * Math.PI) : 0;
+    const quadril = { x: x + (j - 1) * 16, y: y + 10 };
+    const pe = { x: quadril.x + lado * 4 + (j - 1) * 14 + fase * 6, y: y + 56 - Math.max(0, fase) * 5 };
+    const joelho = { x: (quadril.x + pe.x) / 2 + (j - 1) * 6, y: y - 8 };
+    const cor = lado < 0 ? '#6b6f86' : '#9aa0b5';
+    seg(quadril, joelho, 4, cor); seg(joelho, pe, 3, cor); R(pe.x - 3, pe.y - 2, 6, 3, '#2a2140');
+  }
+  R(x - 30, y - 4, 60, 20, '#e2603b'); R(x - 30, y - 4, 60, 4, '#ff8a5c'); R(x - 26, y + 12, 52, 4, '#a83d22');
+  R(x + 22, y + 2, 6, 6, '#1b1530'); R(x + 23, y + 3, 4, 4, Math.floor(t * 3) % 2 ? COR.agua : '#bff8ff');
+  R(x - 3, y - 18, 6, 14, '#4a4466');                                             // mastro do guincho
+  if (carga != null && carga > 0) R(x - 1, y - 18 - carga, 2, carga, '#c9ced9');  // cabo até o arco
+}
+function tomadaCmdAranha(t, k, cena) {
+  ceuT(); dunasLonge(t, 0.52); const chao = TH * 0.68; chaoT(chao);
+  R(40, chao - 6, 190, 6, '#b9bfcc'); R(40, chao - 6, 190, 2, '#e4e6f0');       // a laje da fundação (ep. 8)
+  const prontos = 2 + Math.floor(clamp(k) * 2.2), cx0 = 110;
+  for (let i = prontos - 1; i >= 0; i--) arcoT(cx0 + i * 14, chao - 6 - i * 3, 58, 92 - i * 3, i % 2 ? '#9aa0b5' : '#c9ced9');
+  // a aranha chega pela direita com o próximo arco pendurado e baixa no encaixe
+  const andar = clamp(k / 0.55), baixa = clamp((k - 0.55) / 0.3);
+  const ax = lerp(TW + 50, cx0 + prontos * 14 + 26, saida(andar)), ay = chao - 62;
+  const alvo = cx0 + prontos * 14, altura = lerp(70, 0, saida(baixa));
+  const arcX = lerp(ax, alvo, saida(baixa)), arcB = chao - 6 - prontos * 3 - altura, ry = 92 - prontos * 3;
+  arcoT(arcX, arcB, 58, ry, '#ffc83d');
+  aranhaT(ax, ay, t, andar < 1, (ay - 18) - (arcB - ry));
+  // colono agachado apertando o parafuso do pé do arco: faísca a cada volta da chave
+  const c = colonoQualquer(1), px = cx0 - 70, base = chao;
+  const r = ator(c.pal, { x: px, chao: base, dir: 1, agacha: 0.7, maoF: { x: px + 14 + Math.sin(t * 9) * 2, y: base - 12 }, maoT: { x: px + 10, y: base - 14 } }, t, 2.6);
+  ferramentaT('chave', r.maoF, r.cotF, t, 2.6);
+  const f = Math.floor(t * 9);
+  if (f % 3 === 0) for (let i = 0; i < 5; i++) R(px + 16 + hashT(i, f) * 10, base - 16 + hashT(i + 4, f) * 6, 2, 2, COR.ouro);
+  if (baixa > 0.95 && Math.floor(t * 4) % 2) R(alvo - 4, chao - 10, 8, 4, '#ffffff');   // "clac": encaixou
+  TREMOR = andar < 1 ? 0.15 : 0;
+  return placaEtapa('ESTRUTURA DE AÇO', cena, t);
+}
+function tomadaCmdCasco(t, k, cena) {
+  // close na parede: placas cinza já presas, uma placa nova descendo na ventosa, gel azul correndo na emenda
+  R(0, 0, TW, TH, '#2b2440');
+  for (let y = 0; y < TH; y += 40) R(0, y, TW, 3, '#3a3258');                     // arcos vistos de perto (fundo)
+  const col = 3, lw = 78, lh = 92, x0 = 18, y0 = 70;
+  const total = col * 4, feitas = 5 + Math.floor(clamp(k) * 3);
+  for (let i = 0; i < feitas && i < total; i++) {
+    const cx = x0 + (i % col) * (lw + 6), cy = y0 + Math.floor(i / col) * (lh + 6);
+    R(cx, cy, lw, lh, '#9aa0b5'); R(cx, cy, lw, 4, '#c9ced9'); R(cx + 6, cy + 10, lw - 12, 2, '#6b6f86');
+    for (const [a, b] of [[4, 8], [lw - 8, 8], [4, lh - 8], [lw - 8, lh - 8]]) R(cx + a, cy + b, 3, 3, '#4a4466');   // rebites
+    R(cx + lw, cy, 6, lh + 6, '#3fd0c9'); R(cx, cy + lh, lw + 6, 6, '#3fd0c9');  // emendas já seladas
+  }
+  // a placa nova desce da ventosa até o lugar dela
+  const i = Math.min(feitas, total - 1), nx = x0 + (i % col) * (lw + 6), ny = y0 + Math.floor(i / col) * (lh + 6);
+  const q = saida(clamp(k / 0.5)), py = lerp(-lh - 30, ny, q);
+  R(nx + lw / 2 - 2, -10, 4, py + 2, '#c9ced9'); R(nx + lw / 2 - 14, py - 8, 28, 10, '#4a4466');   // cabo + ventosa
+  R(nx, py, lw, lh, '#b9bfcc'); R(nx, py, lw, 4, '#eef0f8');
+  // gel azul correndo pela emenda da placa nova (depois que ela encosta)
+  const gel = clamp((k - 0.5) / 0.4);
+  if (gel > 0) { R(nx - 6, ny - 6, (lw + 12) * gel, 6, '#3fd0c9'); R(nx - 6, ny - 6, (lw + 12) * gel, 2, '#bff8ff'); }
+  // colono com a pistola de gel seguindo a emenda
+  const c = colonoQualquer(2), gx = nx - 6 + (lw + 12) * gel, px = Math.max(30, gx - 26), pc = Math.min(TH - 40, ny + 62);
+  R(px - 22, pc, 44, 5, '#ffc83d'); R(px - 22, pc, 44, 2, '#ffe08a');                                   // plataforma elevatória
+  for (let y = pc + 5, i = 0; y < TH - 14; y += 16, i++) seg({ x: px - 18, y }, { x: px + 18, y: y + 16 }, 2, '#e0a920'), seg({ x: px + 18, y }, { x: px - 18, y: y + 16 }, 2, '#e0a920');
+  R(px - 26, TH - 14, 52, 10, '#4a4466'); R(px - 22, TH - 6, 8, 6, '#1b1530'); R(px + 14, TH - 6, 8, 6, '#1b1530');
+  const r = ator(c.pal, { x: px, chao: pc, dir: 1, maoF: { x: gx, y: ny - 4 }, maoT: { x: gx - 6, y: ny + 2 } }, t, 2.8);
+  ferramentaT('scanner', r.maoF, r.cotF, t, 2.8);
+  return placaEtapa('CASCO BLINDADO', cena, t);
+}
+function tomadaCmdJanelas(t, k, cena) {
+  // de DENTRO do módulo: parede escura, o buraco da janela com a colônia lá fora; o vidro grosso desce e a luz entra
+  R(0, 0, TW, TH, '#1e1a30');
+  const jx = 45, jy = 120, jw = 180, jh = 140;
+  tx.save(); tx.beginPath(); tx.rect(jx, jy, jw, jh); tx.clip();
+  const g = tx.createLinearGradient(0, jy, 0, jy + jh); g.addColorStop(0, '#d98a5c'); g.addColorStop(1, '#f2b98a');
+  tx.fillStyle = g; tx.fillRect(jx, jy, jw, jh);
+  tx.fillStyle = '#c4643c'; tx.beginPath(); tx.moveTo(jx, jy + jh);
+  for (let x = jx; x <= jx + jw; x += 5) tx.lineTo(x, jy + jh * 0.62 - Math.sin(x * 0.05) * 6);
+  tx.lineTo(jx + jw, jy + jh); tx.fill();
+  for (let i = 0; i < 7; i++) { const hx = jx + 14 + i * 24, hy = jy + jh * 0.7 + (i % 2) * 8; R(hx, hy, 12, 9, '#c9ced9'); R(hx + 4, hy + 3, 4, 3, '#ffc83d'); }   // casinhas da colônia
+  R(jx + jw * 0.72, jy + 18, 8, 8, '#fff3d6');                                    // o sol lá fora
+  tx.restore();
+  // o vidro desce no trilho; um brilho atravessa quando assenta
+  const q = saida(clamp(k / 0.55)), vy = lerp(jy - jh - 10, jy, q);
+  tx.globalAlpha = 0.35; R(jx, vy, jw, jh, '#bff8ff'); tx.globalAlpha = 1;
+  R(jx, vy, jw, 3, '#eef0f8');
+  if (q >= 1) { const b = ((t * 0.6) % 1.4) - 0.2; tx.globalAlpha = 0.5; for (let i = 0; i < 4; i++) R(jx + b * jw + i * 6, jy, 3, jh, '#ffffff'); tx.globalAlpha = 1; }
+  // moldura grossa (por cima) + borracha de vedação correndo
+  R(jx - 12, jy - 12, jw + 24, 12, '#4a4466'); R(jx - 12, jy + jh, jw + 24, 12, '#4a4466');
+  R(jx - 12, jy, 12, jh, '#4a4466'); R(jx + jw, jy, 12, jh, '#4a4466');
+  const veda = clamp((k - 0.55) / 0.3);
+  if (veda > 0) R(jx - 2, jy - 2, (jw + 4) * veda, 2, '#1b1530');
+  // luz entrando no chão quando a janela fica pronta
+  const chao = TH * 0.86, luz = clamp((k - 0.6) / 0.3);
+  if (luz > 0) { tx.globalAlpha = 0.25 * luz; tx.fillStyle = '#fff3d6'; tx.beginPath(); tx.moveTo(jx, jy + jh); tx.lineTo(jx + jw, jy + jh); tx.lineTo(jx + jw + 50, chao); tx.lineTo(jx - 20, chao); tx.fill(); tx.globalAlpha = 1; }
+  R(0, chao, TW, TH - chao, '#2a2140');
+  // dois colonos: um empurra o vidro no trilho, o outro olha a colônia pela janela nova e comemora
+  const a = colonoQualquer(3), b2 = colonoQualquer(4), feliz = k > 0.7;
+  ator(a.pal, { x: jx - 4, chao, dir: 1, maoF: { x: jx + 6, y: Math.max(jy + 20, vy + jh - 10) }, maoT: { x: jx + 2, y: Math.max(jy + 30, vy + jh) } }, t, 3);
+  ator(b2.pal, { x: jx + jw - 20, chao, dir: -1, alegre: feliz, pulo: feliz ? Math.abs(Math.sin(t * 6)) * 6 : 0,
+                 maoF: feliz ? { x: jx + jw - 26, y: chao - 70 } : null }, t, 3);
+  return placaEtapa('JANELAS BLINDADAS', cena, t);
+}
+// trechos de tempo de cada etapa dentro da fala da missão (frac = fração do texto; a fala é quase linear)
+function trechosDasEtapas(m, inteiro = false) {
+  const ws = m.palavras || [], fi = ws.length ? ws[0].i : m.fala_inicio, ff = ws.length ? ws[ws.length - 1].f : m.fim;
+  return (m.tomadas || []).map((e, j, arr) => [
+    j === 0 ? (inteiro ? m.inicio : fi - 0.1) : fi + e.frac[0] * (ff - fi),
+    j === arr.length - 1 && (inteiro || e.frac[1] >= 0.99) ? m.fim - (inteiro ? 0 : 0.2) : fi + e.frac[1] * (ff - fi),
+    e.tipo]);
+}
 function prepararTomadas() {
   TOMADAS = [];
   // Instagram e TikTok: só tomadas exclusivas, e cada rede com a sua linguagem (o mesmo episódio, 2 vídeos diferentes)
@@ -1748,8 +1875,10 @@ function prepararTomadas() {
   const correio = EP.cenas.filter((c) => c.tipo === 'correio');
   if (correio.length) add(correio[0].inicio + 0.25, correio[correio.length - 1].fim - 0.15, 'correio', correio[0]);
   const constr = EP.cenas.filter((c) => c.tipo === 'missao' && c.acao === 'construir');
+  const comEtapa = constr.filter((c) => (c.tomadas || []).length);
+  for (const m of comEtapa) for (const [ini, fim, tipo] of trechosDasEtapas(m)) add(ini, fim, tipo, m);
   const c = constr[Math.min(constr.length - 1, 1)] || constr[0];
-  if (c && !EP.cenas.some((x) => x.acao === 'plantar' && x === c)) add(c.inicio + (c.fim - c.inicio) * 0.2, c.fim - (c.fim - c.inicio) * 0.12, 'obra', c);
+  if (!comEtapa.length && c && !EP.cenas.some((x) => x.acao === 'plantar' && x === c)) add(c.inicio + (c.fim - c.inicio) * 0.2, c.fim - (c.fim - c.inicio) * 0.12, 'obra', c);
 }
 function tomadaEm(t) { return TOMADAS.find((x) => t >= x.ini && t < x.fim) || null; }
 
@@ -1757,7 +1886,7 @@ function desenharTomada(tm, t) {
   const k = (t - tm.ini) / (tm.fim - tm.ini);
   tx.setTransform(1, 0, 0, 1, 0, 0);
   TREMOR = 0;
-  const extra = { monitor: tomadaMonitor, alarme: tomadaAlarme, conserto: tomadaConserto, objeto: tomadaObjeto, obra: tomadaObra,
+  const extraFn = { monitor: tomadaMonitor, alarme: tomadaAlarme, conserto: tomadaConserto, objeto: tomadaObjeto, obra: tomadaObra,
                   redemoinho: tomadaRedemoinho, alertaHeroi: tomadaAlertaHeroi, corrida: tomadaCorrida, abrigo: tomadaAbrigo,
                   rover: tomadaRover, marcas: tomadaMarcas, curiosos: tomadaCuriosos, fundacao: tomadaFundacao,
                   correio: tomadaCorreio, cRosto: curtoRosto, cFaisca: curtoFaisca, cCorredor: curtoCorredor,
@@ -1766,7 +1895,10 @@ function desenharTomada(tm, t) {
                   plantaComando: tomadaPlantaComando, inauguracao: tomadaInauguracao, assembleia: tomadaAssembleia,
                   amostra: tomadaAmostra, ventania: tomadaVentania, amarraLona: tomadaAmarraLona, persiana: tomadaPersiana,
                   tVentania: comCCTV(tomadaVentania, 'CAM 01 · CANTEIRO'), tAmarra: comCCTV(tomadaAmarraLona, 'CAM 01 · CANTEIRO'),
-                  tPersiana: comCCTV(tomadaPersiana, 'CAM 05 · VILAREJO'), tInauguracao: comCCTV(tomadaInauguracao, 'CAM 02 · EXTRATOR') }[tm.tipo](t, k, tm.cena);
+                  tPersiana: comCCTV(tomadaPersiana, 'CAM 05 · VILAREJO'), tInauguracao: comCCTV(tomadaInauguracao, 'CAM 02 · EXTRATOR'),
+                  cmdAranha: tomadaCmdAranha, cmdCasco: tomadaCmdCasco, cmdJanelas: tomadaCmdJanelas };
+  const fn = tm.tipo.startsWith('cctv:') ? comCCTV(extraFn[tm.tipo.slice(5)], 'CAM 03 · CANTEIRO') : extraFn[tm.tipo];
+  const extra = fn(t, k, tm.cena);
   tx.globalAlpha = 1;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;

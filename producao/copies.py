@@ -53,7 +53,8 @@ ROTULO_CENA = {"abertura": "Abertura", "populacao": "População", "boas_vindas"
                "compras": "Novidades na vizinhança", "cratera": "Nome novo no mapa", "destaque": "Destaque do dia",
                "problema": "Alerta: problema do dia", "solucao": "Problema resolvido", "gancho": "Próximo episódio",
                "votacao": "Votação: SIM ou NÃO?", "resultado": "A colônia decidiu",
-               "fundacao": "Fundação da próxima obra", "correio": "Correio da colônia"}
+               "fundacao": "Fundação da próxima obra", "correio": "Correio da colônia",
+               "pedido": "Pedido do dia", "andarilhos": "Chegaram pelos comentários"}
 
 
 def capitulos(lt: dict) -> list[str]:
