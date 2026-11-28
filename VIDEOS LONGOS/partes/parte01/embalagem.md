@@ -23,17 +23,17 @@ Expedição Norte é a série longa da Operação Marte Zero, contada por quem f
 
 Capítulos:
 0:00 SOL 11 · 19:42 — O RÁDIO CAI
-0:13 SOL 11 · 19:43 — 38 MINUTOS
-0:59 SOL 11 · 20:16 — O ZÍPER FECHA
-1:10 SOL 11 · 20:31 — A CONTA
-2:40 SOL 11 · 20:31 — TRÊS REGRAS
-3:39 SOL 12 · 03:10 — PRESSÃO CAINDO
-4:37 SOL 12 · 09:00 — DE NOVO E DE NOVO
-5:19 SOL 12 · 22:00 — VOZES NO CHIADO
-5:44 SOL 13 · 01:17 — 4-1-7
-6:10 SOL 13 · 06:02 — VOCÊ, CANSADO
-6:51 SOL 13 · 07:38 — VOLTA-CASA
-7:12 SOL 13 · 07:42 — AS MARCAS
+0:16 SOL 11 · 19:43 — 38 MINUTOS
+1:05 SOL 11 · 20:16 — O ZÍPER FECHA
+1:22 SOL 11 · 20:31 — A CONTA
+3:14 SOL 11 · 20:31 — TRÊS REGRAS
+4:28 SOL 12 · 03:10 — PRESSÃO CAINDO
+5:37 SOL 12 · 09:00 — DE NOVO E DE NOVO
+6:37 SOL 12 · 22:00 — VOZES NO CHIADO
+7:15 SOL 13 · 01:17 — 4-1-7
+7:51 SOL 13 · 06:02 — VOCÊ, CANSADO
+8:41 SOL 13 · 07:38 — VOLTA-CASA
+9:09 SOL 13 · 07:42 — AS MARCAS
 
 Fatos reais desta parte:
 • Marte não tem GPS: rovers se guiam contando as voltas das rodas e pela posição do sol.
@@ -44,7 +44,7 @@ Fatos reais desta parte:
 
 #marte #sobrevivencia #operacaomartezero
 ```
-(Tempos reais da versão com voz: 7:54. O motor grava os capítulos em `saida/parte01/capitulos.txt` a cada geração.)
+(Tempos reais da versão com voz: 10:04. O motor grava os capítulos em `saida/parte01/capitulos.txt` a cada geração.)
 
 ## Pergunta binária (igual no vídeo e na descrição)
 **Você segue as marcas, ou espera na barraca por um resgate que alguém pode nem mandar?**

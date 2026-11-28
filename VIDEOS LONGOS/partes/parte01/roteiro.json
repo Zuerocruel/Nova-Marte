@@ -3,6 +3,7 @@
   "titulo": "Perdidos além das dunas",
   "voce": "Batata",
   "parceiro": "VinnY",
+  "_leia": "Cada fala: t = texto (as [marcas] em inglês são a emoção da voz eleven_v3 e não aparecem na legenda), c = cenário, p = parâmetros do cenário, r = relógio, h = medidores, pausa = silêncio depois da fala (s), voz = narrador | vega | batata, radio = filtro de rádio, mix = volume da fala, sons = efeitos [{s, de: inicio|fim, t: atraso, cada: repetir a cada N s, vezes, ate: id do bloco-fala onde para, vol}]. Regra do dono: o som é dito UMA vez e depois age sozinho, na pausa.",
   "campos": {
     "relogio_motivo": "19:42 (o rádio cai às 19:42 do sol 11; o VOLTA-CASA dispara às 07:42 do sol 13)",
     "plantado": "Protocolo VOLTA-CASA do rover (36 h sem a base → volta sozinho)",
@@ -15,97 +16,100 @@
   },
   "blocos": [
     {"id": "gancho", "nome": "O RÁDIO CAI", "falas": [
-      {"t": "Sol onze. Dezenove e quarenta e dois. A voz da Comandante Vega some no meio de uma palavra.", "c": "radio", "p": {"sinal": 1}, "r": "SOL 11 · 19:42", "h": {"o2": "3,5 SÓIS", "temp": -70, "sinal": 1}},
-      {"t": "Batata, o segundo sinal do norte não é... E depois, só chiado.", "c": "radio", "p": {"sinal": 0}, "h": {"sinal": 0}}
+      {"t": "[tense] Sol onze. Dezenove e quarenta e dois. A voz da Comandante Vega some no meio de uma palavra.", "c": "radio", "p": {"sinal": 1}, "r": "SOL 11 · 19:42", "h": {"o2": "3,5 SÓIS", "temp": -70, "sinal": 1}, "pausa": 0.3},
+      {"t": "[urgent] Batata, o segundo sinal do norte não é...", "voz": "vega", "radio": true, "c": "radio", "p": {"sinal": 1}, "pausa": 0.0, "sons": [{"s": "corte", "de": "fim", "t": -0.15}]},
+      {"t": "[whispers] E depois, só chiado.", "c": "radio", "p": {"sinal": 0}, "h": {"sinal": 0}, "pausa": 1.2}
     ]},
     {"id": "prazo", "nome": "38 MINUTOS", "falas": [
-      {"t": "No horizonte, uma parede marrom engole as estrelas. Tempestade de poeira. Trinta e oito minutos, diz o painel.", "c": "frente", "p": {"timer": "38:00"}, "r": "SOL 11 · 19:43"},
-      {"t": "Trinta e oito minutos para prender a barraca, baixar a antena e entrar.", "c": "frente", "p": {"timer": "37:41"}},
-      {"t": "No painel do rover, uma linha nova acende sozinha. VOLTA-CASA. Trinta e seis horas.", "c": "roverPainel", "p": {"contagem": "36:00:00"}},
-      {"t": "Você conhece a regra. Se o rover passar trinta e seis horas sem ouvir a base, ele volta sozinho. Pela rota gravada. Sem perguntar.", "c": "roverPainel", "p": {"contagem": "35:59:31"}},
-      {"t": "O VinnY bate no seu capacete e aponta o gravador do rover. Diário de bordo. Rápido.", "c": "gravacao", "p": {"rec": false}, "r": "SOL 11 · 19:47"},
-      {"t": "Você aperta o botão e fala. Tempestade chegando. Perdemos a trilha. Se vocês ouvirem isso, não venham pelas dunas. É perigoso demais.", "c": "gravacao", "p": {"rec": true}}
+      {"t": "[urgent] No horizonte, uma parede marrom engole as estrelas. Tempestade de poeira. Trinta e oito minutos, diz o painel.", "c": "frente", "p": {"timer": "38:00"}, "r": "SOL 11 · 19:43"},
+      {"t": "[urgent] Trinta e oito minutos para prender a barraca, baixar a antena e entrar.", "c": "frente", "p": {"timer": "37:41"}},
+      {"t": "[tense] No painel do rover, uma linha nova acende sozinha.", "c": "roverPainel", "p": {"contagem": "36:00:00"}, "pausa": 1.0, "sons": [{"s": "bipe", "de": "fim", "t": 0.2}]},
+      {"t": "[serious] VOLTA-CASA. Trinta e seis horas. Se o rover passar trinta e seis horas sem ouvir a base, ele volta sozinho. Pela rota gravada. Sem perguntar.", "c": "roverPainel", "p": {"contagem": "35:59:31"}},
+      {"t": "[urgent] O VinnY bate no seu capacete e aponta o gravador do rover. Diário de bordo. Rápido.", "c": "gravacao", "p": {"rec": false}, "r": "SOL 11 · 19:47", "pausa": 0.3, "sons": [{"s": "bipe", "de": "fim", "t": 0.1}]},
+      {"t": "[breathless] Tempestade chegando. Perdemos a trilha. Se vocês ouvirem isso, não venham pelas dunas. É perigoso demais.", "voz": "batata", "radio": true, "c": "gravacao", "p": {"rec": true}, "pausa": 0.8}
     ]},
     {"id": "sem-volta", "nome": "O ZÍPER FECHA", "falas": [
-      {"t": "A antena desce. A lona estala. O vento chega antes da poeira.", "c": "acampamento", "p": {"tempestade": 0.45, "antena": "descendo", "noite": 1}, "r": "SOL 11 · 20:16", "h": {"temp": -84}},
-      {"t": "Você entra por último. O zíper fecha. E o mundo lá fora vira só barulho.", "c": "barraca", "p": {"luz": 0.15}}
+      {"t": "[tense] A antena desce. A lona estala. O vento chega antes da poeira.", "c": "acampamento", "p": {"tempestade": 0.45, "antena": "descendo", "noite": 1}, "r": "SOL 11 · 20:16", "h": {"temp": -84}},
+      {"t": "[quietly] Você entra por último. O zíper fecha. E o mundo lá fora vira só barulho.", "c": "barraca", "p": {"luz": 0.15}, "pausa": 1.6, "sons": [{"s": "ziper", "de": "inicio", "t": 1.6}]}
     ]},
     {"id": "inventario", "nome": "A CONTA", "falas": [
-      {"t": "Lanterna acesa. Você conta tudo. Em voz alta. É o que você faz quando não sabe o resto.", "c": "barraca", "p": {"luz": 1, "caderno": true}, "r": "SOL 11 · 20:31"},
+      {"t": "[calm] Lanterna acesa. Você conta tudo. Em voz alta. É o que você faz quando não sabe o resto.", "c": "barraca", "p": {"luz": 1, "caderno": true}, "r": "SOL 11 · 20:31", "sons": [{"s": "clique", "de": "inicio", "t": 0.0}]},
       {"t": "Oxigênio. Três cilindros de dois quilos. Seis quilos.", "c": "item", "p": {"item": "cilindro", "n": 3, "rotulo": "O2 · 6 KG"}},
-      {"t": "Uma pessoa gasta perto de oitocentos e quarenta gramas de oxigênio por sol. Vocês são dois. Três sóis e meio.", "c": "item", "p": {"item": "cilindro", "n": 3, "rotulo": "1,7 KG POR SOL = 3,5 SÓIS"}},
+      {"t": "Uma pessoa gasta perto de oitocentos e quarenta gramas de oxigênio por sol. Vocês são dois. [serious] Três sóis e meio.", "c": "item", "p": {"item": "cilindro", "n": 3, "rotulo": "1,7 KG POR SOL = 3,5 SÓIS"}},
       {"t": "Água. Dezoito litros, para recarregar o cantil do traje. Três por pessoa, por sol. Sem banho.", "c": "item", "p": {"item": "agua", "n": 6, "rotulo": "ÁGUA · 18 L"}},
-      {"t": "Comida. Catorze rações em pasta, de tomar pelo bico do capacete. Essa é a parte fácil.", "c": "item", "p": {"item": "racao", "n": 14, "rotulo": "14 RAÇÕES"}},
-      {"t": "Bateria do aquecedor. Quatro quilowatts-hora. Lá fora, menos noventa graus. Aqui dentro, menos dois. E caindo.", "c": "item", "p": {"item": "bateria", "n": 1, "rotulo": "AQUECEDOR · 4 KWH"}, "h": {"temp": -90}},
-      {"t": "Rádio. Alcance de quarenta quilômetros. A base está a quarenta e cinco. Ontem, a antena alta alcançava. Hoje, não.", "c": "alcance", "p": {}},
+      {"t": "Comida. Catorze rações em pasta, de tomar pelo bico do capacete. [dry] Essa é a parte fácil.", "c": "item", "p": {"item": "racao", "n": 14, "rotulo": "14 RAÇÕES"}},
+      {"t": "Bateria do aquecedor. Quatro quilowatts-hora. Lá fora, menos noventa graus. Aqui dentro, menos dois. [tense] E caindo.", "c": "item", "p": {"item": "bateria", "n": 1, "rotulo": "AQUECEDOR · 4 KWH"}, "h": {"temp": -90}},
+      {"t": "Rádio. Alcance de quarenta quilômetros. A base está a quarenta e cinco. Ontem, a antena alta alcançava. [sighs] Hoje, não.", "c": "alcance", "p": {}},
       {"t": "Nove caixas de amostras. Trinta metros de cabo. Duas balizas. Um rolo de fita de vedação.", "c": "item", "p": {"item": "diversos", "n": 4, "rotulo": "AMOSTRAS · CABO · BALIZAS · FITA"}},
-      {"t": "E um vasinho lacrado, com uma semente de batata. O VinnY trouxe em sua homenagem. Ele acha isso engraçado. Você também.", "c": "semente", "p": {"broto": 0}},
-      {"t": "Você termina a conta. Fecha o caderno. E aí você escuta.", "c": "barraca", "p": {"luz": 0.7}, "pausa": 1.2},
-      {"t": "Tic.", "c": "chao", "p": {"tic": true}, "pausa": 1.6},
-      {"t": "Sete segundos.", "c": "chao", "p": {"tic": true}, "pausa": 1.4},
-      {"t": "Tic.", "c": "chao", "p": {"tic": true}, "pausa": 1.0},
-      {"t": "Vem de baixo. Debaixo do piso da barraca. Debaixo da areia.", "c": "chao", "p": {"tic": true, "corte": true}},
-      {"t": "O VinnY também ouviu. Ele não faz piada. É a primeira vez.", "c": "barraca", "p": {"luz": 0.6, "vinny": "serio"}}
+      {"t": "E um vasinho lacrado, com uma semente de batata. O VinnY trouxe em sua homenagem. [chuckles] Ele acha isso engraçado. Você também.", "c": "semente", "p": {"broto": 0}},
+      {"t": "[quietly] Você termina a conta. Fecha o caderno. E aí você escuta.", "c": "barraca", "p": {"luz": 0.7}, "pausa": 2.2, "sons": [{"s": "tic", "de": "fim", "t": 1.2}]},
+      {"t": "[whispers] Tic.", "c": "chao", "p": {"tic": true}, "pausa": 6.8, "sons": [{"s": "tic", "de": "inicio", "t": 6.4, "cada": 7, "ate": "regras-0"}]},
+      {"t": "[whispers] A cada sete segundos. Vem de baixo. Debaixo do piso da barraca. Debaixo da areia.", "c": "chao", "p": {"tic": true, "corte": true}},
+      {"t": "[nervous] O VinnY também ouviu. Ele não faz piada. É a primeira vez.", "c": "barraca", "p": {"luz": 0.6, "vinny": "serio"}, "pausa": 1.0}
     ]},
     {"id": "regras", "nome": "TRÊS REGRAS", "falas": [
-      {"t": "Regra número um de quem se perde em Marte. Aqui não existe GPS. Nenhum satélite sabe onde você está.", "c": "fato", "p": {"fato": "gps"}},
-      {"t": "O rover se guia contando as voltas das rodas e olhando o sol. Por isso ele grava a rota. Por isso ele sabe voltar. Você não.", "c": "fato", "p": {"fato": "odometria"}},
-      {"t": "Regra número dois. O ar de Marte tem menos de um por cento da pressão da Terra. Tão pouco, que sem traje, a água do seu corpo ferveria a trinta e sete graus.", "c": "fato", "p": {"fato": "pressao"}},
-      {"t": "A barraca não te protege do frio. Ela te protege do vazio.", "c": "fato", "p": {"fato": "pressao", "frase": true}},
-      {"t": "E a regra número três, a que ninguém leva a sério. O maior perigo daqui não é o frio. É a poeira.", "c": "fato", "p": {"fato": "poeira"}},
+      {"t": "[serious] Regra número um de quem se perde em Marte. Aqui não existe GPS. Nenhum satélite sabe onde você está.", "c": "fato", "p": {"fato": "gps"}},
+      {"t": "O rover se guia contando as voltas das rodas e olhando o sol. Por isso ele grava a rota. Por isso ele sabe voltar. [quietly] Você não.", "c": "fato", "p": {"fato": "odometria"}},
+      {"t": "[serious] Regra número dois. O ar de Marte tem menos de um por cento da pressão da Terra. Tão pouco, que sem traje, a água do seu corpo ferveria a trinta e sete graus.", "c": "fato", "p": {"fato": "pressao"}},
+      {"t": "O traje não te protege do frio. Ele te protege do vazio.", "c": "fato", "p": {"fato": "pressao", "frase": true}, "pausa": 0.9},
+      {"t": "[serious] E a regra número três, a que ninguém leva a sério. O maior perigo daqui não é o frio. É a poeira.", "c": "fato", "p": {"fato": "poeira"}},
       {"t": "Ela é mais fina que farinha. Entra nas vedações, entope os filtros e apaga o sol por semanas. Foi uma tempestade assim que calou um robô da NASA, em dois mil e dezoito.", "c": "fato", "p": {"fato": "poeira", "robo": true}},
-      {"t": "Lá fora, a parede marrom chega. A barraca inteira se inclina. E segura.", "c": "acampamento", "p": {"tempestade": 1, "antena": "deitada", "noite": 1}, "r": "SOL 11 · 21:20"}
+      {"t": "[tense] Lá fora, a parede marrom chega. A barraca inteira se inclina.", "c": "acampamento", "p": {"tempestade": 1, "antena": "deitada", "noite": 1}, "r": "SOL 11 · 21:20", "pausa": 2.4},
+      {"t": "[relieved] E segura.", "c": "acampamento", "p": {"tempestade": 1, "antena": "deitada", "noite": 1}, "pausa": 1.0}
     ]},
     {"id": "crise1", "nome": "PRESSÃO CAINDO", "falas": [
-      {"t": "Três e dez da manhã. Sol doze. Um apito fino te acorda.", "c": "barraca", "p": {"luz": 0.3, "alarme": true}, "r": "SOL 12 · 03:10", "h": {"temp": -101}},
-      {"t": "Pressão caindo. Novecentos. Oitocentos e oitenta. Oitocentos e sessenta.", "c": "vazamento", "p": {"fase": "cai"}},
-      {"t": "Tem um assobio na costura do teto. A poeira entrou na emenda e abriu um furo do tamanho de um grão de arroz. Se a barraca esvaziar, os trajes passam a gastar o próprio oxigênio. E esse acaba antes.", "c": "vazamento", "p": {"fase": "furo"}},
-      {"t": "Você passa a luva pela costura, procurando o furo. A luva é grossa demais. Não sente nada. Você encosta o visor no teto e escuta. Ali.", "c": "vazamento", "p": {"fase": "mao"}},
-      {"t": "O VinnY segura a lanterna. Você corta a fita com a faca do cinto, devagar, com os dedos duros dentro da luva. Uma volta. Duas. Três.", "c": "vazamento", "p": {"fase": "fita"}},
-      {"t": "O assobio para. O ponteiro para. Oitocentos e quarenta.", "c": "vazamento", "p": {"fase": "para"}},
-      {"t": "Segurar o calor gastou meia bateria do aquecedor. Você não dorme mais.", "c": "barraca", "p": {"luz": 0.5}, "h": {"o2": "3 SÓIS"}}
+      {"t": "[urgent] Um apito. Três e dez da manhã.", "c": "barraca", "p": {"luz": 0.3, "alarme": true}, "r": "SOL 12 · 03:10", "h": {"temp": -101}, "pausa": 1.8, "sons": [{"s": "alarme", "de": "inicio", "t": -1.2, "cada": 0.55, "vezes": 9}]},
+      {"t": "[urgent] Pressão caindo. Novecentos. Oitocentos e oitenta. Oitocentos e sessenta.", "c": "vazamento", "p": {"fase": "cai"}, "sons": [{"s": "assobio", "de": "inicio", "t": 0.0, "ate": "crise1-6"}]},
+      {"t": "[tense] Tem um assobio na costura do teto. A poeira entrou na emenda e abriu um furo do tamanho de um grão de arroz. Se a barraca esvaziar, os trajes passam a gastar o próprio oxigênio. E esse acaba antes.", "c": "vazamento", "p": {"fase": "furo"}},
+      {"t": "[breathless] Você passa a luva pela costura, procurando o furo. A luva é grossa demais. Não sente nada. Você encosta o visor no teto e escuta.", "c": "vazamento", "p": {"fase": "mao"}, "pausa": 1.6},
+      {"t": "[whispers] Ali.", "c": "vazamento", "p": {"fase": "mao"}, "pausa": 0.6},
+      {"t": "[urgent] O VinnY segura a lanterna. Você corta a fita com a faca do cinto, com os dedos duros dentro da luva. Uma volta. Duas. Três.", "c": "vazamento", "p": {"fase": "fita"}, "sons": [{"s": "fita", "de": "fim", "t": -3.2}, {"s": "fita", "de": "fim", "t": -2.1}, {"s": "fita", "de": "fim", "t": -1.0}], "pausa": 1.8},
+      {"t": "[relieved] O assobio para. O ponteiro para. Oitocentos e quarenta.", "c": "vazamento", "p": {"fase": "para"}, "pausa": 1.2},
+      {"t": "[tired] Segurar o calor gastou meia bateria do aquecedor. Você não dorme mais.", "c": "barraca", "p": {"luz": 0.5}, "h": {"o2": "3 SÓIS"}, "pausa": 1.0}
     ]},
     {"id": "rotina", "nome": "DE NOVO E DE NOVO", "falas": [
-      {"t": "Sol doze. A tempestade não passa. O dia é da cor de chá velho.", "c": "acampamento", "p": {"tempestade": 0.8, "antena": "deitada", "noite": 0}, "r": "SOL 12 · 09:00", "h": {"temp": -63}},
-      {"t": "A cada quarenta minutos, o filtro de ar entope. Você tira, bate, limpa, encaixa. De novo. E de novo. E de novo.", "c": "filtro", "p": {}},
-      {"t": "Quem já viveu isolado, da Antártida à estação espacial, ensina a mesma coisa. Tenha horário. Comer, dormir, conferir. A rotina segura a cabeça.", "c": "filtro", "p": {"agenda": true}},
-      {"t": "O VinnY abre a tampinha do vaso e pinga três gotas do cantil do traje. Três gotas por dia. Nem uma a mais.", "c": "semente", "p": {"broto": 0, "gota": true}, "r": "SOL 12 · 16:30"},
-      {"t": "No fim da tarde, aparece um fio verde. A batata brotou. Ele ri pela primeira vez no dia.", "c": "semente", "p": {"broto": 1}}
+      {"t": "[tired] Sol doze. A tempestade não passa. O dia é da cor de chá velho.", "c": "acampamento", "p": {"tempestade": 0.8, "antena": "deitada", "noite": 0}, "r": "SOL 12 · 09:00", "h": {"temp": -63}},
+      {"t": "[calm] A cada quarenta minutos, o filtro de ar entope. Você tira, bate, limpa, encaixa.", "c": "filtro", "p": {}, "pausa": 2.6, "sons": [{"s": "batida", "de": "fim", "t": 0.3, "cada": 0.7, "vezes": 3}]},
+      {"t": "[tired] De novo. E de novo. E de novo.", "c": "filtro", "p": {}, "pausa": 1.2, "sons": [{"s": "batida", "de": "inicio", "t": 0.5, "cada": 1.1, "vezes": 3}]},
+      {"t": "[calm] Quem já viveu isolado, da Antártida à estação espacial, ensina a mesma coisa. Tenha horário. Comer, dormir, conferir. A rotina segura a cabeça.", "c": "filtro", "p": {"agenda": true}},
+      {"t": "[softly] O VinnY abre a tampinha do vaso e pinga três gotas do cantil do traje. Três gotas por dia. Nem uma a mais.", "c": "semente", "p": {"broto": 0, "gota": true}, "r": "SOL 12 · 16:30", "sons": [{"s": "gota", "de": "fim", "t": 0.2, "cada": 0.8, "vezes": 3}], "pausa": 2.2},
+      {"t": "[softly] No fim da tarde, aparece um fio verde. A batata brotou. [laughs softly] Ele ri pela primeira vez no dia.", "c": "semente", "p": {"broto": 1}, "pausa": 1.0}
     ]},
     {"id": "crise2", "nome": "VOZES NO CHIADO", "falas": [
-      {"t": "Vinte e duas horas. O rádio só faz chiado. Você liga mesmo assim. De hora em hora.", "c": "estatica", "p": {}, "r": "SOL 12 · 22:00", "h": {"temp": -97}},
-      {"t": "E no chiado, às vezes, parece a voz da Vega. Seu nome. Uma palavra. Não é. Você sabe que não é.", "c": "estatica", "p": {"fantasma": true}},
-      {"t": "Oxigênio vocês têm. Comida vocês têm. Nunca foi esse o problema.", "c": "mapa", "p": {}},
-      {"t": "O problema é que ninguém sabe onde vocês estão. Nem vocês.", "c": "mapa", "p": {"apaga": true}}
+      {"t": "[quietly] Vinte e duas horas. O rádio só faz chiado. Você liga mesmo assim. De hora em hora.", "c": "estatica", "p": {}, "r": "SOL 12 · 22:00", "h": {"temp": -97}, "pausa": 1.8},
+      {"t": "[whispers] Batata...", "voz": "vega", "radio": true, "mix": 0.35, "c": "estatica", "p": {"fantasma": true}, "pausa": 1.4},
+      {"t": "[uneasy] No chiado, às vezes, parece a voz da Vega. Seu nome. Uma palavra. Não é. Você sabe que não é.", "c": "estatica", "p": {"fantasma": true}, "pausa": 1.0},
+      {"t": "[serious] Oxigênio vocês têm. Comida vocês têm. Nunca foi esse o problema.", "c": "planeta", "p": {"fase": "deserto"}, "pausa": 0.6},
+      {"t": "[quietly] O problema é que ninguém sabe onde vocês estão. [whispers] Nem vocês.", "c": "planeta", "p": {"fase": "planeta"}, "pausa": 2.6}
     ]},
     {"id": "crise3", "nome": "4-1-7", "falas": [
-      {"t": "Uma e dezessete da madrugada. O chiado muda.", "c": "pulsos", "p": {"n": 0}, "r": "SOL 13 · 01:17", "h": {"o2": "2,5 SÓIS"}},
-      {"t": "Pulsos. Quatro. Pausa. Um. Pausa. Sete.", "c": "pulsos", "p": {"n": 3}},
-      {"t": "Não é o código da base. A base chama com três toques curtos. Isso não é a base.", "c": "pulsos", "p": {"n": 3, "base": true}},
-      {"t": "Quatro, um, sete. De novo. E de novo. Depois, nada. Nem chiado.", "c": "pulsos", "p": {"n": 3, "some": true}},
-      {"t": "E debaixo do piso, o tique para.", "c": "chao", "p": {"tic": false}, "pausa": 1.4}
+      {"t": "[whispers] Uma e dezessete da madrugada. O chiado muda.", "c": "pulsos", "p": {"n": 0}, "r": "SOL 13 · 01:17", "h": {"o2": "2,5 SÓIS"}, "pausa": 5.2, "sons": [{"s": "tic", "de": "inicio", "t": 0.4, "cada": 7, "ate": "crise3-4"}, {"s": "pulsos417", "de": "fim", "t": 0.6}]},
+      {"t": "[nervous] Quatro. Um. Sete.", "c": "pulsos", "p": {"n": 3}, "pausa": 0.8},
+      {"t": "[tense] Não é o código da base. A base chama com três toques curtos. Isso não é a base.", "c": "pulsos", "p": {"n": 3, "base": true}, "pausa": 4.6, "sons": [{"s": "pulsos417", "de": "fim", "t": 0.4}]},
+      {"t": "[whispers] Depois, nada. Nem chiado.", "c": "pulsos", "p": {"n": 3, "some": true}, "pausa": 2.4},
+      {"t": "[whispers] E debaixo do piso, o tique para.", "c": "chao", "p": {"tic": false}, "pausa": 2.4}
     ]},
     {"id": "crise4", "nome": "VOCÊ, CANSADO", "falas": [
-      {"t": "Sol treze. Seis da manhã. A tempestade foi embora e levou o mundo junto.", "c": "dunas", "p": {"rover": "parado"}, "r": "SOL 13 · 06:02", "h": {"temp": -78}},
+      {"t": "[quietly] Sol treze. Seis da manhã. A tempestade foi embora e levou o mundo junto.", "c": "dunas", "p": {"rover": "parado"}, "r": "SOL 13 · 06:02", "h": {"temp": -78}},
       {"t": "As dunas mudaram de lugar. A trilha sumiu. O rover está ali, coberto de poeira até as rodas.", "c": "dunas", "p": {"rover": "parado", "zoom": true}},
-      {"t": "Você quer saber de onde vinha o tique. Seiscentos metros a pé, até o topo da duna nova. O VinnY vai junto. Ninguém anda sozinho em Marte.", "c": "caminhada", "p": {}},
-      {"t": "No meio da subida, o traje apita. Oxigênio do traje, doze por cento.", "c": "traje", "p": {"pct": 12}},
-      {"t": "A conta estava errada. Na noite do vazamento, você deixou a válvula do traje meio aberta. Com pressa. Com frio.", "c": "traje", "p": {"pct": 11, "valvula": true}},
-      {"t": "O perigo aqui não é Marte. É você, cansado.", "c": "traje", "p": {"pct": 11}}
+      {"t": "[determined] Você quer saber de onde vinha o tique. Seiscentos metros a pé, até o topo da duna nova. O VinnY vai junto. Ninguém anda sozinho em Marte.", "c": "caminhada", "p": {}},
+      {"t": "[panicked] Oxigênio do traje. Doze por cento.", "c": "traje", "p": {"pct": 12}, "pausa": 1.6, "sons": [{"s": "alarme", "de": "inicio", "t": -1.0, "cada": 0.5, "vezes": 6}]},
+      {"t": "[breathless] A conta estava errada. Na noite do vazamento, você deixou a válvula do traje meio aberta. Com pressa. Com frio.", "c": "traje", "p": {"pct": 11, "valvula": true}},
+      {"t": "[quietly] O perigo aqui não é Marte. É você, cansado.", "c": "traje", "p": {"pct": 11}, "pausa": 1.4}
     ]},
     {"id": "marco", "nome": "VOLTA-CASA", "falas": [
-      {"t": "No topo da duna, nada. Areia. Silêncio. Nenhum tique.", "c": "topo", "p": {}, "r": "SOL 13 · 07:38"},
-      {"t": "Lá embaixo, um barulho que você conhece. Motor elétrico. Rodas.", "c": "topo", "p": {"olha": true}, "r": "SOL 13 · 07:42"},
-      {"t": "Dezenove e quarenta e dois de anteontem, mais trinta e seis horas. Sete e quarenta e dois. Agora.", "c": "roverPainel", "p": {"contagem": "00:00:00", "partindo": true}},
-      {"t": "VOLTA-CASA.", "c": "roverPainel", "p": {"contagem": "VOLTA-CASA", "partindo": true}, "pausa": 1.0}
+      {"t": "[breathless] No topo da duna, nada. Areia. Silêncio. Nenhum tique.", "c": "topo", "p": {}, "r": "SOL 13 · 07:38", "pausa": 3.4, "sons": [{"s": "motor", "de": "fim", "t": 1.2}]},
+      {"t": "[whispers] Esse barulho você conhece. Motor elétrico. Rodas.", "c": "topo", "p": {"olha": true}, "r": "SOL 13 · 07:42", "pausa": 0.6},
+      {"t": "[urgent] Dezenove e quarenta e dois de anteontem, mais trinta e seis horas. Sete e quarenta e dois. Agora.", "c": "roverPainel", "p": {"contagem": "00:00:00", "partindo": true}, "sons": [{"s": "bipe", "de": "fim", "t": 0.2, "cada": 0.4, "vezes": 3}], "pausa": 1.4},
+      {"t": "[shouting] VOLTA-CASA.", "c": "roverPainel", "p": {"contagem": "VOLTA-CASA", "partindo": true}, "pausa": 1.2}
     ]},
     {"id": "final", "nome": "AS MARCAS", "falas": [
-      {"t": "Você desce correndo. O VinnY corre do outro lado. Os dois gritando dentro do capacete, onde ninguém escuta.", "c": "partindo", "p": {}},
-      {"t": "O rover não espera. Ele leva o reboque, as amostras e o seu diário de bordo. Para casa. Sem vocês.", "c": "partindo", "p": {"longe": true}},
-      {"t": "Você chega onde ele estava. E para.", "c": "marcas", "p": {"revela": 0}, "pausa": 1.0},
-      {"t": "No chão, as marcas em zigue-zague. As que não são de vocês. Frescas. Por cima das suas pegadas.", "c": "marcas", "p": {"revela": 1}},
-      {"t": "Elas vão pro norte.", "c": "marcas", "p": {"revela": 1, "norte": true}, "pausa": 1.2},
-      {"t": "Você segue as marcas, ou espera na barraca por um resgate que alguém pode nem mandar?", "c": "pergunta", "p": {}, "pausa": 3.0}
+      {"t": "[panicked] Você desce correndo. O VinnY corre do outro lado. Os dois gritando dentro do capacete, onde ninguém escuta.", "c": "partindo", "p": {}, "sons": [{"s": "motor", "de": "inicio", "t": 0.0}]},
+      {"t": "[desperate] O rover não espera. Ele leva o reboque, as amostras e o seu diário de bordo. Para casa. [whispers] Sem vocês.", "c": "partindo", "p": {"longe": true}, "pausa": 2.0},
+      {"t": "[quietly] Você chega onde ele estava. E para.", "c": "marcas", "p": {"revela": 0}, "pausa": 2.0},
+      {"t": "[whispers] No chão, as marcas em zigue-zague. As que não são de vocês. Frescas. Por cima das suas pegadas.", "c": "marcas", "p": {"revela": 1}, "pausa": 1.0},
+      {"t": "[whispers] Elas vão pro norte.", "c": "marcas", "p": {"revela": 1, "norte": true}, "pausa": 4.6, "sons": [{"s": "pulsos417", "de": "fim", "t": 1.2, "vol": 0.5}]},
+      {"t": "[serious] Você segue as marcas, ou espera na barraca por um resgate que alguém pode nem mandar?", "c": "pergunta", "p": {}, "pausa": 3.0}
     ]}
   ]
 }

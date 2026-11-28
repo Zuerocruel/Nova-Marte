@@ -178,11 +178,12 @@ const CENAS = {
       rotulo('REC', 140, 86, COR.alerta, 18);
       for (let x = 0; x < 280; x += 3) { const a = Math.sin(x * 0.2 + t * 14) * 16 * hash(Math.floor(x / 7), Math.floor(t * 10)); R(100 + x, 130 - Math.abs(a), 2, Math.abs(a) * 2 + 1, x / 280 < kf ? COR.ciano : '#24414a'); }
     } else rotulo('PRONTO PARA GRAVAR', 240, 120, '#6b6f86', 22);
-    // luva apertando o botão
-    R(200, 190, 80, 40, '#3a3352'); circ(240, 210, 12, p.rec ? COR.alerta : '#6b2a30');
-    const desce = p.rec ? 0 : Math.max(0, Math.sin(t * 3)) * 10;
-    R(222, 150 + desce + (p.rec ? 38 : 20), 36, 30, '#e4e6f0'); R(222, 150 + desce + (p.rec ? 38 : 20), 36, 4, '#ff8a3d');
-    R(258, 170 + desce + (p.rec ? 38 : 20), 40, 22, '#d8dbe6');
+    // console com o botão; o braço do traje entra pela direita e a luva aperta (e segura enquanto grava)
+    R(150, 196, 180, 50, '#3a3352'); R(150, 196, 180, 4, '#4a4466');
+    circ(240, 218, 13, p.rec ? COR.alerta : '#6b2a30'); if (p.rec) A(0.4, () => circ(240, 218, 20, COR.alerta));
+    const apoia = p.rec ? 1 : saida(kf * 1.4), lx = lerp(330, 246, apoia), ly = lerp(150, 206, apoia);
+    seg({ x: PW + 20, y: 150 }, { x: lx + 18, y: ly - 4 }, 22, '#d8dbe6'); seg({ x: PW + 20, y: 150 }, { x: lx + 18, y: ly - 4 }, 4, '#ff8a3d');
+    R(lx - 10, ly - 14, 30, 22, '#e4e6f0'); R(lx - 14, ly - 4, 10, 12, '#d8dbe6'); R(lx - 10, ly + 6, 30, 3, '#9aa0b5');
   },
   acampamento(t, k, p, kf) {
     const noite = p.noite !== 0, tp = p.tempestade || 0;
@@ -218,7 +219,7 @@ const CENAS = {
     if (p.caderno) { R(150, 200, 60, 40, '#e8dcc0'); for (let i = 0; i < 5; i++) R(156, 206 + i * 6, 30 + hash(i) * 20, 2, '#6b4a2e'); }
     // respiração congelando no visor
     for (let i = 0; i < 3; i++) { const q = (t * 0.6 + i / 3) % 1; A((1 - q) * 0.4, () => R(vx + 10 + q * 14, vchao - 54 - q * 20, 3, 3, '#ffffff')); }
-    A(1 - luz * 0.85, () => R(0, 0, PW, PH, '#05040a'));
+    A((1 - luz) * 0.7, () => R(0, 0, PW, PH, '#05040a'));
   },
   item(t, k, p, kf) {
     R(0, 0, PW, PH, '#0f0c17');
@@ -235,12 +236,12 @@ const CENAS = {
   alcance(t, k, p, kf) {
     R(0, 0, PW, PH, '#120e10');
     for (let i = 0; i < 40; i++) R(hash(i, 21) * PW, hash(i, 22) * PH, 3, 1, '#2a1c1a');
-    const acamp = { x: 240, y: 70 }, base = { x: 240, y: 70 + 180 }, r = 160;
+    const acamp = { x: 240, y: 62 }, base = { x: 240, y: 62 + 160 }, r = 145;
     g.strokeStyle = COR.alerta; g.lineWidth = 2; g.setLineDash([6, 5]); g.beginPath(); g.arc(acamp.x, acamp.y, r * saida(kf * 2), 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
     seg(acamp, { x: base.x, y: lerp(acamp.y, base.y, saida(kf * 1.5)) }, 1, '#6b6f86');
     circ(acamp.x, acamp.y, 5, COR.ouro); circ(base.x, base.y, 6, COR.ciano);
-    rotulo('VOCÊS', 290, 70, COR.ouro, 18); rotulo('BASE · 45 KM', 330, 250, COR.ciano, 18);
-    rotulo('ALCANCE DO RÁDIO · 40 KM', 240, 24, COR.alerta, 20);
+    rotulo('VOCÊS', 290, 70, COR.ouro, 18); rotulo('BASE · 45 KM', 330, 214, COR.ciano, 18);
+    rotulo('ALCANCE DO RÁDIO · 40 KM', 240, 36, COR.alerta, 20);
   },
   semente(t, k, p, kf) {
     R(0, 0, PW, PH, '#0f0c14');
@@ -282,7 +283,7 @@ const CENAS = {
       g.strokeStyle = COR.ciano; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(250, 240); g.bezierCurveTo(300, 200, 280, 140, 420, 110); g.stroke(); g.setLineDash([]);
       rotulo('ROTA GRAVADA', 360, 230, COR.ciano, 18);
     } else if (f === 'pressao') {
-      const barra = (x, h, cor, txt) => { R(x, 220 - h, 50, h, cor); rotulo(txt, x + 25, 240, '#c9ced9', 16); };
+      const barra = (x, h, cor, txt) => { R(x, 200 - h, 50, h, cor); rotulo(txt, x + 25, 214, '#c9ced9', 16); };
       barra(90, 160 * saida(kf * 2), '#2c4fb8', 'TERRA'); barra(180, Math.max(2, 1.6), COR.alerta, 'MARTE · 0,6%');
       R(330, 50, 14, 150, '#e4e6f0'); circ(337, 208, 14, COR.alerta); R(333, 120, 8, 88, COR.alerta);
       for (let i = 0; i < 6; i++) { const q = (t * 0.8 + i / 6) % 1; circ(337 + Math.sin(i * 3 + t * 4) * 6, 200 - q * 80, 2 + q * 2, '#ffd0d0'); }
@@ -341,6 +342,38 @@ const CENAS = {
     rotulo('?', 330, 80, COR.alerta, 60 + apaga * 30);
     A(apaga * 0.6, () => R(0, 0, PW, PH, '#0b0914'));
   },
+  planeta(t, k, p, kf, c) {
+    // "deserto": vista de cima do deserto, a barraca é um pontinho e a câmera sobe; "planeta": Marte inteiro no escuro
+    if (p.fase === 'deserto') {
+      const z = lerp(1, 0.25, suave(kf)), cx = PW / 2, cy = PH / 2;
+      R(0, 0, PW, PH, '#5e3a26');
+      for (let i = 0; i < 160; i++) {
+        const x = cx + (hash(i, 71) - 0.5) * PW * 3 * z, y = cy + (hash(i, 72) - 0.5) * PH * 3 * z, r = (6 + hash(i, 73) * 30) * z;
+        g.fillStyle = i % 3 ? '#6e4430' : '#4a2c1c'; g.beginPath(); g.ellipse(x, y, r * 2.2, r, hash(i, 74), 0, Math.PI * 2); g.fill();
+      }
+      for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; A(0.4, () => R(cx + Math.cos(a) * 90 * z * 3 - 2, cy + Math.sin(a) * 50 * z * 3, 4 * z * 3, 2, '#3a2418')); }   // crateras
+      circ(cx, cy, Math.max(1, 3 * z), '#e4e6f0');                                    // a barraca: um ponto
+      A(0.5 + 0.5 * Math.sin(t * 3), () => circ(cx, cy, Math.max(2, 6 * z), 'rgba(255,200,61,0.25)'));
+      return;
+    }
+    R(0, 0, PW, PH, '#04030a');
+    for (let i = 0; i < 140; i++) R(hash(i, 81) * PW, hash(i, 82) * PH, 1, 1, i % 13 ? '#8a8aa0' : '#ffffff');
+    const r = lerp(150, 92, saida(kf)), cx = PW / 2, cy = PH / 2 + 6;
+    g.save(); g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.clip();
+    R(cx - r, cy - r, r * 2, r * 2, '#b5562b');
+    const giro = t * 4;
+    for (let i = 0; i < 40; i++) {   // manchas escuras e crateras girando devagar
+      const ox = ((hash(i, 91) * 600 + giro) % 600) - 300, oy = (hash(i, 92) - 0.5) * r * 2, rr = 4 + hash(i, 93) * 22;
+      const x = cx + ox * (r / 300); if (Math.abs(x - cx) > r) continue;
+      g.fillStyle = i % 4 ? '#8a3a1a' : '#d07a4a'; g.beginPath(); g.ellipse(x, cy + oy, rr * (1 - Math.abs(x - cx) / r * 0.6), rr * 0.6, 0, 0, Math.PI * 2); g.fill();
+    }
+    R(cx - r, cy - r, r * 2, r * 0.14, '#efe6e0');                                    // calota polar
+    A(0.35, () => { g.fillStyle = '#c98a5e'; g.beginPath(); g.ellipse(cx + 20, cy - 10, r * 0.6, r * 0.3, 0.4, 0, Math.PI * 2); g.fill(); });   // a tempestade de poeira
+    const sombra = g.createLinearGradient(cx - r, 0, cx + r, 0); sombra.addColorStop(0.55, 'rgba(0,0,0,0)'); sombra.addColorStop(1, 'rgba(0,0,0,0.85)');
+    g.fillStyle = sombra; g.fillRect(cx - r, cy - r, r * 2, r * 2);
+    g.restore();
+    A(0.25, () => { g.strokeStyle = '#e8b48c'; g.lineWidth = 2; g.beginPath(); g.arc(cx, cy, r + 2, 0, Math.PI * 2); g.stroke(); });
+  },
   pulsos(t, k, p, kf, c) {
     R(0, 0, PW, PH, '#070a08');
     painel(40, 50, 400, 150, '#020604');
@@ -350,8 +383,8 @@ const CENAS = {
     if (p.n === 3) for (const grupo of [4, 1, 7]) { for (let i = 0; i < grupo; i++) { A(mostra, () => R(x, y0 - 30, 6, 30, COR.ok)); x += 12; } x += 30; }
     A(0.8, () => R(44, y0, 392, 1, COR.ok));
     if (p.n === 0) for (let i = 0; i < 392; i += 2) R(44 + i, y0 - Math.abs(hash(i, Math.floor(t * 20)) - 0.5) * 10, 1, 2, '#2a6a3a');
-    if (p.n === 3 && !p.some) rotulo('4 · 1 · 7', 240, 222, COR.ok, 34);
-    if (p.base) { rotulo('BASE: 3 TOQUES', 140, 30, COR.ciano, 16); rotulo('ISTO: 4 · 1 · 7', 340, 30, COR.alerta, 16); }
+    if (p.n === 3 && !p.some && !p.base) rotulo('4 · 1 · 7', 240, 214, COR.ok, 34);
+    if (p.base) { rotulo('BASE: 3 TOQUES', 140, 214, COR.ciano, 18); rotulo('ISTO: 4 · 1 · 7', 340, 214, COR.alerta, 18); }
     if (p.some) A(saida(kf), () => R(0, 0, PW, PH, '#000'));
   },
   dunas(t, k, p, kf) {
@@ -363,7 +396,7 @@ const CENAS = {
     R(0, chao, PW, PH - chao, '#7a4a30');
     rover(240 + (z - 1) * 40, chao, t, { reboque: true, dir: -1, poeira: true });
     barracaFora(90, chao, t);
-    rotulo('TRILHA: NENHUMA', 400, 240, COR.alerta, 18);
+    rotulo('TRILHA: NENHUMA', 130, 46, COR.alerta, 18);
   },
   caminhada(t, k, p, kf) {
     ceu(false, 0.05, t);
@@ -372,7 +405,7 @@ const CENAS = {
     const xa = 120 + k * 160, xb = xa - 28;
     for (let x = 30; x < xb - 10; x += 9) R(x, y(x) - 1, 3, 2, '#5e3a2a');
     astronauta(xa, y(xa), t, { quem: 'voce', anda: true, esc: 1.2 }); astronauta(xb, y(xb), t, { quem: 'vinny', anda: true, esc: 1.2, fase: 1 });
-    rotulo('600 M · TOPO DA DUNA', 360, 30, '#c9ced9', 18);
+    rotulo('600 M · TOPO DA DUNA', 360, 46, '#c9ced9', 18);
   },
   traje(t, k, p, kf) {
     R(0, 0, PW, PH, '#8a5a3a'); dunas(PH * 0.5, t, ['#7a4a30', '#6e4430']);
@@ -457,14 +490,32 @@ function hud(c) {
 }
 function legenda(c, t) {
   const ws = c.palavras || [];
-  if (!ws.length) return;
+  if (!ws.length || (c.mix ?? 1) < 0.5) return;
   // blocos de até 3 palavras; quebra também na pontuação
   const blocos = []; let atual = [];
   ws.forEach((w, i) => { atual.push(w); if (atual.length >= 3 || /[.,!?:]$/.test(w.p) || i === ws.length - 1) { blocos.push(atual); atual = []; } });
   const b = blocos.find((bl, i) => t >= bl[0].i - 0.05 && t < (blocos[i + 1] ? blocos[i + 1][0].i - 0.05 : bl[bl.length - 1].f + 0.5));
   if (!b) return;
   const txt = b.map((w) => w.p).join(' ').toUpperCase().replace(/[.,]$/, '');
-  T(txt, W / 2, H - 92, 60, '#ffffff', { maxW: W - 200 });
+  T(c.radio ? `“${txt}”` : txt, W / 2, H - 92, 60, c.radio ? '#8fe6ff' : '#ffffff', { maxW: W - 200 });
+}
+
+// visor do capacete (você está de traje): borda escura arredondada, reflexo que corre devagar e o vapor da
+// respiração que embaça a parte de baixo a cada expiração
+const VISOR = new Set(['frente', 'dunas', 'caminhada', 'topo', 'partindo', 'marcas', 'traje']);
+function visor(t, c) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(4,3,8,0.92)';
+  ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.ellipse(W / 2, H / 2 + 20, W * 0.56, H * 0.6, 0, 0, Math.PI * 2); ctx.fill('evenodd');
+  const r = ctx.createLinearGradient(0, 0, W, H);
+  const q = (t * 0.05) % 1;
+  r.addColorStop(Math.max(0, q - 0.05), 'rgba(255,255,255,0)'); r.addColorStop(q, 'rgba(255,255,255,0.06)'); r.addColorStop(Math.min(1, q + 0.05), 'rgba(255,255,255,0)');
+  ctx.fillStyle = r; ctx.fillRect(0, 0, W, H);
+  const resp = Math.pow(Math.max(0, Math.sin(t * 2 * Math.PI * (c.cena === 'traje' ? 0.55 : 0.3))), 3);
+  const nv = ctx.createRadialGradient(W / 2, H + 80, 50, W / 2, H + 80, 620);
+  nv.addColorStop(0, `rgba(220,230,240,${0.22 * resp})`); nv.addColorStop(1, 'rgba(220,230,240,0)');
+  ctx.fillStyle = nv; ctx.fillRect(0, H - 600, W, 600);
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------- quadro
@@ -483,8 +534,13 @@ function desenhar(t) {
   (CENAS[c.cena] || CENAS.estatica)(t, k, c.p || {}, kf, c);
   // câmera: zoom lento no plano (tensão) e corte seco com respiro de preto entre planos
   const z = 1 + 0.06 * k, zw = W * z, zh = H * z;
+  const p = c.p || {}, f = Math.floor(t * 24);
+  const tremor = (c.cena === 'acampamento' ? (p.tempestade || 0) * 10 : 0) + (p.alarme || c.cena === 'traje' ? 5 : 0)
+    + (c.cena === 'roverPainel' && p.partindo ? 6 : 0) + (c.cena === 'partindo' && !p.longe ? 8 : 0) + (c.cena === 'barraca' ? 2 : 0);
+  const sx = (hash(f, 1) - 0.5) * tremor, sy = (hash(f, 2) - 0.5) * tremor;
   ctx.fillStyle = COR.fundo; ctx.fillRect(0, 0, W, H);
-  ctx.drawImage(px, 0, 0, PW, PH, (W - zw) / 2, (H - zh) / 2, zw, zh);
+  ctx.drawImage(px, 0, 0, PW, PH, (W - zw) / 2 + sx, (H - zh) / 2 + sy, zw, zh);
+  if (VISOR.has(c.cena)) visor(t, c);
   const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95);
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.6)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);

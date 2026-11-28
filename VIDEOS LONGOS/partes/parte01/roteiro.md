@@ -1,6 +1,8 @@
 # Expedição Norte · Parte 1: Perdidos além das dunas
 
-Você é o **Batata** (o nome só aparece pelo rádio). Parceiro: **VinnY**. Duração real: **7:54**.
+Você é o **Batata** (o nome só aparece pelo rádio). Parceiro: **VinnY**. Duração estimada: **10:04**.
+
+Voz: narrador intenso (eleven_v3, emoção entre [colchetes]); a Vega e o Batata pelo rádio. Os sons são ditos uma vez e depois agem sozinhos, nas pausas.
 
 ## Campos do molde
 
@@ -18,176 +20,182 @@ Você é o **Batata** (o nome só aparece pelo rádio). Parceiro: **VinnY**. Dur
 
 ### 0:00 (0%) · O RÁDIO CAI
 
-- `0:00` [radio · sinal=1] SOL 11 · 19:42 — Sol onze. Dezenove e quarenta e dois. A voz da Comandante Vega some no meio de uma palavra.  
+- `0:00` [radio · sinal=1] SOL 11 · 19:42 — [tense] Sol onze. Dezenove e quarenta e dois. A voz da Comandante Vega some no meio de uma palavra.  
   **SOL ONZE. DEZENOVE E QUARENTA E DOIS. A VOZ DA COMANDANTE VEGA SOME NO MEIO DE UMA PALAVRA.**
-- `0:08` [radio · sinal=0] SOL 11 · 19:42 — Batata, o segundo sinal do norte não é... E depois, só chiado.  
-  **BATATA, O SEGUNDO SINAL DO NORTE NÃO É... E DEPOIS, SÓ CHIADO.**
+- `0:09` [radio · sinal=1] SOL 11 · 19:42 **(VEGA, rádio)** — [urgent] Batata, o segundo sinal do norte não é... 🔊 corte  
+  **BATATA, O SEGUNDO SINAL DO NORTE NÃO É...**
+- `0:12` [radio · sinal=0] SOL 11 · 19:42 — [whispers] E depois, só chiado.  
+  **E DEPOIS, SÓ CHIADO.**
 
-### 0:13 (3%) · 38 MINUTOS
+### 0:16 (3%) · 38 MINUTOS
 
-- `0:13` [frente · timer=38:00] SOL 11 · 19:43 — No horizonte, uma parede marrom engole as estrelas. Tempestade de poeira. Trinta e oito minutos, diz o painel.  
+- `0:16` [frente · timer=38:00] SOL 11 · 19:43 — [urgent] No horizonte, uma parede marrom engole as estrelas. Tempestade de poeira. Trinta e oito minutos, diz o painel.  
   **NO HORIZONTE, UMA PAREDE MARROM ENGOLE AS ESTRELAS. TEMPESTADE DE POEIRA. TRINTA E OITO MINUTOS, DIZ O PAINEL.**
-- `0:21` [frente · timer=37:41] SOL 11 · 19:43 — Trinta e oito minutos para prender a barraca, baixar a antena e entrar.  
+- `0:25` [frente · timer=37:41] SOL 11 · 19:43 — [urgent] Trinta e oito minutos para prender a barraca, baixar a antena e entrar.  
   **TRINTA E OITO MINUTOS PARA PRENDER A BARRACA, BAIXAR A ANTENA E ENTRAR.**
-- `0:26` [roverPainel · contagem=36:00:00] SOL 11 · 19:43 — No painel do rover, uma linha nova acende sozinha. VOLTA-CASA. Trinta e seis horas.  
-  **NO PAINEL DO ROVER, UMA LINHA NOVA ACENDE SOZINHA. VOLTA-CASA. TRINTA E SEIS HORAS.**
-- `0:33` [roverPainel · contagem=35:59:31] SOL 11 · 19:43 — Você conhece a regra. Se o rover passar trinta e seis horas sem ouvir a base, ele volta sozinho. Pela rota gravada. Sem perguntar.  
-  **VOCÊ CONHECE A REGRA. SE O ROVER PASSAR TRINTA E SEIS HORAS SEM OUVIR A BASE, ELE VOLTA SOZINHO. PELA ROTA GRAVADA. SEM PERGUNTAR.**
-- `0:42` [gravacao · rec=False] SOL 11 · 19:47 — O VinnY bate no seu capacete e aponta o gravador do rover. Diário de bordo. Rápido.  
+- `0:30` [roverPainel · contagem=36:00:00] SOL 11 · 19:43 — [tense] No painel do rover, uma linha nova acende sozinha. 🔊 bipe  
+  **NO PAINEL DO ROVER, UMA LINHA NOVA ACENDE SOZINHA.**
+- `0:35` [roverPainel · contagem=35:59:31] SOL 11 · 19:43 — [serious] VOLTA-CASA. Trinta e seis horas. Se o rover passar trinta e seis horas sem ouvir a base, ele volta sozinho. Pela rota gravada. Sem perguntar.  
+  **VOLTA-CASA. TRINTA E SEIS HORAS. SE O ROVER PASSAR TRINTA E SEIS HORAS SEM OUVIR A BASE, ELE VOLTA SOZINHO. PELA ROTA GRAVADA. SEM PERGUNTAR.**
+- `0:48` [gravacao · rec=False] SOL 11 · 19:47 — [urgent] O VinnY bate no seu capacete e aponta o gravador do rover. Diário de bordo. Rápido. 🔊 bipe  
   **O VINNY BATE NO SEU CAPACETE E APONTA O GRAVADOR DO ROVER. DIÁRIO DE BORDO. RÁPIDO.**
-- `0:49` [gravacao · rec=True] SOL 11 · 19:47 — Você aperta o botão e fala. Tempestade chegando. Perdemos a trilha. Se vocês ouvirem isso, não venham pelas dunas. É perigoso demais.  
-  **VOCÊ APERTA O BOTÃO E FALA. TEMPESTADE CHEGANDO. PERDEMOS A TRILHA. SE VOCÊS OUVIREM ISSO, NÃO VENHAM PELAS DUNAS. É PERIGOSO DEMAIS.**
+- `0:55` [gravacao · rec=True] SOL 11 · 19:47 **(BATATA, rádio)** — [breathless] Tempestade chegando. Perdemos a trilha. Se vocês ouvirem isso, não venham pelas dunas. É perigoso demais.  
+  **TEMPESTADE CHEGANDO. PERDEMOS A TRILHA. SE VOCÊS OUVIREM ISSO, NÃO VENHAM PELAS DUNAS. É PERIGOSO DEMAIS.**
 
-### 0:59 (13%) · O ZÍPER FECHA
+### 1:05 (11%) · O ZÍPER FECHA
 
-- `0:59` [acampamento · tempestade=0.45, antena=descendo, noite=1] SOL 11 · 20:16 — A antena desce. A lona estala. O vento chega antes da poeira.  
+- `1:05` [acampamento · tempestade=0.45, antena=descendo, noite=1] SOL 11 · 20:16 — [tense] A antena desce. A lona estala. O vento chega antes da poeira.  
   **A ANTENA DESCE. A LONA ESTALA. O VENTO CHEGA ANTES DA POEIRA.**
-- `1:05` [barraca · luz=0.15] SOL 11 · 20:16 — Você entra por último. O zíper fecha. E o mundo lá fora vira só barulho.  
+- `1:12` [barraca · luz=0.15] SOL 11 · 20:16 — [quietly] Você entra por último. O zíper fecha. E o mundo lá fora vira só barulho. 🔊 ziper  
   **VOCÊ ENTRA POR ÚLTIMO. O ZÍPER FECHA. E O MUNDO LÁ FORA VIRA SÓ BARULHO.**
 
-### 1:10 (15%) · A CONTA
+### 1:22 (14%) · A CONTA
 
-- `1:10` [barraca · luz=1, caderno=True] SOL 11 · 20:31 — Lanterna acesa. Você conta tudo. Em voz alta. É o que você faz quando não sabe o resto.  
+- `1:22` [barraca · luz=1, caderno=True] SOL 11 · 20:31 — [calm] Lanterna acesa. Você conta tudo. Em voz alta. É o que você faz quando não sabe o resto. 🔊 clique  
   **LANTERNA ACESA. VOCÊ CONTA TUDO. EM VOZ ALTA. É O QUE VOCÊ FAZ QUANDO NÃO SABE O RESTO.**
-- `1:17` [item · item=cilindro, n=3, rotulo=O2 · 6 KG] SOL 11 · 20:31 — Oxigênio. Três cilindros de dois quilos. Seis quilos.  
+- `1:30` [item · item=cilindro, n=3, rotulo=O2 · 6 KG] SOL 11 · 20:31 — Oxigênio. Três cilindros de dois quilos. Seis quilos.  
   **OXIGÊNIO. TRÊS CILINDROS DE DOIS QUILOS. SEIS QUILOS.**
-- `1:22` [item · item=cilindro, n=3, rotulo=1,7 KG POR SOL = 3,5 SÓIS] SOL 11 · 20:31 — Uma pessoa gasta perto de oitocentos e quarenta gramas de oxigênio por sol. Vocês são dois. Três sóis e meio.  
+- `1:36` [item · item=cilindro, n=3, rotulo=1,7 KG POR SOL = 3,5 SÓIS] SOL 11 · 20:31 — Uma pessoa gasta perto de oitocentos e quarenta gramas de oxigênio por sol. Vocês são dois. [serious] Três sóis e meio.  
   **UMA PESSOA GASTA PERTO DE OITOCENTOS E QUARENTA GRAMAS DE OXIGÊNIO POR SOL. VOCÊS SÃO DOIS. TRÊS SÓIS E MEIO.**
-- `1:30` [item · item=agua, n=6, rotulo=ÁGUA · 18 L] SOL 11 · 20:31 — Água. Dezoito litros, para recarregar o cantil do traje. Três por pessoa, por sol. Sem banho.  
+- `1:46` [item · item=agua, n=6, rotulo=ÁGUA · 18 L] SOL 11 · 20:31 — Água. Dezoito litros, para recarregar o cantil do traje. Três por pessoa, por sol. Sem banho.  
   **ÁGUA. DEZOITO LITROS, PARA RECARREGAR O CANTIL DO TRAJE. TRÊS POR PESSOA, POR SOL. SEM BANHO.**
-- `1:38` [item · item=racao, n=14, rotulo=14 RAÇÕES] SOL 11 · 20:31 — Comida. Catorze rações em pasta, de tomar pelo bico do capacete. Essa é a parte fácil.  
+- `1:55` [item · item=racao, n=14, rotulo=14 RAÇÕES] SOL 11 · 20:31 — Comida. Catorze rações em pasta, de tomar pelo bico do capacete. [dry] Essa é a parte fácil.  
   **COMIDA. CATORZE RAÇÕES EM PASTA, DE TOMAR PELO BICO DO CAPACETE. ESSA É A PARTE FÁCIL.**
-- `1:44` [item · item=bateria, n=1, rotulo=AQUECEDOR · 4 KWH] SOL 11 · 20:31 — Bateria do aquecedor. Quatro quilowatts-hora. Lá fora, menos noventa graus. Aqui dentro, menos dois. E caindo.  
+- `2:03` [item · item=bateria, n=1, rotulo=AQUECEDOR · 4 KWH] SOL 11 · 20:31 — Bateria do aquecedor. Quatro quilowatts-hora. Lá fora, menos noventa graus. Aqui dentro, menos dois. [tense] E caindo.  
   **BATERIA DO AQUECEDOR. QUATRO QUILOWATTS-HORA. LÁ FORA, MENOS NOVENTA GRAUS. AQUI DENTRO, MENOS DOIS. E CAINDO.**
-- `1:53` [alcance] SOL 11 · 20:31 — Rádio. Alcance de quarenta quilômetros. A base está a quarenta e cinco. Ontem, a antena alta alcançava. Hoje, não.  
+- `2:14` [alcance] SOL 11 · 20:31 — Rádio. Alcance de quarenta quilômetros. A base está a quarenta e cinco. Ontem, a antena alta alcançava. [sighs] Hoje, não.  
   **RÁDIO. ALCANCE DE QUARENTA QUILÔMETROS. A BASE ESTÁ A QUARENTA E CINCO. ONTEM, A ANTENA ALTA ALCANÇAVA. HOJE, NÃO.**
-- `2:02` [item · item=diversos, n=4, rotulo=AMOSTRAS · CABO · BALIZAS · FITA] SOL 11 · 20:31 — Nove caixas de amostras. Trinta metros de cabo. Duas balizas. Um rolo de fita de vedação.  
+- `2:25` [item · item=diversos, n=4, rotulo=AMOSTRAS · CABO · BALIZAS · FITA] SOL 11 · 20:31 — Nove caixas de amostras. Trinta metros de cabo. Duas balizas. Um rolo de fita de vedação.  
   **NOVE CAIXAS DE AMOSTRAS. TRINTA METROS DE CABO. DUAS BALIZAS. UM ROLO DE FITA DE VEDAÇÃO.**
-- `2:09` [semente · broto=0] SOL 11 · 20:31 — E um vasinho lacrado, com uma semente de batata. O VinnY trouxe em sua homenagem. Ele acha isso engraçado. Você também.  
+- `2:34` [semente · broto=0] SOL 11 · 20:31 — E um vasinho lacrado, com uma semente de batata. O VinnY trouxe em sua homenagem. [chuckles] Ele acha isso engraçado. Você também.  
   **E UM VASINHO LACRADO, COM UMA SEMENTE DE BATATA. O VINNY TROUXE EM SUA HOMENAGEM. ELE ACHA ISSO ENGRAÇADO. VOCÊ TAMBÉM.**
-- `2:18` [barraca · luz=0.7] SOL 11 · 20:31 — Você termina a conta. Fecha o caderno. E aí você escuta.  
+- `2:44` [barraca · luz=0.7] SOL 11 · 20:31 — [quietly] Você termina a conta. Fecha o caderno. E aí você escuta. 🔊 tic  
   **VOCÊ TERMINA A CONTA. FECHA O CADERNO. E AÍ VOCÊ ESCUTA.**
-- `2:24` [chao · tic=True] SOL 11 · 20:31 — Tic.  
+- `2:52` [chao · tic=True] SOL 11 · 20:31 — [whispers] Tic. 🔊 tic  
   **TIC.**
-- `2:26` [chao · tic=True] SOL 11 · 20:31 — Sete segundos.  
-  **SETE SEGUNDOS.**
-- `2:29` [chao · tic=True] SOL 11 · 20:31 — Tic.  
-  **TIC.**
-- `2:31` [chao · tic=True, corte=True] SOL 11 · 20:31 — Vem de baixo. Debaixo do piso da barraca. Debaixo da areia.  
-  **VEM DE BAIXO. DEBAIXO DO PISO DA BARRACA. DEBAIXO DA AREIA.**
-- `2:35` [barraca · luz=0.6, vinny=serio] SOL 11 · 20:31 — O VinnY também ouviu. Ele não faz piada. É a primeira vez.  
+- `3:00` [chao · tic=True, corte=True] SOL 11 · 20:31 — [whispers] A cada sete segundos. Vem de baixo. Debaixo do piso da barraca. Debaixo da areia.  
+  **A CADA SETE SEGUNDOS. VEM DE BAIXO. DEBAIXO DO PISO DA BARRACA. DEBAIXO DA AREIA.**
+- `3:08` [barraca · luz=0.6, vinny=serio] SOL 11 · 20:31 — [nervous] O VinnY também ouviu. Ele não faz piada. É a primeira vez.  
   **O VINNY TAMBÉM OUVIU. ELE NÃO FAZ PIADA. É A PRIMEIRA VEZ.**
 
-### 2:40 (34%) · TRÊS REGRAS
+### 3:14 (32%) · TRÊS REGRAS
 
-- `2:40` [fato · fato=gps] SOL 11 · 20:31 — Regra número um de quem se perde em Marte. Aqui não existe GPS. Nenhum satélite sabe onde você está.  
+- `3:14` [fato · fato=gps] SOL 11 · 20:31 — [serious] Regra número um de quem se perde em Marte. Aqui não existe GPS. Nenhum satélite sabe onde você está.  
   **REGRA NÚMERO UM DE QUEM SE PERDE EM MARTE. AQUI NÃO EXISTE GPS. NENHUM SATÉLITE SABE ONDE VOCÊ ESTÁ.**
-- `2:48` [fato · fato=odometria] SOL 11 · 20:31 — O rover se guia contando as voltas das rodas e olhando o sol. Por isso ele grava a rota. Por isso ele sabe voltar. Você não.  
+- `3:24` [fato · fato=odometria] SOL 11 · 20:31 — O rover se guia contando as voltas das rodas e olhando o sol. Por isso ele grava a rota. Por isso ele sabe voltar. [quietly] Você não.  
   **O ROVER SE GUIA CONTANDO AS VOLTAS DAS RODAS E OLHANDO O SOL. POR ISSO ELE GRAVA A ROTA. POR ISSO ELE SABE VOLTAR. VOCÊ NÃO.**
-- `2:57` [fato · fato=pressao] SOL 11 · 20:31 — Regra número dois. O ar de Marte tem menos de um por cento da pressão da Terra. Tão pouco, que sem traje, a água do seu corpo ferveria a trinta e sete graus.  
+- `3:35` [fato · fato=pressao] SOL 11 · 20:31 — [serious] Regra número dois. O ar de Marte tem menos de um por cento da pressão da Terra. Tão pouco, que sem traje, a água do seu corpo ferveria a trinta e sete graus.  
   **REGRA NÚMERO DOIS. O AR DE MARTE TEM MENOS DE UM POR CENTO DA PRESSÃO DA TERRA. TÃO POUCO, QUE SEM TRAJE, A ÁGUA DO SEU CORPO FERVERIA A TRINTA E SETE GRAUS.**
-- `3:08` [fato · fato=pressao, frase=True] SOL 11 · 20:31 — A barraca não te protege do frio. Ela te protege do vazio.  
-  **A BARRACA NÃO TE PROTEGE DO FRIO. ELA TE PROTEGE DO VAZIO.**
-- `3:12` [fato · fato=poeira] SOL 11 · 20:31 — E a regra número três, a que ninguém leva a sério. O maior perigo daqui não é o frio. É a poeira.  
+- `3:48` [fato · fato=pressao, frase=True] SOL 11 · 20:31 — O traje não te protege do frio. Ele te protege do vazio.  
+  **O TRAJE NÃO TE PROTEGE DO FRIO. ELE TE PROTEGE DO VAZIO.**
+- `3:53` [fato · fato=poeira] SOL 11 · 20:31 — [serious] E a regra número três, a que ninguém leva a sério. O maior perigo daqui não é o frio. É a poeira.  
   **E A REGRA NÚMERO TRÊS, A QUE NINGUÉM LEVA A SÉRIO. O MAIOR PERIGO DAQUI NÃO É O FRIO. É A POEIRA.**
-- `3:21` [fato · fato=poeira, robo=True] SOL 11 · 20:31 — Ela é mais fina que farinha. Entra nas vedações, entope os filtros e apaga o sol por semanas. Foi uma tempestade assim que calou um robô da NASA, em dois mil e dezoito.  
+- `4:04` [fato · fato=poeira, robo=True] SOL 11 · 20:31 — Ela é mais fina que farinha. Entra nas vedações, entope os filtros e apaga o sol por semanas. Foi uma tempestade assim que calou um robô da NASA, em dois mil e dezoito.  
   **ELA É MAIS FINA QUE FARINHA. ENTRA NAS VEDAÇÕES, ENTOPE OS FILTROS E APAGA O SOL POR SEMANAS. FOI UMA TEMPESTADE ASSIM QUE CALOU UM ROBÔ DA NASA, EM DOIS MIL E DEZOITO.**
-- `3:33` [acampamento · tempestade=1, antena=deitada, noite=1] SOL 11 · 21:20 — Lá fora, a parede marrom chega. A barraca inteira se inclina. E segura.  
-  **LÁ FORA, A PAREDE MARROM CHEGA. A BARRACA INTEIRA SE INCLINA. E SEGURA.**
+- `4:18` [acampamento · tempestade=1, antena=deitada, noite=1] SOL 11 · 21:20 — [tense] Lá fora, a parede marrom chega. A barraca inteira se inclina.  
+  **LÁ FORA, A PAREDE MARROM CHEGA. A BARRACA INTEIRA SE INCLINA.**
+- `4:25` [acampamento · tempestade=1, antena=deitada, noite=1] SOL 11 · 21:20 — [relieved] E segura.  
+  **E SEGURA.**
 
-### 3:39 (46%) · PRESSÃO CAINDO
+### 4:28 (44%) · PRESSÃO CAINDO
 
-- `3:39` [barraca · luz=0.3, alarme=True] SOL 12 · 03:10 — Três e dez da manhã. Sol doze. Um apito fino te acorda.  
-  **TRÊS E DEZ DA MANHÃ. SOL DOZE. UM APITO FINO TE ACORDA.**
-- `3:44` [vazamento · fase=cai] SOL 12 · 03:10 — Pressão caindo. Novecentos. Oitocentos e oitenta. Oitocentos e sessenta.  
+- `4:28` [barraca · luz=0.3, alarme=True] SOL 12 · 03:10 — [urgent] Um apito. Três e dez da manhã. 🔊 alarme  
+  **UM APITO. TRÊS E DEZ DA MANHÃ.**
+- `4:32` [vazamento · fase=cai] SOL 12 · 03:10 — [urgent] Pressão caindo. Novecentos. Oitocentos e oitenta. Oitocentos e sessenta. 🔊 assobio  
   **PRESSÃO CAINDO. NOVECENTOS. OITOCENTOS E OITENTA. OITOCENTOS E SESSENTA.**
-- `3:50` [vazamento · fase=furo] SOL 12 · 03:10 — Tem um assobio na costura do teto. A poeira entrou na emenda e abriu um furo do tamanho de um grão de arroz. Se a barraca esvaziar, os trajes passam a gastar o próprio oxigênio. E esse acaba antes.  
+- `4:39` [vazamento · fase=furo] SOL 12 · 03:10 — [tense] Tem um assobio na costura do teto. A poeira entrou na emenda e abriu um furo do tamanho de um grão de arroz. Se a barraca esvaziar, os trajes passam a gastar o próprio oxigênio. E esse acaba antes.  
   **TEM UM ASSOBIO NA COSTURA DO TETO. A POEIRA ENTROU NA EMENDA E ABRIU UM FURO DO TAMANHO DE UM GRÃO DE ARROZ. SE A BARRACA ESVAZIAR, OS TRAJES PASSAM A GASTAR O PRÓPRIO OXIGÊNIO. E ESSE ACABA ANTES.**
-- `4:04` [vazamento · fase=mao] SOL 12 · 03:10 — Você passa a luva pela costura, procurando o furo. A luva é grossa demais. Não sente nada. Você encosta o visor no teto e escuta. Ali.  
-  **VOCÊ PASSA A LUVA PELA COSTURA, PROCURANDO O FURO. A LUVA É GROSSA DEMAIS. NÃO SENTE NADA. VOCÊ ENCOSTA O VISOR NO TETO E ESCUTA. ALI.**
-- `4:16` [vazamento · fase=fita] SOL 12 · 03:10 — O VinnY segura a lanterna. Você corta a fita com a faca do cinto, devagar, com os dedos duros dentro da luva. Uma volta. Duas. Três.  
-  **O VINNY SEGURA A LANTERNA. VOCÊ CORTA A FITA COM A FACA DO CINTO, DEVAGAR, COM OS DEDOS DUROS DENTRO DA LUVA. UMA VOLTA. DUAS. TRÊS.**
-- `4:27` [vazamento · fase=para] SOL 12 · 03:10 — O assobio para. O ponteiro para. Oitocentos e quarenta.  
+- `4:56` [vazamento · fase=mao] SOL 12 · 03:10 — [breathless] Você passa a luva pela costura, procurando o furo. A luva é grossa demais. Não sente nada. Você encosta o visor no teto e escuta.  
+  **VOCÊ PASSA A LUVA PELA COSTURA, PROCURANDO O FURO. A LUVA É GROSSA DEMAIS. NÃO SENTE NADA. VOCÊ ENCOSTA O VISOR NO TETO E ESCUTA.**
+- `5:09` [vazamento · fase=mao] SOL 12 · 03:10 — [whispers] Ali.  
+  **ALI.**
+- `5:11` [vazamento · fase=fita] SOL 12 · 03:10 — [urgent] O VinnY segura a lanterna. Você corta a fita com a faca do cinto, com os dedos duros dentro da luva. Uma volta. Duas. Três. 🔊 fita, fita, fita  
+  **O VINNY SEGURA A LANTERNA. VOCÊ CORTA A FITA COM A FACA DO CINTO, COM OS DEDOS DUROS DENTRO DA LUVA. UMA VOLTA. DUAS. TRÊS.**
+- `5:24` [vazamento · fase=para] SOL 12 · 03:10 — [relieved] O assobio para. O ponteiro para. Oitocentos e quarenta.  
   **O ASSOBIO PARA. O PONTEIRO PARA. OITOCENTOS E QUARENTA.**
-- `4:31` [barraca · luz=0.5] SOL 12 · 03:10 — Segurar o calor gastou meia bateria do aquecedor. Você não dorme mais.  
+- `5:30` [barraca · luz=0.5] SOL 12 · 03:10 — [tired] Segurar o calor gastou meia bateria do aquecedor. Você não dorme mais.  
   **SEGURAR O CALOR GASTOU MEIA BATERIA DO AQUECEDOR. VOCÊ NÃO DORME MAIS.**
 
-### 4:37 (58%) · DE NOVO E DE NOVO
+### 5:37 (56%) · DE NOVO E DE NOVO
 
-- `4:37` [acampamento · tempestade=0.8, antena=deitada, noite=0] SOL 12 · 09:00 — Sol doze. A tempestade não passa. O dia é da cor de chá velho.  
+- `5:37` [acampamento · tempestade=0.8, antena=deitada, noite=0] SOL 12 · 09:00 — [tired] Sol doze. A tempestade não passa. O dia é da cor de chá velho.  
   **SOL DOZE. A TEMPESTADE NÃO PASSA. O DIA É DA COR DE CHÁ VELHO.**
-- `4:42` [filtro] SOL 12 · 09:00 — A cada quarenta minutos, o filtro de ar entope. Você tira, bate, limpa, encaixa. De novo. E de novo. E de novo.  
-  **A CADA QUARENTA MINUTOS, O FILTRO DE AR ENTOPE. VOCÊ TIRA, BATE, LIMPA, ENCAIXA. DE NOVO. E DE NOVO. E DE NOVO.**
-- `4:52` [filtro · agenda=True] SOL 12 · 09:00 — Quem já viveu isolado, da Antártida à estação espacial, ensina a mesma coisa. Tenha horário. Comer, dormir, conferir. A rotina segura a cabeça.  
+- `5:44` [filtro] SOL 12 · 09:00 — [calm] A cada quarenta minutos, o filtro de ar entope. Você tira, bate, limpa, encaixa. 🔊 batida  
+  **A CADA QUARENTA MINUTOS, O FILTRO DE AR ENTOPE. VOCÊ TIRA, BATE, LIMPA, ENCAIXA.**
+- `5:55` [filtro] SOL 12 · 09:00 — [tired] De novo. E de novo. E de novo. 🔊 batida  
+  **DE NOVO. E DE NOVO. E DE NOVO.**
+- `6:01` [filtro · agenda=True] SOL 12 · 09:00 — [calm] Quem já viveu isolado, da Antártida à estação espacial, ensina a mesma coisa. Tenha horário. Comer, dormir, conferir. A rotina segura a cabeça.  
   **QUEM JÁ VIVEU ISOLADO, DA ANTÁRTIDA À ESTAÇÃO ESPACIAL, ENSINA A MESMA COISA. TENHA HORÁRIO. COMER, DORMIR, CONFERIR. A ROTINA SEGURA A CABEÇA.**
-- `5:04` [semente · broto=0, gota=True] SOL 12 · 16:30 — O VinnY abre a tampinha do vaso e pinga três gotas do cantil do traje. Três gotas por dia. Nem uma a mais.  
+- `6:16` [semente · broto=0, gota=True] SOL 12 · 16:30 — [softly] O VinnY abre a tampinha do vaso e pinga três gotas do cantil do traje. Três gotas por dia. Nem uma a mais. 🔊 gota  
   **O VINNY ABRE A TAMPINHA DO VASO E PINGA TRÊS GOTAS DO CANTIL DO TRAJE. TRÊS GOTAS POR DIA. NEM UMA A MAIS.**
-- `5:13` [semente · broto=1] SOL 12 · 16:30 — No fim da tarde, aparece um fio verde. A batata brotou. Ele ri pela primeira vez no dia.  
+- `6:27` [semente · broto=1] SOL 12 · 16:30 — [softly] No fim da tarde, aparece um fio verde. A batata brotou. [laughs softly] Ele ri pela primeira vez no dia.  
   **NO FIM DA TARDE, APARECE UM FIO VERDE. A BATATA BROTOU. ELE RI PELA PRIMEIRA VEZ NO DIA.**
 
-### 5:19 (67%) · VOZES NO CHIADO
+### 6:37 (66%) · VOZES NO CHIADO
 
-- `5:19` [estatica] SOL 12 · 22:00 — Vinte e duas horas. O rádio só faz chiado. Você liga mesmo assim. De hora em hora.  
+- `6:37` [estatica] SOL 12 · 22:00 — [quietly] Vinte e duas horas. O rádio só faz chiado. Você liga mesmo assim. De hora em hora.  
   **VINTE E DUAS HORAS. O RÁDIO SÓ FAZ CHIADO. VOCÊ LIGA MESMO ASSIM. DE HORA EM HORA.**
-- `5:26` [estatica · fantasma=True] SOL 12 · 22:00 — E no chiado, às vezes, parece a voz da Vega. Seu nome. Uma palavra. Não é. Você sabe que não é.  
-  **E NO CHIADO, ÀS VEZES, PARECE A VOZ DA VEGA. SEU NOME. UMA PALAVRA. NÃO É. VOCÊ SABE QUE NÃO É.**
-- `5:35` [mapa] SOL 12 · 22:00 — Oxigênio vocês têm. Comida vocês têm. Nunca foi esse o problema.  
+- `6:46` [estatica · fantasma=True] SOL 12 · 22:00 **(VEGA, rádio)** — [whispers] Batata...  
+  **BATATA...**
+- `6:49` [estatica · fantasma=True] SOL 12 · 22:00 — [uneasy] No chiado, às vezes, parece a voz da Vega. Seu nome. Uma palavra. Não é. Você sabe que não é.  
+  **NO CHIADO, ÀS VEZES, PARECE A VOZ DA VEGA. SEU NOME. UMA PALAVRA. NÃO É. VOCÊ SABE QUE NÃO É.**
+- `6:59` [planeta · fase=deserto] SOL 12 · 22:00 — [serious] Oxigênio vocês têm. Comida vocês têm. Nunca foi esse o problema.  
   **OXIGÊNIO VOCÊS TÊM. COMIDA VOCÊS TÊM. NUNCA FOI ESSE O PROBLEMA.**
-- `5:40` [mapa · apaga=True] SOL 12 · 22:00 — O problema é que ninguém sabe onde vocês estão. Nem vocês.  
+- `7:06` [planeta · fase=planeta] SOL 12 · 22:00 — [quietly] O problema é que ninguém sabe onde vocês estão. [whispers] Nem vocês.  
   **O PROBLEMA É QUE NINGUÉM SABE ONDE VOCÊS ESTÃO. NEM VOCÊS.**
 
-### 5:44 (73%) · 4-1-7
+### 7:15 (72%) · 4-1-7
 
-- `5:44` [pulsos · n=0] SOL 13 · 01:17 — Uma e dezessete da madrugada. O chiado muda.  
+- `7:15` [pulsos · n=0] SOL 13 · 01:17 — [whispers] Uma e dezessete da madrugada. O chiado muda. 🔊 tic, pulsos417  
   **UMA E DEZESSETE DA MADRUGADA. O CHIADO MUDA.**
-- `5:48` [pulsos · n=3] SOL 13 · 01:17 — Pulsos. Quatro. Pausa. Um. Pausa. Sete.  
-  **PULSOS. QUATRO. PAUSA. UM. PAUSA. SETE.**
-- `5:53` [pulsos · n=3, base=True] SOL 13 · 01:17 — Não é o código da base. A base chama com três toques curtos. Isso não é a base.  
+- `7:24` [pulsos · n=3] SOL 13 · 01:17 — [nervous] Quatro. Um. Sete.  
+  **QUATRO. UM. SETE.**
+- `7:28` [pulsos · n=3, base=True] SOL 13 · 01:17 — [tense] Não é o código da base. A base chama com três toques curtos. Isso não é a base. 🔊 pulsos417  
   **NÃO É O CÓDIGO DA BASE. A BASE CHAMA COM TRÊS TOQUES CURTOS. ISSO NÃO É A BASE.**
-- `5:59` [pulsos · n=3, some=True] SOL 13 · 01:17 — Quatro, um, sete. De novo. E de novo. Depois, nada. Nem chiado.  
-  **QUATRO, UM, SETE. DE NOVO. E DE NOVO. DEPOIS, NADA. NEM CHIADO.**
-- `6:06` [chao · tic=False] SOL 13 · 01:17 — E debaixo do piso, o tique para.  
+- `7:41` [pulsos · n=3, some=True] SOL 13 · 01:17 — [whispers] Depois, nada. Nem chiado.  
+  **DEPOIS, NADA. NEM CHIADO.**
+- `7:46` [chao · tic=False] SOL 13 · 01:17 — [whispers] E debaixo do piso, o tique para.  
   **E DEBAIXO DO PISO, O TIQUE PARA.**
 
-### 6:10 (78%) · VOCÊ, CANSADO
+### 7:51 (78%) · VOCÊ, CANSADO
 
-- `6:10` [dunas · rover=parado] SOL 13 · 06:02 — Sol treze. Seis da manhã. A tempestade foi embora e levou o mundo junto.  
+- `7:51` [dunas · rover=parado] SOL 13 · 06:02 — [quietly] Sol treze. Seis da manhã. A tempestade foi embora e levou o mundo junto.  
   **SOL TREZE. SEIS DA MANHÃ. A TEMPESTADE FOI EMBORA E LEVOU O MUNDO JUNTO.**
-- `6:16` [dunas · rover=parado, zoom=True] SOL 13 · 06:02 — As dunas mudaram de lugar. A trilha sumiu. O rover está ali, coberto de poeira até as rodas.  
+- `8:00` [dunas · rover=parado, zoom=True] SOL 13 · 06:02 — As dunas mudaram de lugar. A trilha sumiu. O rover está ali, coberto de poeira até as rodas.  
   **AS DUNAS MUDARAM DE LUGAR. A TRILHA SUMIU. O ROVER ESTÁ ALI, COBERTO DE POEIRA ATÉ AS RODAS.**
-- `6:24` [caminhada] SOL 13 · 06:02 — Você quer saber de onde vinha o tique. Seiscentos metros a pé, até o topo da duna nova. O VinnY vai junto. Ninguém anda sozinho em Marte.  
+- `8:08` [caminhada] SOL 13 · 06:02 — [determined] Você quer saber de onde vinha o tique. Seiscentos metros a pé, até o topo da duna nova. O VinnY vai junto. Ninguém anda sozinho em Marte.  
   **VOCÊ QUER SABER DE ONDE VINHA O TIQUE. SEISCENTOS METROS A PÉ, ATÉ O TOPO DA DUNA NOVA. O VINNY VAI JUNTO. NINGUÉM ANDA SOZINHO EM MARTE.**
-- `6:34` [traje · pct=12] SOL 13 · 06:02 — No meio da subida, o traje apita. Oxigênio do traje, doze por cento.  
-  **NO MEIO DA SUBIDA, O TRAJE APITA. OXIGÊNIO DO TRAJE, DOZE POR CENTO.**
-- `6:40` [traje · pct=11, valvula=True] SOL 13 · 06:02 — A conta estava errada. Na noite do vazamento, você deixou a válvula do traje meio aberta. Com pressa. Com frio.  
+- `8:21` [traje · pct=12] SOL 13 · 06:02 — [panicked] Oxigênio do traje. Doze por cento. 🔊 alarme  
+  **OXIGÊNIO DO TRAJE. DOZE POR CENTO.**
+- `8:25` [traje · pct=11, valvula=True] SOL 13 · 06:02 — [breathless] A conta estava errada. Na noite do vazamento, você deixou a válvula do traje meio aberta. Com pressa. Com frio.  
   **A CONTA ESTAVA ERRADA. NA NOITE DO VAZAMENTO, VOCÊ DEIXOU A VÁLVULA DO TRAJE MEIO ABERTA. COM PRESSA. COM FRIO.**
-- `6:48` [traje · pct=11] SOL 13 · 06:02 — O perigo aqui não é Marte. É você, cansado.  
+- `8:35` [traje · pct=11] SOL 13 · 06:02 — [quietly] O perigo aqui não é Marte. É você, cansado.  
   **O PERIGO AQUI NÃO É MARTE. É VOCÊ, CANSADO.**
 
-### 6:51 (87%) · VOLTA-CASA
+### 8:41 (86%) · VOLTA-CASA
 
-- `6:51` [topo] SOL 13 · 07:38 — No topo da duna, nada. Areia. Silêncio. Nenhum tique.  
+- `8:41` [topo] SOL 13 · 07:38 — [breathless] No topo da duna, nada. Areia. Silêncio. Nenhum tique. 🔊 motor  
   **NO TOPO DA DUNA, NADA. AREIA. SILÊNCIO. NENHUM TIQUE.**
-- `6:56` [topo · olha=True] SOL 13 · 07:42 — Lá embaixo, um barulho que você conhece. Motor elétrico. Rodas.  
-  **LÁ EMBAIXO, UM BARULHO QUE VOCÊ CONHECE. MOTOR ELÉTRICO. RODAS.**
-- `7:02` [roverPainel · contagem=00:00:00, partindo=True] SOL 13 · 07:42 — Dezenove e quarenta e dois de anteontem, mais trinta e seis horas. Sete e quarenta e dois. Agora.  
+- `8:51` [topo · olha=True] SOL 13 · 07:42 — [whispers] Esse barulho você conhece. Motor elétrico. Rodas.  
+  **ESSE BARULHO VOCÊ CONHECE. MOTOR ELÉTRICO. RODAS.**
+- `8:57` [roverPainel · contagem=00:00:00, partindo=True] SOL 13 · 07:42 — [urgent] Dezenove e quarenta e dois de anteontem, mais trinta e seis horas. Sete e quarenta e dois. Agora. 🔊 bipe  
   **DEZENOVE E QUARENTA E DOIS DE ANTEONTEM, MAIS TRINTA E SEIS HORAS. SETE E QUARENTA E DOIS. AGORA.**
-- `7:10` [roverPainel · contagem=VOLTA-CASA, partindo=True] SOL 13 · 07:42 — VOLTA-CASA.  
+- `9:06` [roverPainel · contagem=VOLTA-CASA, partindo=True] SOL 13 · 07:42 — [shouting] VOLTA-CASA.  
   **VOLTA-CASA.**
 
-### 7:12 (91%) · AS MARCAS
+### 9:09 (91%) · AS MARCAS
 
-- `7:12` [partindo] SOL 13 · 07:42 — Você desce correndo. O VinnY corre do outro lado. Os dois gritando dentro do capacete, onde ninguém escuta.  
+- `9:09` [partindo] SOL 13 · 07:42 — [panicked] Você desce correndo. O VinnY corre do outro lado. Os dois gritando dentro do capacete, onde ninguém escuta. 🔊 motor  
   **VOCÊ DESCE CORRENDO. O VINNY CORRE DO OUTRO LADO. OS DOIS GRITANDO DENTRO DO CAPACETE, ONDE NINGUÉM ESCUTA.**
-- `7:20` [partindo · longe=True] SOL 13 · 07:42 — O rover não espera. Ele leva o reboque, as amostras e o seu diário de bordo. Para casa. Sem vocês.  
+- `9:18` [partindo · longe=True] SOL 13 · 07:42 — [desperate] O rover não espera. Ele leva o reboque, as amostras e o seu diário de bordo. Para casa. [whispers] Sem vocês.  
   **O ROVER NÃO ESPERA. ELE LEVA O REBOQUE, AS AMOSTRAS E O SEU DIÁRIO DE BORDO. PARA CASA. SEM VOCÊS.**
-- `7:28` [marcas · revela=0] SOL 13 · 07:42 — Você chega onde ele estava. E para.  
+- `9:29` [marcas · revela=0] SOL 13 · 07:42 — [quietly] Você chega onde ele estava. E para.  
   **VOCÊ CHEGA ONDE ELE ESTAVA. E PARA.**
-- `7:32` [marcas · revela=1] SOL 13 · 07:42 — No chão, as marcas em zigue-zague. As que não são de vocês. Frescas. Por cima das suas pegadas.  
+- `9:34` [marcas · revela=1] SOL 13 · 07:42 — [whispers] No chão, as marcas em zigue-zague. As que não são de vocês. Frescas. Por cima das suas pegadas.  
   **NO CHÃO, AS MARCAS EM ZIGUE-ZAGUE. AS QUE NÃO SÃO DE VOCÊS. FRESCAS. POR CIMA DAS SUAS PEGADAS.**
-- `7:40` [marcas · revela=1, norte=True] SOL 13 · 07:42 — Elas vão pro norte.  
+- `9:44` [marcas · revela=1, norte=True] SOL 13 · 07:42 — [whispers] Elas vão pro norte. 🔊 pulsos417  
   **ELAS VÃO PRO NORTE.**
-- `7:42` [pergunta] SOL 13 · 07:42 — Você segue as marcas, ou espera na barraca por um resgate que alguém pode nem mandar?  
+- `9:50` [pergunta] SOL 13 · 07:42 — [serious] Você segue as marcas, ou espera na barraca por um resgate que alguém pode nem mandar?  
   **VOCÊ SEGUE AS MARCAS, OU ESPERA NA BARRACA POR UM RESGATE QUE ALGUÉM PODE NEM MANDAR?**
 
 ## Checklist
@@ -199,7 +207,7 @@ Você é o **Batata** (o nome só aparece pelo rádio). Parceiro: **VinnY**. Dur
 - [x] 5 fatos reais (sem GPS, pressão/ebulição, poeira e o Opportunity, rotina no isolamento, 0,84 kg O₂/dia)
 - [x] Virada a cada ~60–90 s (11 blocos)
 - [x] Respiro: o filtro e a semente do VinnY
-- [x] 2ª pessoa, sem metalinguagem
+- [x] 2ª pessoa, sem metalinguagem; ninguém tira o traje
 - [x] Pergunta de duas opções no fim e na descrição
 - [x] Nada do vídeo de referência
 - [x] Bate com a bíblia e com o ep. 13 dos Shorts (mesma gravação)
