@@ -1805,6 +1805,293 @@ function tomadaCmdJanelas(t, k, cena) {
                  maoF: feliz ? { x: jx + jw - 26, y: chao - 70 } : null }, t, 3);
   return placaEtapa('JANELAS BLINDADAS', cena, t);
 }
+// ================================================================== ep. 10: fim do Módulo de Comando + base do Gerador
+// Tudo exclusivo (pedido do dono): mesa de controle acendendo, Lia fechando a cúpula, fila no telescópio vendo a Terra;
+// a base do Gerador de Oxigênio é aplainada por um ROLO VIBRATÓRIO e IMPRESSA em concreto de enxofre por um pórtico.
+function telaT(x, y, w, h, tipo, t, liga) {   // monitor da mesa: apagado → chiado → conteúdo
+  R(x - 2, y - 2, w + 4, h + 4, '#4a4466'); R(x, y, w, h, '#0b0916');
+  if (liga <= 0) return;
+  if (liga < 0.35) { for (let i = 0; i < 14; i++) R(x + hashT(i, Math.floor(t * 20)) * (w - 2), y + hashT(i + 7, Math.floor(t * 20)) * (h - 2), 2, 1, '#6b6f86'); return; }
+  const cor = ['#3fd0c9', '#4ed37a', '#ffc83d', '#8fe6ff'][tipo % 4];
+  if (tipo % 4 === 0) {   // gráfico subindo
+    for (let i = 0; i < w - 6; i += 3) R(x + 3 + i, y + h - 4 - (Math.sin(i * 0.3 + t * 3) * 0.3 + 0.5) * (h - 10) * (i / w), 2, 2, cor);
+  } else if (tipo % 4 === 1) {   // radar girando
+    const cx = x + w / 2, cy = y + h / 2, r = Math.min(w, h) / 2 - 3, a = t * 2.5;
+    for (let q = 0; q < 1; q += 0.08) R(cx + Math.cos(a) * r * q - 1, cy + Math.sin(a) * r * q - 1, 2, 2, cor);
+    R(cx + Math.cos(1.3) * r * 0.6, cy + Math.sin(1.3) * r * 0.6, 3, 3, '#ffffff');
+  } else if (tipo % 4 === 2) {   // mapinha da colônia com pontos
+    for (let i = 0; i < 9; i++) R(x + 4 + hashT(i, 31) * (w - 10), y + 4 + hashT(i, 32) * (h - 10), 3, 3, i === 0 && Math.floor(t * 3) % 2 ? '#ffffff' : cor);
+  } else {   // texto rolando
+    for (let i = 0; i < 4; i++) R(x + 4, y + 4 + i * 6, (w - 10) * (0.4 + 0.6 * hashT(i + Math.floor(t * 2), 33)), 2, cor);
+  }
+}
+function tomadaCmdPainel(t, k, cena) {
+  TREMOR = 0;
+  R(0, 0, TW, TH, '#1a162b');
+  for (let x = 0; x < TW; x += 45) R(x, 0, 3, TH * 0.7, '#231e3a');               // nervuras dos arcos por dentro
+  const chao = TH * 0.78;
+  R(0, chao, TW, TH - chao, '#2a2140'); for (let x = 0; x < TW; x += 30) R(x, chao, 1, TH - chao, '#352a52');
+  // mesa de controle, de lado
+  const mx = 50, my = chao - 70, mw = 200;
+  R(mx, my + 26, mw, 44, '#4a4466'); R(mx, my + 26, mw, 4, '#6b6f86');
+  tx.fillStyle = '#3a3258'; tx.beginPath(); tx.moveTo(mx, my + 26); tx.lineTo(mx + 14, my); tx.lineTo(mx + mw, my); tx.lineTo(mx + mw, my + 26); tx.fill();
+  for (let i = 0; i < 12; i++) R(mx + 18 + i * 15, my + 10, 6, 4, k > 0.35 + i * 0.03 ? ['#e04f5f', '#4ed37a', '#ffc83d'][i % 3] : '#2a2140');   // botões
+  // cabos chegando do chão pela esquerda até a mesa (o feixe vai sendo puxado)
+  const cabo = saida(clamp(k / 0.35));
+  for (let c = 0; c < 3; c++) {
+    const cor = ['#e2603b', '#3fd0c9', '#ffc83d'][c];
+    for (let q = 0; q < cabo; q += 0.01) { const x = lerp(-10, mx + 10 + c * 6, q), y = chao - 4 - c * 3 - Math.sin(q * Math.PI) * 10 * (1 - q); R(x, y, 3, 3, cor); }
+  }
+  // fileira de telas acima da mesa, acendendo uma por uma
+  const tw = 52, th = 38;
+  for (let i = 0; i < 6; i++) {
+    const x = 20 + (i % 3) * (tw + 22) + (i >= 3 ? 12 : 0), y = 150 + Math.floor(i / 3) * (th + 18);
+    telaT(x, y, tw, th, i, t, clamp((k - 0.38 - i * 0.07) / 0.12));
+  }
+  const luz = clamp((k - 0.45) / 0.4);   // brilho das telas na sala
+  if (luz > 0) { tx.globalAlpha = 0.16 * luz; R(0, 140, TW, 130, '#3fd0c9'); tx.globalAlpha = 1; }
+  // colono agachado ligando o conector; depois levanta e comemora com o tablet
+  const c = colonoQualquer(5), px = mx + 30, liga = k > 0.35;
+  const r = ator(c.pal, liga
+    ? { x: px, chao, dir: 1, alegre: k > 0.8, pulo: k > 0.8 ? Math.abs(Math.sin(t * 6)) * 6 : 0, maoF: { x: px + 14, y: chao - 60 } }
+    : { x: px, chao, dir: -1, agacha: 0.8, maoF: { x: px - 16, y: chao - 8 }, maoT: { x: px - 10, y: chao - 10 } }, t, 3);
+  if (liga) ferramentaT('tablet', r.maoF, r.cotF, t, 3);
+  else if (Math.floor(t * 8) % 3 === 0) for (let i = 0; i < 4; i++) R(px - 20 + hashT(i, Math.floor(t * 8)) * 8, chao - 12 + hashT(i + 5, Math.floor(t * 8)) * 6, 2, 2, COR.ouro);
+  return placaEtapa('MESA DE CONTROLE', cena, t, 160);
+}
+function tomadaCmdCupula(t, k, cena) {
+  // fim de tarde no teto do módulo: as duas metades da cúpula fecham, a fresta abre e o telescópio sobe e mira o céu
+  TREMOR = 0;
+  ceuT(0.45 + k * 0.35);
+  for (let i = 0; i < 40; i++) if (hashT(i, 91) < k) R(hashT(i, 92) * TW, hashT(i, 93) * TH * 0.45, 1, 1, '#ffffff');
+  dunasLonge(t, 0.62, ['#7a3a2a', '#5a2a1a']);
+  const teto = TH * 0.66, cx = TW * 0.58, raio = 64;
+  R(0, teto, TW, TH - teto, '#c9ced9'); R(0, teto, TW, 4, '#eef0f8');
+  for (let x = 6; x < TW; x += 40) R(x, teto + 10, 30, 2, '#9aa0b5');
+  R(cx - raio - 6, teto - 10, raio * 2 + 12, 10, '#6b6f86');                       // anel da base
+  // metades da cúpula: giram de abertas (tombadas para fora) até fechadas
+  const fecha = suave(clamp(k / 0.4));
+  for (const s of [-1, 1]) {
+    tx.save(); tx.translate(cx + s * raio, teto - 10); tx.rotate(s * (1 - fecha) * 1.1);
+    tx.fillStyle = s < 0 ? '#d2d5e2' : '#eef0f8'; tx.beginPath();
+    tx.moveTo(-s * raio, 0); tx.arc(-s * raio, 0, raio, s < 0 ? Math.PI : -Math.PI / 2, s < 0 ? -Math.PI / 2 : 0); tx.lineTo(-s * raio, 0); tx.fill();
+    tx.restore();
+  }
+  // fresta abrindo + tubo do telescópio subindo e virando para o céu
+  const abre = clamp((k - 0.5) / 0.2), sobe = suave(clamp((k - 0.62) / 0.3));
+  if (abre > 0) R(cx - 8 * abre, teto - 10 - raio, 16 * abre, raio - 4, '#1b1530');
+  if (sobe > 0) {
+    const ang = -Math.PI / 2 + 0.5 * sobe, L = 30 + 46 * sobe, b = { x: cx, y: teto - 40 };
+    for (let i = 0; i < L; i += 2) R(b.x + Math.cos(ang) * i - 5, b.y + Math.sin(ang) * i - 5, 10, 10, i > L - 8 ? '#2a2140' : '#9aa0b5');
+    const ponta = { x: b.x + Math.cos(ang) * L, y: b.y + Math.sin(ang) * L };
+    if (k > 0.9) { tx.globalAlpha = 0.5; R(ponta.x - 2, ponta.y - 2, 5, 5, '#bff8ff'); tx.globalAlpha = 1; }
+  }
+  // Lia no teto, ao lado da cúpula: aperta a trava e depois aponta para o céu
+  const xl = cx - raio - 34, aponta = k > 0.55;
+  const r = ator(FUNDADOR_PAL.lia, aponta
+    ? { x: xl, chao: teto, dir: 1, alegre: k > 0.85, cabeca: -4, maoF: { x: xl + 40, y: teto - 110 } }
+    : { x: xl, chao: teto, dir: 1, maoF: { x: cx - raio - 4 + Math.sin(t * 8) * 2, y: teto - 18 }, maoT: { x: cx - raio - 8, y: teto - 14 } }, t, 3);
+  if (!aponta) ferramentaT('chave', r.maoF, r.cotF, t, 3);
+  return placaEtapa('CÚPULA DO TELESCÓPIO', cena, t);
+}
+function tomadaCmdTerra(t, k) {
+  // noite: fila de colonos na porta do Módulo de Comando → a vista pela ocular: a Terra, um pontinho azul
+  TREMOR = 0;
+  if (k < 0.5) {
+    const g = tx.createLinearGradient(0, 0, 0, TH); g.addColorStop(0, '#0d0a1c'); g.addColorStop(1, '#3a2342');
+    tx.fillStyle = g; tx.fillRect(0, 0, TW, TH);
+    for (let i = 0; i < 70; i++) R(hashT(i, 101) * TW, hashT(i, 102) * TH * 0.5, 1, 1, i % 9 ? '#ffffff' : '#8fe6ff');
+    const chao = TH * 0.7;
+    chaoT(chao, '#5a2a1a', '#3d1b12');
+    // o módulo à direita, janelas acesas, porta aberta e o telescópio no teto
+    const bx = TW * 0.6, bw = 120, bh = 100;
+    R(bx, chao - bh, bw, bh, '#c9ced9'); R(bx, chao - bh, bw, 5, '#eef0f8');
+    for (let i = 0; i < 3; i++) R(bx + 14 + i * 34, chao - bh + 20, 20, 14, '#ffe58a');
+    R(bx + 10, chao - 46, 24, 46, '#2a2140'); tx.globalAlpha = 0.3; R(bx - 20, chao - 4, 50, 4, '#ffe58a'); tx.globalAlpha = 1;
+    tx.fillStyle = '#eef0f8'; tx.beginPath(); tx.arc(bx + bw - 30, chao - bh, 22, Math.PI, 0); tx.fill();
+    seg({ x: bx + bw - 30, y: chao - bh - 10 }, { x: bx + bw - 4, y: chao - bh - 44 }, 6, '#9aa0b5');
+    // a fila: todos dão um passinho; um aponta para o céu, o último fica curioso
+    const passo = clamp(k / 0.5);
+    for (let i = 0; i < 5; i++) {
+      const c = colonoQualquer(i + 20), x = bx - 6 - i * 30 + passo * 14, anda = passo < 0.4;
+      const r = ator(c.pal, { x, chao, dir: 1, anda: anda ? t * 10 + i : null, cabeca: i === 2 ? -5 : 0, alegre: i % 2 === 0,
+        maoF: i === 2 ? { x: x + 20, y: chao - 100 } : null }, t, 2.6);
+      if (i === 4) bolha('?', r.cab.x, r.cab.y - 12, passo - 0.2, '#ffffff', 44);
+    }
+    return () => texto('FILA DO TELESCÓPIO', W / 2, 220, 40, COR.ouro, { maxW: W - 140 });
+  }
+  // vista pela ocular: círculo com estrelas, a Terra azul (e a Lua) entrando em foco
+  const q = clamp((k - 0.5) / 0.5), foco = saida(clamp(q / 0.4));
+  R(0, 0, TW, TH, '#000000');
+  const cx = TW / 2, cy = TH * 0.48, rr = 110;
+  tx.save(); tx.beginPath(); tx.arc(cx, cy, rr, 0, Math.PI * 2); tx.clip();
+  R(0, 0, TW, TH, '#05040c');
+  for (let i = 0; i < 50; i++) R(cx - rr + hashT(i, 111) * rr * 2, cy - rr + hashT(i, 112) * rr * 2, 1, 1, '#ffffff');
+  const ex = cx + 10 + (1 - foco) * 18, ey = cy - 6 - (1 - foco) * 10, er = 3 + foco * 3;
+  tx.globalAlpha = 0.25 + 0.2 * Math.sin(t * 3); tx.fillStyle = '#6fb8ff'; tx.beginPath(); tx.arc(ex, ey, er + 6, 0, Math.PI * 2); tx.fill(); tx.globalAlpha = 1;
+  tx.fillStyle = '#3f8efc'; tx.beginPath(); tx.arc(ex, ey, er, 0, Math.PI * 2); tx.fill();
+  R(ex - 2, ey - 2, 2, 2, '#4ed37a'); R(ex + 1, ey - er + 1, 2, 1, '#ffffff');
+  R(ex + 18, ey + 6, 2, 2, '#c9ced9');                                            // a Lua
+  tx.strokeStyle = 'rgba(63,208,201,0.35)'; tx.lineWidth = 1; tx.beginPath(); tx.moveTo(cx - rr, cy); tx.lineTo(cx + rr, cy); tx.moveTo(cx, cy - rr); tx.lineTo(cx, cy + rr); tx.stroke();
+  tx.restore();
+  tx.strokeStyle = '#2a2140'; tx.lineWidth = 8; tx.beginPath(); tx.arc(cx, cy, rr, 0, Math.PI * 2); tx.stroke();
+  return () => {
+    texto('A TERRA', W / 2, 220, 48, '#8fe6ff', { maxW: W - 140 });
+    if (q > 0.4) texto('NOSSA CASA, LÁ LONGE', W / 2, (cy + rr + 30) * TE, 28, '#ffffff', { maxW: W - 140 });
+  };
+}
+// % da fundação: corre por toda a janela da fundação (rolo + impressora), de 0 a 15
+function pctFund(t) { return FUND ? Math.round(lerp(0, ((FUND.c.progresso || [0, 0.15])[1]) * 100, clamp((t - FUND.ini) / (FUND.fim - FUND.ini)))) : 0; }
+function placaFund(rot, t, cor = COR.ouro) {
+  const obra = ((FUND && FUND.c.obra_nome) || 'PRÓXIMA OBRA').toUpperCase(), pct = pctFund(t);
+  return () => { texto(obra, W / 2, 230, 38, COR.agua, { maxW: W - 120 }); texto(rot, W / 2, 296, 30, cor, { maxW: W - 120 }); texto(pct + '%', W / 2, 400, 90, COR.ouro); };
+}
+function tomadaOxiRolo(t, k) {
+  // o rolo vibratório (tambor com garras) atravessa o terreno: à frente pedras e calombos, atrás chão liso e claro
+  ceuT(); dunasLonge(t, 0.5);
+  const chao = TH * 0.66, rx = lerp(TW + 40, -30, suave(k));
+  R(0, chao + 30, TW, TH - chao, '#a24c30');
+  for (let x = 0; x < TW; x += 2) {
+    const liso = x > rx + 26, h = liso ? 0 : Math.abs(Math.sin(x * 0.11) * 7 + Math.sin(x * 0.037 + 1) * 5);
+    R(x, chao - h, 2, 32 + h, liso ? '#c26a45' : '#a24c30');
+    if (liso && x % 14 === 0) R(x, chao + 2, 8, 1, '#d98660');                   // marcas do tambor no chão liso
+  }
+  for (let i = 0; i < 10; i++) { const x = hashT(i, 121) * TW; if (x < rx - 10) R(x, chao - 10 - (i % 3) * 2, 6 + (i % 3) * 2, 6, '#7a3420'); }   // pedras à frente
+  // o rolo: tambor que vibra + chassi + cabine robótica (sem motorista: luz giratória)
+  TREMOR = 0.25;
+  const vib = Math.sin(t * 60) * 1.2, ty = chao - 20 + vib;
+  tx.fillStyle = '#ffc83d'; tx.beginPath(); tx.arc(rx, ty, 20, 0, Math.PI * 2); tx.fill();
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 - t * 4; R(rx + Math.cos(a) * 18 - 2, ty + Math.sin(a) * 18 - 2, 5, 5, '#a8841f'); }
+  R(rx - 4, ty - 4, 8, 8, '#4a4466');
+  R(rx + 10, chao - 46, 60, 14, '#e0a920'); R(rx + 36, chao - 70, 30, 24, '#4a4466'); R(rx + 40, chao - 66, 22, 12, '#8fe6ff');
+  R(rx + 58, chao - 32, 22, 22, '#2a2140'); R(rx + 64, chao - 26, 10, 10, '#9aa0b5');
+  R(rx + 48, chao - 76, 6, 6, Math.floor(t * 4) % 2 ? '#ff8a5c' : '#e04f5f');
+  for (let i = 0; i < 3; i++) { const q = (t * 3 + i / 3) % 1; tx.globalAlpha = 0.6 * (1 - q); R(rx - 24 - q * 14, ty - 6 + i * 6, 6, 1, '#ffffff'); tx.globalAlpha = 1; }   // ondas da vibração
+  for (let i = 0; i < 6; i++) { const q = (t * 1.5 + i / 6) % 1; tx.globalAlpha = 0.5 * (1 - q); R(rx + 70 + q * 30, chao - 8 - q * 20, 4, 4, '#e8b48c'); tx.globalAlpha = 1; }   // poeira
+  // dois colonos: um tira as pedras grandes da frente para o carrinho, outro confere com a régua no chão liso
+  const c0 = colonoQualquer(7), c1 = colonoQualquer(8);
+  const xa = Math.max(50, rx - 90), sobe = Math.sin(t * 3) > 0;
+  const ra = ator(c0.pal, { x: xa, chao: chao - 2, dir: -1, agacha: sobe ? 0 : 0.7, maoF: sobe ? { x: xa - 10, y: chao - 72 } : { x: xa - 14, y: chao - 8 } }, t, 2.6);
+  R(ra.maoF.x - 4, ra.maoF.y - 4, 8, 7, '#7a3420');
+  R(xa - 44, chao - 18, 24, 12, '#6b6f86'); R(xa - 42, chao - 6, 5, 5, '#2a2140'); R(xa - 26, chao - 6, 5, 5, '#2a2140');   // carrinho
+  const xb = Math.min(TW - 20, rx + 120);
+  const rb = ator(c1.pal, { x: xb, chao, dir: -1, maoF: { x: xb - 12, y: chao - 40 }, maoT: { x: xb - 8, y: chao - 46 } }, t, 2.6);
+  seg({ x: rb.maoF.x, y: chao - 64 }, { x: rb.maoF.x, y: chao }, 2, '#eef0f8');
+  for (let y = chao - 60; y < chao; y += 10) R(rb.maoF.x - 1, y, 3, 4, '#e04f5f');
+  return placaFund('APLAINANDO O TERRENO', t);
+}
+function tomadaOxiImpressora(t, k) {
+  // pórtico sobre trilhos: o bico vai e volta derramando enxofre derretido com areia (laranja quente → ocre frio);
+  // as camadas sobem; um colono alimenta o funil com sacos de enxofre; no fim, a base pronta
+  TREMOR = 0;
+  ceuT(0.15); dunasLonge(t, 0.48);
+  const chao = TH * 0.68;
+  R(0, chao, TW, TH - chao, '#c26a45'); for (let x = 0; x < TW; x += 14) R(x, chao + 2, 8, 1, '#d98660');
+  const b0 = 60, b1 = TW - 46, alt = 7, total = 7;
+  const feitas = Math.min(total, k * (total + 0.6));
+  const ccam = Math.floor(feitas), frac = feitas - ccam;
+  for (let i = 0; i < Math.min(ccam, total); i++) { R(b0, chao - (i + 1) * alt, b1 - b0, alt, i % 2 ? '#c9a24a' : '#b8913f'); R(b0, chao - (i + 1) * alt, b1 - b0, 1, '#dcb85e'); }
+  const ida = ccam % 2 === 0, cab = ccam < total ? (ida ? lerp(b0, b1, frac) : lerp(b1, b0, frac)) : (b0 + b1) / 2;
+  if (ccam < total) {   // a camada de agora: quente perto do bico
+    const ya = chao - (ccam + 1) * alt, x0 = ida ? b0 : cab, x1 = ida ? cab : b1;
+    for (let x = x0; x < x1; x += 2) { const quente = clamp(1 - Math.abs(x - cab) / 50); R(x, ya, 2, alt, quente > 0.5 ? '#ff8a3d' : quente > 0.1 ? '#e0a920' : '#b8913f'); }
+    tx.globalAlpha = 0.3; for (let i = 0; i < 4; i++) R(cab - 6 + Math.sin(t * 9 + i) * 3, ya - 10 - i * 6 - ((t * 20) % 6), 3, 4, '#fff0c0'); tx.globalAlpha = 1;   // calor
+  }
+  // trilhos + pórtico
+  R(10, chao - 2, TW - 20, 3, '#6b6f86');
+  const topo = chao - 150;
+  for (const px of [b0 - 20, b1 + 16]) { R(px, topo, 6, chao - topo, '#e2603b'); for (let y = topo + 10; y < chao; y += 20) R(px - 2, y, 10, 2, '#a83d22'); R(px - 6, chao - 8, 18, 8, '#4a4466'); }
+  R(b0 - 22, topo, b1 - b0 + 44, 8, '#e2603b'); R(b0 - 22, topo, b1 - b0 + 44, 2, '#ff8a5c');
+  const bocalY = chao - (ccam + 1) * alt - 6;
+  R(cab - 10, topo + 8, 20, 12, '#4a4466');                                       // carro do bico
+  R(cab - 3, topo + 20, 6, bocalY - topo - 20, '#9aa0b5');                        // tubo telescópico
+  R(cab - 5, bocalY - 4, 10, 6, '#2a2140');
+  if (ccam < total) for (let i = 0; i < 3; i++) R(cab - 1, bocalY + 1 + ((t * 30 + i * 3) % 6), 3, 3, '#ff8a3d');
+  // funil + colono despejando o saco amarelo (enxofre) do alto da plataforma
+  const fx = 30, fy = topo - 30;
+  tx.fillStyle = '#9aa0b5'; tx.beginPath(); tx.moveTo(fx - 18, fy); tx.lineTo(fx + 18, fy); tx.lineTo(fx + 4, fy + 26); tx.lineTo(fx - 4, fy + 26); tx.fill();
+  seg({ x: fx, y: fy + 26 }, { x: b0 - 20, y: topo + 4 }, 3, '#6b6f86');
+  const c = colonoQualquer(9), xc = fx + 2, chaoC = fy - 4;
+  void c;
+  const vira = Math.sin(t * 2.4) > 0.2;
+  const xp = fx + 40, chP = topo + 40;
+  R(xp - 20, chP, 40, 4, '#ffc83d'); for (let y = chP + 4; y < chao - 4; y += 16) { seg({ x: xp - 16, y }, { x: xp + 16, y: y + 16 }, 2, '#e0a920'); seg({ x: xp + 16, y }, { x: xp - 16, y: y + 16 }, 2, '#e0a920'); }
+  const r = ator(colonoQualquer(9).pal, { x: xp, chao: chP, dir: -1, maoF: { x: fx + 10, y: fy - (vira ? 4 : 20) }, maoT: { x: fx + 16, y: fy - (vira ? 0 : 16) } }, t, 2.4);
+  R(r.maoF.x - 8, r.maoF.y - 10, 14, 12, '#f2d64b'); R(r.maoF.x - 8, r.maoF.y - 10, 14, 2, '#fff09a');
+  if (vira) for (let i = 0; i < 5; i++) R(fx - 4 + hashT(i, Math.floor(t * 12)) * 8, fy - 4 + ((t * 40 + i * 4) % 22), 2, 2, '#f2d64b');
+  void xc; void chaoC;
+  // segundo colono confere a temperatura da camada com o scanner
+  const x2 = b1 - 30;
+  const r2 = ator(colonoQualquer(10).pal, { x: x2, chao: TH - 20, dir: -1, maoF: { x: x2 - 16, y: TH - 60 } }, t, 2.6);
+  ferramentaT('scanner', r2.maoF, r2.cotF, t, 2.6);
+  const pronta = ccam >= total;
+  return placaFund(pronta ? 'BASE PRONTA!' : 'IMPRIMINDO A BASE · CAMADA ' + Math.min(total, ccam + 1), t, pronta ? COR.ok : COR.ouro);
+}
+// ---- ep. 10: resultado SIM da "expedição pro norte": o rover puxa o reboque da equipe pelas dunas seguindo as marcas
+// estranhas (zigue-zague, não são do nosso pneu) até o vento apagar a trilha → acampamento com barraca inflável à noite
+function tomadaExpTravessia(t, k) {
+  ceuT(0.1, 0.12); dunasLonge(t * 3, 0.42, ['#d9895c', '#c4643c']);
+  const base = TH * 0.66, pan = k * 160;                                         // a câmera acompanha o comboio
+  tx.fillStyle = '#d0784a'; tx.beginPath(); tx.moveTo(0, TH);
+  for (let x = 0; x <= TW; x += 3) tx.lineTo(x, chaoDuna(x + pan, base));
+  tx.lineTo(TW, TH); tx.fill();
+  for (let i = 0; i < 18; i++) { const x = ((hashT(i, 131) * 600 - pan) % 600 + 600) % 600 - 60; R(x, chaoDuna(x + pan, base) + 10 + hashT(i, 132) * 60, 5, 2, '#b8653c'); }
+  // as marcas desconhecidas à frente: zigue-zague; quanto mais longe, mais apagadas (o vento cobre com areia)
+  const rx = TW * 0.42, fimTrilha = 420;                                         // onde a trilha some (coord. do mundo)
+  for (let wx = rx + pan + 30; wx < rx + pan + TW; wx += 6) {
+    const apaga = clamp((wx - (fimTrilha - 120)) / 120), vis = 1 - apaga;
+    if (vis <= 0.05) continue;
+    const x = wx - pan, y = chaoDuna(wx, base) + 3;
+    tx.globalAlpha = vis; R(x, y + ((wx / 6) % 2 ? 0 : 3), 4, 2, '#7a3420'); R(x, y + 8 + ((wx / 6) % 2 ? 3 : 0), 4, 2, '#7a3420'); tx.globalAlpha = 1;
+  }
+  // nossas marcas (retinhas) atrás do comboio
+  for (let x = 0; x < rx - 60; x += 5) R(x, chaoDuna(x + pan, base) + 5, 3, 2, '#9a4a2a');
+  vento(t, 22, 0.6);
+  // reboque com caixas e dois colonos sentados, engatado no rover
+  const para = k > 0.82, anda = !para;
+  const yr = chaoDuna(rx + pan, base), ang = Math.atan2(chaoDuna(rx + pan + 10, base) - chaoDuna(rx + pan - 10, base), 20);
+  const qx = rx - 92, qy = chaoDuna(qx + pan, base);
+  seg({ x: qx + 30, y: qy - 14 }, { x: rx - 50, y: yr - 14 }, 2, '#6b6f86');
+  R(qx - 30, qy - 26, 60, 14, '#9aa0b5'); R(qx - 30, qy - 26, 60, 2, '#c9ced9');
+  for (const wx of [qx - 18, qx + 18]) { tx.fillStyle = '#2a2140'; tx.beginPath(); tx.arc(wx, qy - 8, 8, 0, Math.PI * 2); tx.fill(); R(wx - 2, qy - 10, 4, 4, '#9aa0b5'); }
+  R(qx - 26, qy - 40, 16, 14, '#e2603b'); R(qx - 8, qy - 36, 14, 10, '#ffc83d');
+  for (let i = 0; i < 2; i++) ator(colonoQualquer(i + 24).pal, { x: qx + 12 + i * 14, chao: qy - 22, dir: 1, agacha: 0.6, alegre: !para, cabeca: para ? -4 : 0 }, t + i, 2.2);
+  roverT(rx, yr, t, { anda, ang, farol: true });
+  if (anda) for (let i = 0; i < 5; i++) { const q = (t * 2 + i / 5) % 1; tx.globalAlpha = 0.5 * (1 - q); R(rx - 50 - q * 26, yr - 6 - q * 12, 4, 4, '#e8b48c'); tx.globalAlpha = 1; }
+  return () => {
+    texto('EXPEDIÇÃO NORTE', W / 2, 220, 42, COR.ouro, { maxW: W - 140 });
+    if (para) texto('A TRILHA SUMIU NA AREIA', W / 2, 290, 26, '#ffffff', { maxW: W - 140 });
+  };
+}
+function tomadaExpAcampamento(t, k) {
+  // anoitecer nas dunas: a barraca inflável enche, o rover estaciona de farol aceso, um colono finca a antena do rádio
+  const g = tx.createLinearGradient(0, 0, 0, TH); g.addColorStop(0, lerp(0, 1, k) > 0.5 ? '#120e24' : '#2a1a34'); g.addColorStop(0.7, '#6a3436'); g.addColorStop(1, '#8a4a34');
+  tx.fillStyle = g; tx.fillRect(0, 0, TW, TH);
+  for (let i = 0; i < 50; i++) if (hashT(i, 141) < 0.3 + k) R(hashT(i, 142) * TW, hashT(i, 143) * TH * 0.45, 1, 1, '#ffffff');
+  dunasLonge(t, 0.56, ['#5a2a2a', '#4a2222']);
+  const chao = TH * 0.68;
+  chaoT(chao, '#7a3a28', '#5e2a1c');
+  // barraca inflável: meia cúpula que cresce, com faixas e a janelinha acesa
+  const enche = saida(clamp(k / 0.45)), bx = TW * 0.34, br = 54 * enche;
+  if (br > 2) {
+    tx.fillStyle = '#eef0f8'; tx.beginPath(); tx.ellipse(bx, chao, br, br * 0.8, 0, Math.PI, 0); tx.fill();
+    for (let i = 1; i < 4; i++) { tx.strokeStyle = '#c9ced9'; tx.lineWidth = 2; tx.beginPath(); tx.ellipse(bx, chao, br * i / 4, br * 0.8, 0, Math.PI, 0); tx.stroke(); }
+    if (enche > 0.9) { R(bx - 8, chao - 30, 16, 12, '#ffe58a'); tx.globalAlpha = 0.25; R(bx - 30, chao - 4, 60, 6, '#ffe58a'); tx.globalAlpha = 1; }
+  }
+  // o rover estacionado à direita, farol aceso iluminando a areia
+  const rx = TW * 0.78;
+  roverT(rx, chao, t, { farol: true });
+  tx.globalAlpha = 0.18; tx.fillStyle = '#fff4c2'; tx.beginPath(); tx.moveTo(rx + 54, chao - 64); tx.lineTo(TW, chao - 90); tx.lineTo(TW, chao); tx.fill(); tx.globalAlpha = 1;
+  // antena do rádio fincada pelo colono: sobe e começa a piscar
+  const ax = TW * 0.08 + 20, sobe = clamp((k - 0.4) / 0.3), h = 90 * saida(sobe);
+  if (h > 2) { R(ax - 1, chao - h, 3, h, '#9aa0b5'); if (sobe >= 1 && Math.floor(t * 2) % 2) R(ax - 3, chao - h - 4, 7, 7, '#ff4d4d'); }
+  const c = colonoQualquer(26), xc = ax + 18;
+  ator(c.pal, { x: xc, chao, dir: -1, maoF: { x: ax + 2, y: chao - Math.min(60, h * 0.6 + 20) }, maoT: { x: ax + 4, y: chao - Math.min(50, h * 0.5 + 14) }, alegre: sobe >= 1 }, t, 2.6);
+  // segundo colono sentado na porta da barraca, olhando o horizonte do norte
+  if (enche > 0.9) ator(colonoQualquer(25).pal, { x: bx + br + 10, chao, dir: 1, agacha: 0.7, cabeca: -3 }, t, 2.6);
+  if (sobe >= 1) for (let i = 0; i < 3; i++) { const q = ((t * 0.8 + i / 3) % 1); tx.globalAlpha = 1 - q; tx.strokeStyle = '#3fd0c9'; tx.lineWidth = 1; tx.beginPath(); tx.arc(ax + 1, chao - h - 1, 6 + q * 26, -2.4, -0.7); tx.stroke(); tx.globalAlpha = 1; }
+  return () => texto('ACAMPAMENTO NORTE', W / 2, 220, 40, COR.agua, { maxW: W - 140 });
+}
 // trechos de tempo de cada etapa dentro da fala da missão (frac = fração do texto; a fala é quase linear)
 function trechosDasEtapas(m, inteiro = false) {
   const ws = m.palavras || [], fi = ws.length ? ws[0].i : m.fala_inicio, ff = ws.length ? ws[ws.length - 1].f : m.fim;
@@ -1851,7 +2138,18 @@ function prepararTomadas() {
     add(rover - 0.1, mas - 0.05, 'rover', r); add(mas - 0.05, DUNAS_MAPA.t0 - 0.05, 'marcas', r);
     add(Math.max(ninguem - 0.1, DUNAS_MAPA.t0 + 1.8), r.fim - 0.2, 'curiosos', r);
   }
-  if (FUND) add(FUND.ini, FUND.fim, 'fundacao', FUND.c);
+  // resultado SIM da expedição pro norte: travessia seguindo as marcas → acampamento ("Eles montaram acampamento")
+  const exp = EP.cenas.find((c) => c.tipo === 'resultado' && c.votacao && c.votacao.id === 'expedicao-norte' && c.votacao.resultado === 'sim');
+  if (exp) {
+    const rover = palavraEm(exp, /^rover/i) ?? exp.fala_inicio + (exp.fim - exp.fala_inicio) * 0.3;
+    const eles = palavraEm(exp, /^eles/i, rover) ?? rover + (exp.fim - rover) * 0.6;
+    add(rover - 0.4, eles - 0.05, 'expTravessia', exp); add(eles - 0.05, exp.fim - 0.2, 'expAcampamento', exp);
+  }
+  if (FUND && (FUND.c.tomadas || []).length) {   // fundação exclusiva da obra: cada etapa no seu trecho da fala
+    const f = FUND.c, ws = f.palavras || [], fi = ws.length ? ws[0].i : f.fala_inicio, ff = ws.length ? ws[ws.length - 1].f : f.fim;
+    f.tomadas.forEach((e, j, arr) => add(fi + e.frac[0] * (ff - fi) - 0.15,
+      j === arr.length - 1 ? fi + e.frac[1] * (ff - fi) + 0.2 : fi + arr[j + 1].frac[0] * (ff - fi) - 0.15, e.tipo, f));
+  } else if (FUND) add(FUND.ini, FUND.fim, 'fundacao', FUND.c);
   // refino (ep. 8): chegada de quem entrou, batismo da cratera, resultado do telescópio, inauguração e assembleia
   const bv = EP.cenas.find((c) => c.tipo === 'boas_vindas');
   if (bv) add(bv.fala_inicio + 0.2, (palavraEm(bv, /^casa/i, bv.fala_inicio + 1) ?? bv.fim) - 0.35, 'boasVindas', bv);
@@ -1868,7 +2166,8 @@ function prepararTomadas() {
     if (/amostra/i.test(m.fala) && !TOMADAS.some((x) => x.cena === m)) add(m.fala_inicio + 0.2, m.fim - 0.2, 'amostra', m);
   }
   const lig = EP.cenas.find((c) => c.tipo === 'missao' && c.acao === 'ligar');
-  if (lig) add(lig.fala_inicio + 0.1, lig.fim - 0.2, 'inauguracao', lig);
+  if (lig && (lig.tomadas || []).length) for (const [ini, fim, tipo] of trechosDasEtapas(lig)) add(ini, fim, tipo, lig);
+  else if (lig) add(lig.fala_inicio + 0.1, lig.fim - 0.2, 'inauguracao', lig);
   const vt = EP.cenas.find((c) => c.tipo === 'votacao');
   if (vt) add(vt.fala_inicio + 0.3, (palavraEm(vt, /^escreve/i, vt.fala_inicio + 2) ?? vt.fim) - 0.2, 'assembleia', vt);
   // Correio da colônia: uma tomada só do primeiro ao último comentário respondido (o estúdio não corta no meio)
@@ -1896,7 +2195,10 @@ function desenharTomada(tm, t) {
                   amostra: tomadaAmostra, ventania: tomadaVentania, amarraLona: tomadaAmarraLona, persiana: tomadaPersiana,
                   tVentania: comCCTV(tomadaVentania, 'CAM 01 · CANTEIRO'), tAmarra: comCCTV(tomadaAmarraLona, 'CAM 01 · CANTEIRO'),
                   tPersiana: comCCTV(tomadaPersiana, 'CAM 05 · VILAREJO'), tInauguracao: comCCTV(tomadaInauguracao, 'CAM 02 · EXTRATOR'),
-                  cmdAranha: tomadaCmdAranha, cmdCasco: tomadaCmdCasco, cmdJanelas: tomadaCmdJanelas };
+                  cmdAranha: tomadaCmdAranha, cmdCasco: tomadaCmdCasco, cmdJanelas: tomadaCmdJanelas,
+                  cmdPainel: tomadaCmdPainel, cmdCupula: tomadaCmdCupula, cmdTerra: tomadaCmdTerra,
+                  oxiRolo: tomadaOxiRolo, oxiImpressora: tomadaOxiImpressora,
+                  expTravessia: tomadaExpTravessia, expAcampamento: tomadaExpAcampamento };
   const fn = tm.tipo.startsWith('cctv:') ? comCCTV(extraFn[tm.tipo.slice(5)], 'CAM 03 · CANTEIRO') : extraFn[tm.tipo];
   const extra = fn(t, k, tm.cena);
   tx.globalAlpha = 1;

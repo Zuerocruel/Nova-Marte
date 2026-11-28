@@ -348,7 +348,7 @@ def dados_episodios() -> dict:
             # cortes curtos do Instagram/TikTok (cortes.py); o vídeo acima é o completo, que vai para o YouTube
             "cortes": {r: f"/midia/{pasta.name}/{c.name}?v={int(c.stat().st_mtime)}"
                        for r in ("instagram", "tiktok") if (c := pasta / f"episodio_{n:03d}_{r}.mp4").exists()},
-            "cortes_desde": pub.CORTES_DESDE,
+            "cortes_desde": pub.CORTES_DESDE, "cortes_ate": pub.CORTES_ATE,
             "gerado_em": datetime.fromtimestamp(v.stat().st_mtime, timezone.utc).isoformat(timespec="seconds") if v else None,
             "aprovado_em": e.get("aprovado_em"),
             "agendado_para": e.get("agendado_para"),

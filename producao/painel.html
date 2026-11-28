@@ -474,7 +474,7 @@ async function rEpisodios() {
     const estado = e.publicado_em ? '<span class="st publicado">publicado</span>' : e.aprovado_em ? '<span class="st aprovado">aprovado</span>' : e.video ? '<span class="st aguardando">aguardando aprovação</span>' : '<span class="st neutro">sem vídeo</span>';
     return bloco('ep' + e.numero, `<div class="card"><div class="ep">
       <div>${e.video ? `<video controls preload="metadata" src="${e.video}"></video>` : '<p class="mudo">Ainda sem vídeo.</p>'}
-        ${e.numero >= e.cortes_desde ? `<p class="mudo" style="margin:6px 0 2px">▲ completo → YouTube · cortes curtos:</p>
+        ${e.numero >= e.cortes_desde && e.numero <= e.cortes_ate ? `<p class="mudo" style="margin:6px 0 2px">▲ completo → YouTube · cortes curtos:</p>
         <div class="linha" style="gap:6px;align-items:flex-start">${['instagram', 'tiktok'].map((r) => e.cortes[r]
           ? `<div><div class="mudo">${r === 'instagram' ? '📸 Instagram' : '🎵 TikTok'}</div><video controls preload="metadata" src="${e.cortes[r]}" style="width:120px"></video></div>`
           : `<div class="mudo">${r === 'instagram' ? '📸' : '🎵'} sem corte</div>`).join('')}</div>` : ''}</div>

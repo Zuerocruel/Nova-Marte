@@ -102,6 +102,12 @@ def _obra(r: dict, rnd: random.Random) -> list[dict]:
         constroi = R.cena("missao_1", "missao", R.Fala().add(rnd.choice([
             f"E {art} {nome} ficou {pronta} hoje!", f"Último dia de obra: {art} {nome} chega a cem por cento!"])),
             passo=4, acao="construir", camera={"alvo": "obra", "zoom": 6}, extra=0, progresso=[a, 1], atores={})
+        # as animações exclusivas do último dia (etapas + cenas originais com tomada) passam durante a fala
+        tipos = [e["tipo"] for c in missao[:4] for e in c.get("tomadas", [])]
+        if tipos:
+            constroi["tomadas"] = [{"tipo": tp, "frac": [round(i / len(tipos), 3), round((i + 1) / len(tipos), 3)]}
+                                   for i, tp in enumerate(tipos)]
+            constroi["extra"] = 1.2 * len(tipos) / 2
         liga = limpa(missao[4], id="missao_2", passo=5)
         return [constroi, liga]
     fala = rnd.choice([f"Enquanto isso, {art} {nome} chegou a {R.extenso(p1)} por cento.",

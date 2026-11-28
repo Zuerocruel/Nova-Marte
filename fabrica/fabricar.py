@@ -25,6 +25,7 @@ import navegador
 import roteiro
 import voz
 
+CORTES_ATE = 9   # igual a producao/publicacao.py
 ETAPAS = ["coleta", "roteiro", "voz", "tempo", "filmagem", "montagem", "cortes"]
 
 
@@ -92,7 +93,8 @@ def main() -> None:
         print(f"  episódio completo (YouTube): {final}")
 
     sem_voz = all(not f.get("audio") for f in falas.values())
-    if faz("cortes") and not sem_voz and n >= 2:
+    # cortes curtos só existiram do ep. 7 ao 9: do 10 em diante todas as redes recebem o episódio completo
+    if faz("cortes") and not sem_voz and n >= 2 and n <= CORTES_ATE:
         print("7/7 cortes curtos (Instagram e TikTok; o YouTube fica com o episódio completo)")
         for rede in cortes.REDES:
             cortes.gerar(n, rede, abas=a.abas)

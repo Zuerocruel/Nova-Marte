@@ -128,10 +128,10 @@ def estado_painel() -> dict:
 
 
 def video_da_rede(numero: int, rede: str) -> Path:
-    """YouTube = episódio completo. Instagram/TikTok = o corte curto da rede (a partir de CORTES_DESDE)."""
+    """Episódio completo em todas as redes; só os eps CORTES_DESDE..CORTES_ATE tiveram corte curto no IG/TikTok."""
     import config  # fabrica/config.py
     pasta = config.pasta_episodio(numero)
-    if rede in ("instagram", "tiktok") and numero >= CORTES_DESDE:
+    if rede in ("instagram", "tiktok") and CORTES_DESDE <= numero <= CORTES_ATE:
         return pasta / f"episodio_{numero:03d}_{rede}.mp4"
     return pasta / f"episodio_{numero:03d}.mp4"
 
@@ -242,7 +242,8 @@ def exigir_liberado_apresentacao(rede: str, ensaio: bool = False) -> dict:
     return {"imagens": imagens, "copy": {"legenda": legenda}}
 
 
-CORTES_DESDE = 7      # do episódio 7 em diante o Instagram e o TikTok recebem o corte curto (cortes.py)
+CORTES_DESDE = 7      # do episódio 7 ao 9 o Instagram e o TikTok receberam o corte curto (cortes.py)
+CORTES_ATE = 9        # do 10 em diante voltam a receber o episódio COMPLETO (decisão do dono em 2026-11-28)
 CARROSSEL_DESDE = 4   # o carrossel do Instagram começa no episódio 4 (os anteriores não têm)
 
 

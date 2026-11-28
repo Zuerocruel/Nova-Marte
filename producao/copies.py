@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fabrica"))
 import config  # noqa: E402  (config da fábrica: nome do site, pastas)
-from publicacao import CORTES_DESDE, sem_link  # noqa: E402  (Instagram/TikTok nunca levam link)
+from publicacao import CORTES_ATE, CORTES_DESDE, sem_link  # noqa: E402  (Instagram/TikTok nunca levam link)
 
 NOME = "Operação Marte Zero"
 PLATAFORMAS = {
@@ -237,7 +237,7 @@ def montar(n: int, r: dict, lt: dict | None, linhas_pauta: list[str], g: dict, t
     yt_desc += ["", tags]
 
     # do CORTES_DESDE em diante o IG/TikTok recebem um corte curto: a votação e o final ficam no YouTube
-    corte = n >= CORTES_DESDE
+    corte = CORTES_DESDE <= n <= CORTES_ATE   # do ep. 10 em diante o IG/TikTok voltam a ter o episódio completo
     yt_cta = "🎬 Episódio COMPLETO (com a votação de hoje) no YouTube: Operação Marte Zero"
     comentar_ig = [yt_cta, "", "💬 Comenta aqui o que você achou! 👇"] if corte else [f"💬 {g['comentar']}"]
     ig = [f"🚀 {titulo}", f"{NOME} · Episódio {n} · Missão do Dia: {missao}.", "", por_rede["instagram"], "",

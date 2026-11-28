@@ -524,6 +524,7 @@
           },
           {
             "fala": "Doutora Lia encaixa a cúpula do telescópio e aponta para o céu.",
+            "tomada": "cmdCupula",
             "acao": "construir",
             "camera": {
               "alvo": "ator:lia",
@@ -542,6 +543,7 @@
           },
           {
             "fala": "Módulo de Comando pronto! Hoje à noite tem fila no telescópio para ver a Terra, um pontinho azul.",
+            "tomada": "cmdTerra",
             "acao": "ligar",
             "camera": {
               "alvo": "colonia",
@@ -571,6 +573,12 @@
             "ate": 0.88,
             "tomada": "cmdJanelas",
             "fala": "Depois, as janelas de vidro grosso, viradas para a colônia."
+          },
+          {
+            "de": 0.88,
+            "ate": 1.0,
+            "tomada": "cmdPainel",
+            "fala": "Lá dentro, os cabos chegam à mesa de controle, e as telas acendem uma por uma."
           }
         ]
       }
@@ -591,6 +599,20 @@
       "missao": {
         "titulo": "Respirar sem a Terra",
         "proxima": "a Oficina dos Robôs",
+        "fundacao": {
+          "abre": "Com a obra pronta, ninguém foi descansar: a colônia já começou o Gerador de Oxigênio.",
+          "etapas": [
+            {
+              "tomada": "oxiRolo",
+              "fala": "Primeiro, um rolo vibratório amassa o chão até ficar liso."
+            },
+            {
+              "tomada": "oxiImpressora",
+              "fala": "Depois, um pórtico gigante, sobre trilhos, derrete enxofre com areia marciana e imprime a base, camada por camada."
+            }
+          ],
+          "fecha": "Fim do dia: base pronta, {pct} por cento!"
+        },
         "cenas": [
           {
             "fala": "Missão do Dia: montar o Gerador de Oxigênio. O ar de Marte é quase todo gás carbônico, e a gente vai transformar isso em ar para respirar.",

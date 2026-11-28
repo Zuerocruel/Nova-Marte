@@ -360,8 +360,11 @@ def cenas_da_missao(d: dict, obra: dict, missao: dict, p0: int, p1: int, rnd: ra
 
     def original(i: int, prog=None) -> dict:
         mc = base[i]
-        return {"fala": mc["fala"], "acao": mc["acao"], "camera": mc["camera"], "extra": mc.get("extra", 0),
-                "progresso": prog if prog is not None else mc.get("progresso", [0, 0]), "atores": mc.get("atores", {})}
+        o = {"fala": mc["fala"], "acao": mc["acao"], "camera": mc["camera"], "extra": mc.get("extra", 0),
+             "progresso": prog if prog is not None else mc.get("progresso", [0, 0]), "atores": mc.get("atores", {})}
+        if mc.get("tomada"):   # a cena original tem animação própria (ex.: Lia encaixando a cúpula)
+            o["tomadas"] = [{"tipo": mc["tomada"], "frac": [0.0, 1.0]}]
+        return o
 
     def generica(fala: str, acao: str, alvo: str, zoom: float, prog) -> dict:
         return {"fala": fala, "acao": acao, "camera": {"alvo": alvo, "zoom": zoom}, "progresso": prog, "atores": {}}
@@ -373,7 +376,9 @@ def cenas_da_missao(d: dict, obra: dict, missao: dict, p0: int, p1: int, rnd: ra
 
     def com_etapas(fallback: str, de: float, ate: float, depois: str = "") -> tuple[str, list]:
         """Fala das etapas que caem em [de, ate) (ainda não usadas) + as tomadas, cada uma com a sua fração da fala."""
-        achadas = [i for i, e in enumerate(etapas) if i not in usadas and e["de"] < max(ate, de + 0.001) and e["ate"] > de]
+        # só as etapas que COMEÇAM a partir do progresso de hoje (a): a que começou ontem já passou no episódio de ontem
+        achadas = [i for i, e in enumerate(etapas) if i not in usadas and e["de"] >= a - 1e-6
+                   and e["de"] < max(ate, de + 0.001) and e["ate"] > de]
         if not achadas:
             return fallback, []
         usadas.update(achadas)
@@ -571,9 +576,22 @@ def montar(d: dict) -> dict:
         nome2 = seguinte["nome"]
         art = "a" if nome2.split()[0].lower().endswith("a") else "o"
         obra_extra = {"slug": seguinte["slug"], "progresso": FUNDACAO_PCT, "dias": 1}
-        f = Fala().add(rnd.choice(FUNDACAO_FALAS).format(obra=nome2, art=art, Art=art.upper(), pct=extenso(FUNDACAO_PCT)))
+        fp = catalogo[seguinte["slug"]].get("missao", {}).get("fundacao")
+        extra_fund = {}
+        if fp:   # fundação EXCLUSIVA da obra (colonia.json missao.fundacao): aplainar + base, com animação própria
+            partes = [fp["abre"]] + [e["fala"] for e in fp["etapas"]] + [fp["fecha"].format(pct=extenso(FUNDACAO_PCT))]
+            texto = " ".join(partes)
+            tms, pos = [], len(fp["abre"])
+            for e in fp["etapas"]:
+                ini = texto.index(e["fala"], pos)
+                pos = ini + len(e["fala"])
+                tms.append({"tipo": e["tomada"], "frac": [round(ini / len(texto), 3), round(pos / len(texto), 3)]})
+            f = Fala().add(texto)
+            extra_fund = {"tomadas": tms}
+        else:
+            f = Fala().add(rnd.choice(FUNDACAO_FALAS).format(obra=nome2, art=art, Art=art.upper(), pct=extenso(FUNDACAO_PCT)))
         cenas.append(cena("fundacao", "fundacao", f, camera={"alvo": f"obra:{seguinte['slug']}", "zoom": 5},
-                          obra=seguinte["slug"], obra_nome=nome2, progresso=[0, FUNDACAO_PCT / 100]))
+                          obra=seguinte["slug"], obra_nome=nome2, progresso=[0, FUNDACAO_PCT / 100], **extra_fund))
         proxima = f"{art} {nome2} sobe do chão"
 
     # 5b. problema RESOLVIDO (quem resolve é um colono de verdade, chamado pelo nome)
