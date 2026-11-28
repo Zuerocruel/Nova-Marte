@@ -684,7 +684,7 @@ function planejarVida() {
   const obra = obraDaMissao();
   const r = obra ? retanguloDe(obra) : null;
   const perto = (c) => Math.hypot(c.x * CASA - (r ? (r.x0 + r.x1) / 2 : 0), c.y * CASA - (r ? r.y1 : 0));
-  const ajudantes = r && miss.length ? EP.mundo.colonos.slice().sort((a, b) => perto(a) - perto(b)).slice(0, 10) : [];
+  const ajudantes = r && miss.length ? EP.mundo.colonos.filter((c) => !c.ausente).sort((a, b) => perto(a) - perto(b)).slice(0, 10) : [];
   EP.mundo.colonos.forEach((c, k) => {
     const casa = { x: c.x * CASA + 11, y: c.y * CASA + 19 };   // na frente da porta (sem esconder a casinha)
     let pos = casa;
@@ -898,7 +898,7 @@ function posColono(c, t) {
     andando = Math.abs(Math.cos(fase)) > 0.75;
     dir = Math.cos(fase) >= 0 ? 1 : -1;
   }
-  const visivel = !(c.dentro && t >= c.dentro[0] && t < c.dentro[1]) && !(c.noite != null && t >= c.noite);
+  const visivel = !c.ausente && !(c.dentro && t >= c.dentro[0] && t < c.dentro[1]) && !(c.noite != null && t >= c.noite);
   const trabalhando = !!c.trabalho && !andando && t >= c.trabalho[0] && t < c.trabalho[1];
   return { x: pos.x, y: pos.y, andando, dir, visivel, trabalhando };
 }

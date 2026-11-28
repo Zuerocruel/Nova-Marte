@@ -1,0 +1,24 @@
+{
+  "_leia": "Expedição Norte (resultado SIM da votação do ep. 9). VinnY e Batata partiram no ep. 10 e ficam AUSENTES da colônia: somem do mapa do vídeo e do Mundo ao vivo (a casa continua), não viram herói nem aparecem nas tomadas. No episódio volta_rover_ep o rover volta SOZINHO com a atualização e o aviso de perigo (cena 'expedicao'); depois a série principal segue normal. O que acontece com os dois é a série secundária do YouTube (pasta VIDEOS LONGOS): ela não mexe aqui, só cruza com a principal quando o dono decidir. Quando eles voltarem, marque ativa=false.",
+  "id": "expedicao-norte",
+  "nome": "Expedição Norte",
+  "ativa": true,
+  "membros": [
+    "NM000015",
+    "NM000021"
+  ],
+  "partiu_ep": 10,
+  "volta_rover_ep": 13,
+  "cena_volta": {
+    "fala": "Alerta no portão norte! O rover da expedição voltou das dunas, sozinho. No reboque, só caixas de amostras e um mapa novo do norte. Do VinnY e do Batata, nenhum sinal desde ontem. No painel, o último diário de bordo, gravado antes de o rádio cair: Tempestade chegando. Perdemos a trilha. Se vocês ouvirem isso, não venham pelas dunas. É perigoso demais.",
+    "tomadas": [
+      {
+        "tipo": "voltaRover",
+        "fala_ate": "No painel"
+      },
+      {
+        "tipo": "voltaMensagem"
+      }
+    ]
+  }
+}

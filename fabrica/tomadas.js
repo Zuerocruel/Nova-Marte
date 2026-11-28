@@ -162,7 +162,7 @@ function heroiDaTomada() {
   return { nome: f.curto || f.nome, pal: FUNDADOR_PAL[f.id] || FUNDADOR_PAL.vega };
 }
 function colonoQualquer(i) {
-  const cs = EP.mundo.colonos;
+  const cs = EP.mundo.colonos.filter((c) => !c.ausente);   // quem está na expedição não aparece na colônia
   if (!cs.length) return heroiDaTomada();
   return pessoaT(cs[(EP.numero * 3 + i * 5) % cs.length]);
 }
@@ -2092,6 +2092,73 @@ function tomadaExpAcampamento(t, k) {
   if (sobe >= 1) for (let i = 0; i < 3; i++) { const q = ((t * 0.8 + i / 3) % 1); tx.globalAlpha = 1 - q; tx.strokeStyle = '#3fd0c9'; tx.lineWidth = 1; tx.beginPath(); tx.arc(ax + 1, chao - h - 1, 6 + q * 26, -2.4, -0.7); tx.stroke(); tx.globalAlpha = 1; }
   return () => texto('ACAMPAMENTO NORTE', W / 2, 220, 40, COR.agua, { maxW: W - 140 });
 }
+// ================================================================== Expedição Norte: o rover volta SOZINHO (ep. 13)
+// 1) portão norte na poeira: o rover chega devagar, sem ninguém no reboque, só caixas de amostras e o mapa enrolado;
+//    dois colonos correm até ele e um espia o reboque vazio. 2) dentro do Módulo de Comando: o painel toca a gravação
+//    do Batata (onda de áudio, "NÃO VENHAM"), Vega e Lia ouvem; no mapinha, a trilha some na tempestade ("?").
+function tomadaVoltaRover(t, k) {
+  ceuT(0.2, 0.35); dunasLonge(t, 0.46);
+  const chao = TH * 0.66;
+  chaoT(chao, '#b8603a', '#94482a');
+  vento(t, 30, 0.8);
+  // portão norte: dois postes com luz âmbar girando e a placa
+  const gx = TW * 0.13;
+  for (const px of [gx - 26, gx + 26]) { R(px - 3, chao - 70, 6, 70, '#6b6f86'); R(px - 5, chao - 78, 10, 8, Math.floor(t * 3) % 2 ? '#ffc83d' : '#a8841f'); }
+  R(gx - 32, chao - 92, 64, 12, '#2a2140'); R(gx - 30, chao - 90, 60, 8, '#4a4466');
+  // o rover vem da direita (do norte) e para no portão; o reboque atrás, vazio
+  const q = suave(clamp(k / 0.55)), rx = lerp(TW + 110, TW * 0.74, q), anda = q < 1;
+  const qx = rx - 92;
+  seg({ x: qx + 30, y: chao - 14 }, { x: rx - 50, y: chao - 14 }, 2, '#6b6f86');
+  R(qx - 30, chao - 26, 60, 14, '#9aa0b5'); R(qx - 30, chao - 26, 60, 2, '#c9ced9');
+  for (const wx of [qx - 18, qx + 18]) { tx.fillStyle = '#2a2140'; tx.beginPath(); tx.arc(wx, chao - 8, 8, 0, Math.PI * 2); tx.fill(); R(wx - 2, chao - 10, 4, 4, '#9aa0b5'); }
+  R(qx - 24, chao - 38, 14, 12, '#c9a24a'); R(qx - 8, chao - 36, 12, 10, '#c9a24a'); R(qx + 8, chao - 34, 16, 6, '#eef0f8');   // caixas + mapa enrolado
+  roverT(rx, chao, t, { anda, farol: true });
+  if (anda) for (let i = 0; i < 5; i++) { const p = (t * 2 + i / 5) % 1; tx.globalAlpha = 0.5 * (1 - p); R(rx + 50 + p * 30, chao - 6 - p * 14, 4, 4, '#e8b48c'); tx.globalAlpha = 1; }
+  // dois colonos correm do portão; o primeiro olha o reboque vazio ("?") e o outro leva a mão à cabeça
+  const corre = clamp((k - 0.5) / 0.3);
+  const ca = colonoQualquer(30), cb = colonoQualquer(31);
+  const xa = lerp(gx + 6, qx - 42, saida(corre)), xb = lerp(gx - 14, qx - 66, saida(corre));
+  const ra = ator(ca.pal, { x: xa, chao, dir: 1, anda: corre > 0 && corre < 1 ? t * 14 : null, cabeca: corre >= 1 ? 4 : 0 }, t, 2.6);
+  const rb = ator(cb.pal, { x: xb, chao, dir: 1, anda: corre > 0 && corre < 1 ? t * 14 + 1 : null, susto: corre >= 1,
+    maoF: corre >= 1 ? { x: xb + 4, y: chao - 84 } : null }, t, 2.6);
+  if (corre >= 1) { bolha('?', ra.cab.x, ra.cab.y - 10, k - 0.8, '#ffffff', 44); exclamacao(rb.cab.x, rb.cab.y - 6, t, 2.6); }
+  return () => {
+    texto('PORTÃO NORTE', W / 2, 220, 40, COR.ouro, { maxW: W - 140 });
+    if (k > 0.55) texto('O ROVER VOLTOU SOZINHO', W / 2, 290, 28, '#ffffff', { maxW: W - 140 });
+  };
+}
+function tomadaVoltaMensagem(t, k) {
+  TREMOR = 0;
+  R(0, 0, TW, TH, '#16122a');
+  for (let x = 0; x < TW; x += 45) R(x, 0, 3, TH * 0.72, '#1f1a36');
+  const chao = TH * 0.95;
+  R(0, chao, TW, TH - chao, '#2a2140');
+  // painel grande: onda da gravação + legenda piscando + mapinha com o buraco
+  const px = 22, py = 96, pw = TW - 44, ph = 190;
+  R(px - 4, py - 4, pw + 8, ph + 8, '#4a4466'); R(px, py, pw, ph, '#07060f');
+  const onda = 26, cy = py + 52;
+  for (let x = 0; x < pw - 16; x += 3) {
+    const a = (Math.sin(x * 0.21 + t * 9) * 0.6 + Math.sin(x * 0.07 - t * 4) * 0.4) * (0.4 + 0.6 * hashT(Math.floor(x / 9), Math.floor(t * 8))) * onda;
+    R(px + 8 + x, cy - Math.abs(a), 2, Math.abs(a) * 2 + 1, x / (pw - 16) < k ? '#3fd0c9' : '#2a4a56');
+  }
+  R(px + 8, py + 8, 8, 8, Math.floor(t * 2) % 2 ? '#e04f5f' : '#5a1f28');   // REC
+  // mapinha: a trilha tracejada sobe para o norte e acaba num círculo escuro (o buraco)
+  const mx = px + 14, my = py + 98, mw = pw - 28, mh = 80;
+  R(mx, my, mw, mh, '#3a1e16');
+  for (let i = 0; i < 9; i++) R(mx + 10 + i * 12, my + mh - 10 - i * 6, 6, 2, '#ffc83d');
+  const bx = mx + 10 + 9 * 12 + 6, by = my + mh - 10 - 9 * 6 + 2;
+  // onde o sinal caiu: um "?" piscando e a poeira da tempestade cobrindo o resto do mapa
+  tx.globalAlpha = 0.55; for (let i = 0; i < 40; i++) R(bx - 10 + hashT(i, 151) * (mx + mw - bx + 6), my + hashT(i, 152) * mh * 0.6, 4, 2, '#c98a5e'); tx.globalAlpha = 1;
+  if (Math.floor(t * 3) % 2) { R(bx - 3, by - 10, 6, 2, '#e04f5f'); R(bx + 1, by - 8, 2, 5, '#e04f5f'); R(bx - 1, by - 3, 2, 3, '#e04f5f'); R(bx - 1, by + 2, 2, 2, '#e04f5f'); }
+  // Vega e Lia de costas para nós, ouvindo; Lia leva a mão à boca no fim
+  const vx = TW * 0.36, lx = TW * 0.64;
+  ator(FUNDADOR_PAL.vega, { x: vx, chao, dir: 1, cabeca: -3 }, t, 3);
+  ator(FUNDADOR_PAL.lia, { x: lx, chao, dir: -1, cabeca: -3, susto: k > 0.75, maoF: k > 0.75 ? { x: lx - 6, y: chao - 70 } : null }, t, 3);
+  return () => {
+    texto('GRAVAÇÃO · EXPEDIÇÃO NORTE', W / 2, 240, 28, COR.agua, { maxW: W - 120 });
+    if (k > 0.7) texto(Math.floor(t * 2.5) % 2 ? 'NÃO VENHAM' : '', W / 2, (py + ph + 40) * TE, 54, COR.alerta, { maxW: W - 120 });
+  };
+}
 // trechos de tempo de cada etapa dentro da fala da missão (frac = fração do texto; a fala é quase linear)
 function trechosDasEtapas(m, inteiro = false) {
   const ws = m.palavras || [], fi = ws.length ? ws[0].i : m.fala_inicio, ff = ws.length ? ws[ws.length - 1].f : m.fim;
@@ -2138,6 +2205,9 @@ function prepararTomadas() {
     add(rover - 0.1, mas - 0.05, 'rover', r); add(mas - 0.05, DUNAS_MAPA.t0 - 0.05, 'marcas', r);
     add(Math.max(ninguem - 0.1, DUNAS_MAPA.t0 + 1.8), r.fim - 0.2, 'curiosos', r);
   }
+  // Expedição Norte: o rover volta sozinho (cena 'expedicao', ep. 13): portão → gravação no painel
+  const volta = EP.cenas.find((c) => c.tipo === 'expedicao' && (c.tomadas || []).length);
+  if (volta) for (const [ini, fim, tipo] of trechosDasEtapas(volta)) add(ini, fim, tipo, volta);
   // resultado SIM da expedição pro norte: travessia seguindo as marcas → acampamento ("Eles montaram acampamento")
   const exp = EP.cenas.find((c) => c.tipo === 'resultado' && c.votacao && c.votacao.id === 'expedicao-norte' && c.votacao.resultado === 'sim');
   if (exp) {
@@ -2198,7 +2268,8 @@ function desenharTomada(tm, t) {
                   cmdAranha: tomadaCmdAranha, cmdCasco: tomadaCmdCasco, cmdJanelas: tomadaCmdJanelas,
                   cmdPainel: tomadaCmdPainel, cmdCupula: tomadaCmdCupula, cmdTerra: tomadaCmdTerra,
                   oxiRolo: tomadaOxiRolo, oxiImpressora: tomadaOxiImpressora,
-                  expTravessia: tomadaExpTravessia, expAcampamento: tomadaExpAcampamento };
+                  expTravessia: tomadaExpTravessia, expAcampamento: tomadaExpAcampamento,
+                  voltaRover: tomadaVoltaRover, voltaMensagem: tomadaVoltaMensagem };
   const fn = tm.tipo.startsWith('cctv:') ? comCCTV(extraFn[tm.tipo.slice(5)], 'CAM 03 · CANTEIRO') : extraFn[tm.tipo];
   const extra = fn(t, k, tm.cena);
   tx.globalAlpha = 1;

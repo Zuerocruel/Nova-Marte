@@ -120,7 +120,7 @@ def escolher(n: int, d: dict, hist: list[dict] | None = None) -> dict | None:
     # quem resolve: SEMPRE alguém com o cargo certo para o problema (ex.: falta de água → Geologia, Rover,
     # Estufa). Entre os colonos do cargo, sorteia um; se nenhum colono tem o cargo, chama o fundador da
     # área (colonia.json → fundadores[].cargos) e, em último caso, a Comandante Vega.
-    colonos = [c for c in d.get("mundo", []) if c.get("falado")]
+    colonos = [c for c in d.get("mundo", []) if c.get("falado") and not c.get("ausente")]
     cargos = config.cargos()
     serve = lambda cargo: p["categoria"] in cargos.get(cargo or "", {}).get("categorias", [])
     do_cargo = [c for c in colonos if serve(c.get("cargo"))]

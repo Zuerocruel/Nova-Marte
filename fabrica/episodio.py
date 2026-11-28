@@ -427,6 +427,10 @@ def coletar(numero: int, so_fundadores: bool = False) -> dict:
             "populacao_anterior": len(col["fundadores"]) + total_colonos - novos_total,
         }
     dados["populacao"] = len(col["fundadores"]) + dados["colonos_total"]
+    fora = config.ausentes(numero)
+    for c in dados["mundo"]:
+        if c["codigo"] in fora:
+            c["ausente"] = True   # em expedição: some do mapa e das tomadas (fabrica/expedicao.json)
     return dados
 
 

@@ -22,3 +22,7 @@ producao/dados/
 
 # configurações pessoais do Claude Code
 .claude/settings.local.json
+
+# Vídeos longos (série secundária): saída e cache de voz ficam só neste computador
+VIDEOS LONGOS/saida/
+VIDEOS LONGOS/motor/cache_voz/

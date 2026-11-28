@@ -11,11 +11,12 @@ import {
   desenharBandeira, desenharCapsulaGrande, desenharComercio, desenharFoguete, desenharOutdoor, desenharRover,
   disco, iconeDoProduto, spriteContornado, spriteEstatua, spriteMapa,
 } from '@/lib/colonia-arte';
-import { achados, definirLugares, melhoriasDaCasa, registrarCargo, situacao, situacaoAndarilho, situacaoFundador, situacaoRobo,
+import { achados, definirLugares, melhoriasDaCasa, portaDe, registrarCargo, situacao, situacaoAndarilho, situacaoFundador, situacaoRobo,
          virarParaConversar, type Achado, type Situacao } from '@/lib/vida';
 import { descricaoPet, situacaoPet } from '@/lib/pet';
 import { desenharBola, desenharPet } from '@/lib/pet-arte';
 import { cargoDe } from '@/lib/cargos';
+import { EM_EXPEDICAO, TEXTO_EXPEDICAO } from '@/lib/expedicao';
 import type { AndarilhoNoMapa, EstadoColonia } from '@/lib/colonia';
 import LojaModal from './LojaModal';
 import { liderancaDe, nomeComTitulo, vestirTraje, type Lideranca } from '@/lib/liderancas';
@@ -310,6 +311,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       const e = estadoRef.current;
       const obra = e?.obras.find((o) => o.status !== 'concluida') ?? null;
       const cantina = e?.obras.find((o) => o.slug === 'cantina' && o.status === 'concluida') ?? null;
+      if (EM_EXPEDICAO.has(selecionado.codigo)) { setFazendo(TEXTO_EXPEDICAO); return; }
       const s = situacao(idDoCodigo(selecionado.codigo), Math.max(totalRef.current, 1), Date.now() / 1000, e?.praca ?? null, obra, cantina);
       const temPet = e?.pets?.some((p) => p.codigo === selecionado.codigo);
       const id = idDoCodigo(selecionado.codigo);
@@ -446,13 +448,14 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
             const s = situacao(id, Math.max(n, 1), agoraS, e?.praca ?? null, obraAtual, cantina);
             const casaVisivel = p.pos_x >= vx0 - 1 && p.pos_x <= vx1 + 1 && p.pos_y >= vy0 - 1 && p.pos_y <= vy1 + 1;
             if (casaVisivel) casas.push(p);
+            if (EM_EXPEDICAO.has(p.codigo)) continue;   // fora da colônia (expedição): casa vazia, ninguém andando
             pessoas.push({ p, id, s });
           }
         }
       {   // quem mora na Vila das Cápsulas: carrega o chunk do lote antigo (os dados dele) mesmo fora da vista
         const ja = new Set(pessoas.map((x) => x.p.codigo));
         for (const k of e?.capsulas ?? []) {
-          if (ja.has(k.codigo)) continue;
+          if (ja.has(k.codigo) || EM_EXPEDICAO.has(k.codigo)) continue;
           const cx = Math.floor(k.pos_x / CHUNK), cy = Math.floor(k.pos_y / CHUNK);
           carregarChunk(cx, cy);
           const ch = chunks.current.get(`${cx},${cy}`);
@@ -559,6 +562,7 @@ export default function Mundo({ codigoInicial, novo, mensagens = [], online = []
       if (e) for (const pt of e.pets) {
         const idDono = idDoCodigo(pt.codigo);
         const sp = situacaoPet(idDono, agoraS, (tt) => {
+          if (EM_EXPEDICAO.has(pt.codigo)) { const pd = portaDe(idDono); return { x: pd.x, y: pd.y, dir: 1, fora: false, andando: false }; }
           const so = situacao(idDono, Math.max(n, 1), tt, e.praca ?? null, obraAtual, cantina);
           return { x: so.x, y: so.y, dir: so.dir, fora: so.tipo !== 'casa' && so.tipo !== 'recebe', andando: so.andando };
         });

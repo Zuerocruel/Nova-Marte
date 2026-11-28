@@ -454,6 +454,19 @@ def montar(d: dict) -> dict:
     cenas.append(cena("populacao", "populacao", f, camera={"alvo": "colonia", "zoom": 3.0},
                       contagem=[antes, pop]))
 
+    # 2a. Expedição Norte: o rover volta SOZINHO das dunas com a atualização e o aviso de perigo
+    exp = config.expedicao()
+    if exp.get("ativa") and n == exp.get("volta_rover_ep") and exp.get("cena_volta"):
+        cv = exp["cena_volta"]
+        texto = cv["fala"]
+        tms, pos = [], 0.0
+        for i, tm in enumerate(cv.get("tomadas", [])):
+            ate = texto.find(tm["fala_ate"]) / len(texto) if tm.get("fala_ate") and tm["fala_ate"] in texto else 1.0
+            tms.append({"tipo": tm["tipo"], "frac": [round(pos, 3), round(ate, 3)]})
+            pos = ate
+        cenas.append(cena("expedicao", "expedicao", Fala().add(texto), camera={"alvo": "dunas", "zoom": 3.2},
+                          expedicao=exp["id"], tomadas=tms))
+
     # 2b. resultado da votação do episódio anterior (quem comentou decidiu)
     res = resultado_da_votacao(n)
     if res:

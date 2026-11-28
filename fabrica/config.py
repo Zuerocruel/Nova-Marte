@@ -115,6 +115,18 @@ def colonia() -> dict:
     return ler_json(COLONIA_JSON)
 
 
+def expedicao() -> dict:
+    """Expedição Norte (fabrica/expedicao.json): quem está fora da colônia e quando o rover volta."""
+    arq = FABRICA / "expedicao.json"
+    return ler_json(arq) if arq.exists() else {}
+
+
+def ausentes(n: int) -> set[str]:
+    """Códigos dos colonos que estão FORA da colônia no episódio n (partiram num episódio anterior)."""
+    e = expedicao()
+    return set(e.get("membros", [])) if e.get("ativa") and n > int(e.get("partiu_ep", 10**6)) else set()
+
+
 def liderancas() -> dict:
     """Cargos de liderança de Nova Marte (fabrica/liderancas.json), por id."""
     return {c["id"]: c for c in ler_json(FABRICA / "liderancas.json")["cargos"]}
