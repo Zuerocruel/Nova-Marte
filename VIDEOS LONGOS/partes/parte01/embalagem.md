@@ -13,7 +13,7 @@
 - Selo grande **PARTE 1** (amarelo) no canto superior. Texto no máximo: "36 HORAS".
 - Gerar a imagem com `python motor/longo.py --parte 1 --previa <segundo do VOLTA-CASA>` e montar o selo por cima.
 
-## Descrição (colar no YouTube; trocar os capítulos pelos de `saida/parte01/capitulos.txt` depois da voz)
+## Descrição (colar no YouTube)
 ```
 Sol 11, 19:42. A voz da base some no meio de uma palavra. Uma tempestade de poeira chega em 38 minutos, você está a 45 km de casa, e o rover que trouxe vocês até aqui tem uma regra: se passar 36 horas sem ouvir a base, ele volta sozinho. Sem perguntar.
 
@@ -22,18 +22,18 @@ Você segue as marcas, ou espera na barraca por um resgate que alguém pode nem 
 Expedição Norte é a série longa da Operação Marte Zero, contada por quem foi pro norte. A série diária (Shorts) continua no canal: lá a colônia vê o rover voltar.
 
 Capítulos:
-0:00 Sol 11 · 19:42 — O RÁDIO CAI
-0:12 38 MINUTOS
-0:56 O ZÍPER FECHA
-1:06 A CONTA
-2:25 TRÊS REGRAS
-3:22 Sol 12 · 03:10 — PRESSÃO CAINDO
-4:03 DE NOVO E DE NOVO
-4:40 VOZES NO CHIADO
-5:03 Sol 13 · 01:17 — 4-1-7
-5:24 VOCÊ, CANSADO
-6:03 VOLTA-CASA
-6:20 AS MARCAS
+0:00 SOL 11 · 19:42 — O RÁDIO CAI
+0:13 SOL 11 · 19:43 — 38 MINUTOS
+0:59 SOL 11 · 20:16 — O ZÍPER FECHA
+1:10 SOL 11 · 20:31 — A CONTA
+2:40 SOL 11 · 20:31 — TRÊS REGRAS
+3:39 SOL 12 · 03:10 — PRESSÃO CAINDO
+4:37 SOL 12 · 09:00 — DE NOVO E DE NOVO
+5:19 SOL 12 · 22:00 — VOZES NO CHIADO
+5:44 SOL 13 · 01:17 — 4-1-7
+6:10 SOL 13 · 06:02 — VOCÊ, CANSADO
+6:51 SOL 13 · 07:38 — VOLTA-CASA
+7:12 SOL 13 · 07:42 — AS MARCAS
 
 Fatos reais desta parte:
 • Marte não tem GPS: rovers se guiam contando as voltas das rodas e pela posição do sol.
@@ -44,7 +44,7 @@ Fatos reais desta parte:
 
 #marte #sobrevivencia #operacaomartezero
 ```
-(Os tempos acima são estimados, sem voz. Depois da voz, o motor grava os reais em `saida/parte01/capitulos.txt`.)
+(Tempos reais da versão com voz: 7:54. O motor grava os capítulos em `saida/parte01/capitulos.txt` a cada geração.)
 
 ## Pergunta binária (igual no vídeo e na descrição)
 **Você segue as marcas, ou espera na barraca por um resgate que alguém pode nem mandar?**
